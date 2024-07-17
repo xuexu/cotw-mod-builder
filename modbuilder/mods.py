@@ -188,7 +188,7 @@ def apply_mod(mod: any, options: dict) -> None:
     updates = mod.update_values_at_offset(options)
     for update in updates:
       update_file_at_offset(Path(mod.FILE), update["offset"], update["value"], update["transform"] if "transform" in update else None)
-  if hasattr(mod, "update_values_at_coordinates"):
+  elif hasattr(mod, "update_values_at_coordinates"):
     updates = mod.update_values_at_coordinates(options)
     for update in updates:
       update_file_at_coordinates(Path(mod.FILE), update["sheet"], update["coordinates"], update["value"], update["transform"] if "transform" in update else None)
