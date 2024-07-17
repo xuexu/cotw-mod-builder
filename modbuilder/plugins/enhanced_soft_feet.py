@@ -16,11 +16,15 @@ def update_values_at_offset(options: dict) -> List[dict]:
   updated_value = round(1.0 - options['soft_feet_percent'] / 100,1)
   return [
     {
-      "offset": 17864,
-      "value": f"set_material_noise_multiplier({updated_value})"
+      # skill_01_06, Effects Level 1
+      "coordinates": "G7",
+      "sheet": "skills_active",
+      "value": f"set_material_noise_multiplier({updated_value})",
     },
     {
-      "offset": 17904,
-      "value": f"set_material_noise_multiplier({updated_value}), set_vegetation_noise_multiplier({updated_value})"
-    }
+      # skill_01_06, Effects Level 2
+      "coordinates": "I7",
+      "sheet": "skills_active",
+      "value": f"set_material_noise_multiplier({updated_value}), set_vegetation_noise_multiplier({updated_value})",
+    },
   ]

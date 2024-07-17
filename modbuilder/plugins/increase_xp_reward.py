@@ -3,7 +3,7 @@ from modbuilder import mods
 
 DEBUG = False
 NAME = "Increase XP Reward"
-DESCRIPTION = "Increase the XP (experience) reward when harvesting kills. There are a few other rewards like finding an artifact and point-of-interest (POI) that also will be increased."
+DESCRIPTION = "Increase the XP (experience) and weapon score reward when harvesting kills, completing missions, and finding points of interest."
 FILE = "settings/hp_settings/player_rewards.bin"
 OPTIONS = [
   { "name": "XP Reward Multiplier", "min": 2, "max": 20, "default": 1, "increment": 1 }
@@ -13,29 +13,113 @@ def format(options: dict) -> str:
   xp_reward_multiplier = int(options['xp_reward_multiplier'])
   return f"Increase XP Reward ({xp_reward_multiplier}x)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
+def update_values_at_coordinates(options: dict) -> List[dict]:
   xp_reward_multiplier = options['xp_reward_multiplier']
-  
-  reward_lookup_1 = mods.find_closest_lookup(10 * xp_reward_multiplier, FILE)
-  reward_lookup_2 = mods.find_closest_lookup(40 * xp_reward_multiplier, FILE)
 
   return [
     {
-      "offset": 62072,
+      # Base XP
+      "coordinates": "B3",
+      "sheet": "harvest_reward_globals",
+      "value": xp_reward_multiplier,
       "transform": "multiply",
-      "value": xp_reward_multiplier
     },
     {
-      "offset": 62248,
+      # XP Span
+      "coordinates": "B4",
+      "sheet": "harvest_reward_globals",
+      "value": xp_reward_multiplier,
       "transform": "multiply",
-      "value": xp_reward_multiplier
     },
     {
-      "offset": 27092,
-      "value": reward_lookup_1
+      # Weapon Score
+      "coordinates": "B4",
+      "sheet": "harvest_reward_globals",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
     },
     {
-      "offset": 27260,
-      "value": reward_lookup_2
-    }
+      # Base Weapon Score
+      "coordinates": "B4",
+      "sheet": "harvest_reward_globals",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_mission_cash_small (Name is correct, we are modifying XP)
+      "coordinates": "C3",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_mission_cash_medium  (Name is correct, we are modifying XP)
+      "coordinates": "C4",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_mission_cash_large  (Name is correct, we are modifying XP)
+      "coordinates": "C5",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_poi_unlocked
+      "coordinates": "C7",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_shed_collected
+      "coordinates": "C8",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_artifact_collected
+      "coordinates": "C9",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_mission_sm8645
+      "coordinates": "C18",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_mission_mm10310
+      "coordinates": "C19",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_achievement_small
+      "coordinates": "C25",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_achievement_medium
+      "coordinates": "C26",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_achievement_large
+      "coordinates": "C27",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
   ]

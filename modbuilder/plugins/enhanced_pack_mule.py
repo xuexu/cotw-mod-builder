@@ -11,9 +11,11 @@ OPTIONS = [
 def format(options: dict) -> str:
   return f"Enhanced Pack Mule ({options['weight']}kg)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
+def update_file_at_coordinates(options: dict) -> List[dict]:
   updated_value = options['weight']
   return [{
-    "offset": 22176,
-    "value": f"set_player_carry_capacity({updated_value})"
+      # skill_03_10, Effects Level 1
+      "coordinates": "G11",
+      "sheet": "skills_strategic",
+      "value": f"set_player_carry_capacity({updated_value})",
   }]

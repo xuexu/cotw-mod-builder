@@ -190,28 +190,28 @@ def process(options: dict) -> None:
   
   cell_index = {
     "0": 30,
-    "50": 94,
-    "100": 99,
-    "150": 104,
-    "200": 109,
-    "250": 114,
-    "300": 119,
-    "350": 124,
-    "400": 129,
-    "450": 134
+    "50": 601,
+    "100": 456,
+    "150": 457,
+    "200": 543,
+    "250": 660,
+    "300": 661,
+    "350": 245,
+    "400": 250,
+    "450": 255
   }
   
   if noise != 500.0:
-    index_offset = [87180, 87184]
-    one_index_offset = [87156, 87160]
+    index_offset = [95060, 95064]
+    one_index_offset = [95036, 95040]
     value_cell_index = cell_index[str(int(noise))]
     for offset in index_offset:
       mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
     for offset in one_index_offset:
       mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
   if vision != 200.0:
-    index_offset = [87300, 87304]
-    one_index_offset = [87276, 87280]
+    index_offset = [95180, 95184]
+    one_index_offset = [95156, 95160]
     value_cell_index = cell_index[str(int(vision))]
     for offset in index_offset:
       mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)

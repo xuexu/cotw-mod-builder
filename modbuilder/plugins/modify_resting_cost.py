@@ -12,8 +12,8 @@ OPTIONS = [
      "max": 300.0, 
      "initial": 250.0,
      "increment": 1.0,
-     "note": "base cost of resting without any multipliers"
-    },   
+     "note": "Base cost of resting without any multipliers"
+    },
     { 
      "name": "Increase and Decrease Multiplier", 
      "style": "slider", 
@@ -21,7 +21,7 @@ OPTIONS = [
      "max": 5.0, 
      "initial": 2.0,
      "increment": 1.0,
-     "note": "increase in cost before cooldown; decrease in cost after cooldown"
+     "note": "Increase in cost before cooldown; decrease in cost after cooldown"
     },   
     { 
      "name": "Max Increase Multiplier", 
@@ -30,7 +30,7 @@ OPTIONS = [
      "max": 15.0, 
      "initial": 10.0,
      "increment": 1.0,
-     "note": "max cost increase multiplier"
+     "note": "Max cost increase multiplier"
     },  
     { 
      "name": "Cooldown", 
@@ -39,11 +39,11 @@ OPTIONS = [
      "max": 7200.0, 
      "initial": 7200.0,
      "increment": 1.0,
-     "note": "amount of time in seconds before decrease multipler is applied"
-    },          
+     "note": "Amount of time in seconds before decrease multipler is applied"
+    },
 ]
 PRESETS = [
-  { 
+  {
    "name": "Game Defaults", 
    "options": [
      {"name": "cost", "value": 250.0}, 
@@ -64,28 +64,47 @@ PRESETS = [
 ]
 
 def format(options: dict) -> str:
-  return f"Modify Resting Cost"
+  cost = int(options['cost'])
+  increase_and_decrease_multiplier = int(options['increase_and_decrease_multiplier'])
+  max_increase_multiplier = int(options['max_increase_multiplier'])
+  cooldown = int(options['cooldown'])
+  return f"Modify Resting Cost (${cost}, {increase_and_decrease_multiplier}x, {max_increase_multiplier}x, {cooldown}s)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
+def update_values_at_coordinates(options: dict) -> List[dict]:
+  cost = options["cost"]
+  increase_and_decrease_multiplier = options["increase_and_decrease_multiplier"]
+  max_increase_multiplier = options["max_increase_multiplier"]
+  cooldown = options["cooldown"]
+  
   return [
     {
-      "offset": 568, # base cost
-      "value": 1.0
+      # base_cost
+      "coordinates": "A2",
+      "sheet": "Sheet1",
+      "value": cost,
     },
     {
-      "offset": 572, # increase multiplier
-      "value": 1.0
+      # increase_multiplier
+      "coordinates": "B2",
+      "sheet": "Sheet1",
+      "value": increase_and_decrease_multiplier,
     },
     {
-      "offset": 572, # increase multiplier
-      "value": 1.0
-    },    
-    {
-      "offset": 576, # max_cost_multiplier
-      "value": 1.0
+      # decrease_multiplier
+      "coordinates": "C2",
+      "sheet": "Sheet1",
+      "value": increase_and_decrease_multiplier,
     },
     {
-      "offset": 580, # time for reduction (seconds)
-      "value": 1.0
-    }
+      # max_cost_multiplier
+      "coordinates": "D2",
+      "sheet": "Sheet1",
+      "value": max_increase_multiplier,
+    },   
+    {
+      # time_to_elapse_for_reduction
+      "coordinates": "E2",
+      "sheet": "Sheet1",
+      "value": cooldown,
+    },
   ]
