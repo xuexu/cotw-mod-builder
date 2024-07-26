@@ -78,6 +78,18 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
   
   return [
     {
+      # time_to_elapse_for_reduction
+      "coordinates": "E2",
+      "sheet": "Sheet1",
+      "value": cooldown,
+    },
+    {
+      # max_cost_multiplier
+      "coordinates": "D2",
+      "sheet": "Sheet1",
+      "value": max_increase_multiplier,
+    },
+    {
       # base_cost
       "coordinates": "A2",
       "sheet": "Sheet1",
@@ -94,17 +106,5 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
       "coordinates": "C2",
       "sheet": "Sheet1",
       "value": increase_and_decrease_multiplier,
-    },
-    {
-      # max_cost_multiplier
-      "coordinates": "D2",
-      "sheet": "Sheet1",
-      "value": max_increase_multiplier,
-    },   
-    {
-      # time_to_elapse_for_reduction
-      "coordinates": "E2",
-      "sheet": "Sheet1",
-      "value": cooldown,
     },
   ]

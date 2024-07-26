@@ -20,8 +20,8 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
       # Base Cash
       "coordinates": "B7",
       "sheet": "harvest_reward_globals",
-      "value": cash_reward_multiplier,
       "transform": "multiply",
+      "value": cash_reward_multiplier,
     },
     {
       # Cash Span
@@ -47,6 +47,20 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
     {
       # reward_mission_cash_large
       "coordinates": "B5",
+      "sheet": "custom_rewards",
+      "transform": "multiply",
+      "value": cash_reward_multiplier
+    },
+        {
+      # reward_mission_sm8645
+      "coordinates": "B18",
+      "sheet": "custom_rewards",
+      "transform": "multiply",
+      "value": cash_reward_multiplier
+    },
+    {
+      # reward_mission_mm10310
+      "coordinates": "B19",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier

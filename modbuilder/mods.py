@@ -1,6 +1,4 @@
-import os, sys, imp, struct, shutil, json, math
-from openpyxl.utils.cell import coordinate_from_string
-from openpyxl.utils import column_index_from_string, get_column_letter
+import os, sys, imp, struct, shutil, json
 import PySimpleGUI as sg
 from typing import List
 from pathlib import Path
@@ -8,6 +6,7 @@ from deca.file import ArchiveFile
 from deca.ff_adf import Adf
 from deca.ff_sarc import FileSarc, EntrySarc
 from modbuilder.adf_profile import *
+from modbuilder import mods2
 
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 MOD_PATH = APP_DIR_PATH / "mod" / "dropzone"
@@ -167,7 +166,7 @@ def update_file_at_offsets(src_filename: str, offsets: List[int], value: any, tr
           fp.write(struct.pack("i", new_value))
       fp.flush()  
 
-def update_file_at_offsets_with_values(src_filename: str, values: list[(int, int)]) -> None:
+def update_file_at_offsets_with_values(src_filename: str, values: list[(int, any)]) -> None:
   dest_path = get_modded_file(src_filename) 
   with open(dest_path, "r+b") as fp:
     for offset, value in values:
@@ -191,7 +190,7 @@ def apply_mod(mod: any, options: dict) -> None:
   elif hasattr(mod, "update_values_at_coordinates"):
     updates = mod.update_values_at_coordinates(options)
     for update in updates:
-      update_file_at_coordinates(Path(mod.FILE), update["sheet"], update["coordinates"], update["value"], update["transform"] if "transform" in update else None)
+      mods2.update_file_at_coordinates(Path(mod.FILE), update["sheet"], update["coordinates"], update["value"], update["transform"] if "transform" in update else None)
   else:
     mod.process(options)
 
@@ -459,227 +458,6 @@ def insert_array_data(file: Path, new_data: bytearray, header_offset: int, data_
     del data[data_offset:data_offset+old_array_length]
   data[data_offset:data_offset] = new_data
   modded_file.write_bytes(data)
-
-def deserialize_adf(filename: str) -> dict:
-  modded_file = get_modded_file(filename)
-  adf = Adf()
-  with ArchiveFile(open(modded_file, 'rb')) as f:
-    adf.deserialize(f)
-  # print(f"Extracted cell and value data from {filename}")
-  return adf.table_instance_full_values[0].value
-
-def get_sheet(sheet_name: str, extracted: dict) -> dict:
-  for sheet in extracted["Sheet"].value:
-    if sheet.value["Name"].value.decode("utf-8") == sheet_name:
-      matching_sheet = sheet
-      break
-  if matching_sheet:
-    return matching_sheet.value
-  else:
-    raise ValueError("Unable to find sheet by name", sheet_name)
-
-def coordinates_list_to_cell_data_list(coordinates_list: str, sheet_name: str, extracted_adf: dict) -> list[dict]:
-  cell_data_list = []
-  for coordinates in coordinates_list:
-    cell_data = format_cell_data(extracted_adf, sheet_name, coordinates=coordinates)
-    cell_data_list.append(cell_data)
-  return cell_data_list
-
-def coordinates_to_cell_data(coordinates: str, sheet_name: str, extracted_adf: dict) -> dict:
-  return coordinates_list_to_cell_data_list([coordinates], sheet_name, extracted_adf)[0]
-
-def calculate_coordinates(index: int, cols: int) -> str:
-  cell_number = index + 1
-  row = math.ceil(cell_number / cols)
-  col = cell_number - ( ( row - 1 ) * cols )
-  return f"{get_column_letter(col)}{row}"
-
-def format_cell_data(extracted_adf: dict, sheet_name: str, sheet_index: int = None, coordinates: str = None) -> dict:
-  if coordinates is None and sheet_index is None:
-    raise ValueError('Must provide one of "coordinates" or "sheet_index"')
-  cell_data = {}
-  cell_data["sheet_name"] = sheet_name
-  sheet = get_sheet(sheet_name, extracted_adf)
-  if coordinates:
-    cell_data["coordinates"] = coordinates
-    col_str, row = coordinate_from_string(coordinates)
-    col = column_index_from_string(col_str)
-    cell_data["sheet_index"] = ( ( row - 1 ) * sheet["Cols"].value ) + col - 1
-  else:
-    cell_data["sheet_index"] = int(sheet_index)
-    cell_data["coordinates"] = calculate_coordinates(cell_data["sheet_index"], sheet["Cols"].value)
-  cell_data["definition_index"] = int(sheet["CellIndex"].value[cell_data["sheet_index"]])
-  cell_value = extracted_adf["Cell"].value[cell_data["definition_index"]].value
-  cell_data["data_type"] = int(cell_value["Type"].value)
-  cell_data["dataindex"] = int(cell_value["DataIndex"].value)
-  cell_data["dataindex_offset"] = cell_value["DataIndex"].data_offset
-  # We only care about StringData and ValueData fields
-  if cell_data["data_type"] == 1:
-    cell_data["displayed_value"] = extracted_adf["StringData"].value[cell_data["dataindex"]]
-    cell_data["displayed_value_offset"] = extracted_adf["StringData"].value[cell_data["dataindex"]].data_offset
-  elif cell_data["data_type"] == 2:
-    cell_data["displayed_value"] = extracted_adf["ValueData"].value[cell_data["dataindex"]]
-    cell_data["displayed_value_offset"] = extracted_adf["ValueData"].data_offset + ( cell_data["dataindex"] * 4 )
-  else:
-    return {}
-  cell_data["definition_offset"] = sheet["CellIndex"].data_offset + ( cell_data["sheet_index"] * 4 )
-  return cell_data
-
-def update_file_at_coordinates(src_filename: str, sheet_name: str, coordinates: str, desired_value: float, transform: str = None) -> None:
-  extracted_adf = deserialize_adf(src_filename)
-  value_data = extracted_adf["ValueData"].value
-  cell = coordinates_to_cell_data(coordinates, sheet_name, extracted_adf)
-  if transform == "multiply":
-    desired_value = cell["displayed_value"] * desired_value
-  if transform == "add":
-    desired_value = cell["displayed_value"] + desired_value
-  other_cells = []
-  for s in extracted_adf["Sheet"].value:
-    s_name = s.value["Name"].value.decode("utf-8")
-    for i, _c in enumerate(s.value["CellIndex"].value):
-      if i != cell["sheet_index"]:
-        cell_data = format_cell_data(extracted_adf, sheet_name=s_name, sheet_index=i)
-        if cell_data:
-          other_cells.append(cell_data)
-  # print(f'> Attempting to update cell {cell["coordinates"]} in sheet {cell["sheet_name"]} with a value of {desired_value}...')
-  # print(f'  Definition: {cell["definition_index"]}  Definition Offset: {cell["definition_offset"]}')
-  # print(f'  Value Index: {cell["dataindex"]}  Value Offset: {cell["dataindex_offset"]}  Value: {cell["displayed_value"]}')
-  # 0. If we are updating a String field we can directly overwrite it in the StringData table
-  if cell["data_type"] == 1:
-    offset = cell["displayed_value_offset"]
-    new_value = desired_value
-    print(f'> Overwriting StringData table entry {cell["dataindex"]} from {cell["displayed_value"]} to {new_value}')
-    print(f'- Writing value {new_value} at offset {offset}')
-    return update_file_at_offset(src_filename, offset, new_value)
-  # 1. Check if any other cells share our cell definition
-  #    If they do not, we are free to modify this cell definition without affecting others
-  print(f'  Searching for any cells that share a definition to ensure we do not affect other data...')
-  cell_with_same_definition = find_matching_cell(other_cells, cell, by_definition=True)
-  if cell_with_same_definition is None:
-    # 2. We are not sharing a cell definition and can safely modify it
-    # 2a. Check if our desired value lives in the ValueData table
-    #     Update our cell definition to point at that value
-    print(f'  No matches found. We should be able to directly modify this cell.')
-    print(f'  Searching for value {desired_value} in the ValueData table...')
-    if desired_value in value_data:
-      offset = cell["dataindex_offset"]
-      new_value = value_data.index(desired_value)
-      print(f'> Updating cell definition {cell["definition_index"]} to point at value index {new_value} with value {desired_value}')
-      print(f'- Writing value {new_value} at offset {offset}')
-      return update_file_at_offset(src_filename, offset, new_value)
-    # 2b. We are not sharing a cell definition and the desired value does not live in the ValueData table
-    #     Check if any other cells point at the same value as our cell
-    #     If they do not, then we can overwrite the value in the ValueData table
-    print(f'  Desired value not found in the table. We may be able to overwrite the ValueData table')
-    print(f'  Searching for any other cells that point at the same data value...')
-    cell_with_same_value = find_matching_cell(other_cells, cell)
-    if cell_with_same_value is None:
-      offset = cell["displayed_value_offset"]
-      new_value = desired_value
-      print(f'> Overwriting ValueData table entry {cell["dataindex"]} from {cell["displayed_value"]} to {new_value}')
-      print(f'- Writing value {new_value} at offset {offset}')
-      return update_file_at_offset(src_filename, offset, new_value)
-    print(f'  Cannot directly overwrite ValueData item as it will interfere with other cells')
-    # 2c. We are not sharing a cell definition but other cells point to the same value so we cannot overwrite it
-    #     Point our cell definition at the closest value to our desired value in the ValueData table
-    print(f'  Seraching for the closest value to {desired_value} in the ValueData table...')
-    closest_value_index = find_closest_value_index(desired_value, value_data)
-    offset = cell["dataindex_offset"]
-    new_value = closest_value_index
-    print(f'> Updating cell definition {cell["definition_index"]} to point at index {new_value} with value {value_data[new_value]}')
-    print(f'- Writing value {new_value} at offset {offset}')
-    return update_file_at_offset(src_filename, offset, new_value)
-  # 3: Other cells share a definition so we cannot directly modify it without affecting other cells
-  #    Check if any other cell definitions point at the value we need
-  #    Find the closest value in the ValueData table that has an existing cell definition we can use
-  #    If this comes up empty on the first pass then keep looking for the next-closest
-  #    Update our cell to point at that definition index
-  print(f"  Searching for an existing cell definition that references the desired value {desired_value} that we can use...")
-  desired_cell_definition = find_closest_cell_by_value(other_cells, value_data, desired_value)
-  if desired_cell_definition:
-    offset = cell["definition_offset"]
-    new_value = desired_cell_definition["definition_index"]
-    print(f'> Updating cell {cell["coordinates"]} to point at definition {new_value} with a value of {desired_cell_definition["displayed_value"]}')
-    print(f'- Writing value {new_value} at offset {offset}')
-    return update_file_at_offset(src_filename, offset, new_value)
-  # 4: Other cells share our cell definition and no other cell definitions point at a value we can use
-  #    Changing anything will have unintended consequences
-  #    Throw an error and then see how many mods complain when testing
-  print("X Changing this cell will affect other cells. Aborting")
-  # raise NotImplementedError("X Changing this cell will affect other cells. Aborting")
-
-def find_matching_cell_by_value(cell_list: list, value: float) -> dict:
-  exact_match = None
-  for c in cell_list:
-    if c["displayed_value"] == value:
-          exact_match = c
-          break
-  if exact_match:
-    print(f'  Cell definition {exact_match["definition_index"]} has matching value {value}')
-    return exact_match
-  else:
-    return exact_match
-
-def find_matching_cell(cell_list: list, cell_to_match: dict,  by_definition: bool = False) -> dict:
-  exact_match = None
-  for c in cell_list:
-    if (
-      by_definition and 
-      c["definition_index"] == cell_to_match["definition_index"] and
-      c["data_type"] == cell_to_match["data_type"]
-    ):
-        exact_match = c
-        break
-    elif (
-      not by_definition and 
-      c["dataindex"] == cell_to_match["dataindex"] and
-      c["data_type"] == cell_to_match["data_type"]
-    ):
-      exact_match = c
-      break
-  if exact_match:
-    print(f'  Match found: Sheet: {exact_match["sheet_name"]}  Coordinates: {exact_match["coordinates"]}  Definition: {exact_match["definition_index"]}  Value: {exact_match["displayed_value"]}')
-    return exact_match
-  else:
-    return exact_match
-
-def find_closest_cell_by_value(cell_list: list, value_data: list, value: float) -> dict:
-  exact_match = None
-  if len(value_data) == 0:
-    # print("  Unable to find a valid cell definition to reference.")
-    return exact_match
-  closest_value_index = find_closest_value_index(value, value_data)
-  for c in cell_list:
-    if c["dataindex"] == closest_value_index:
-      exact_match = c
-      break
-  if exact_match:
-    # print(f'  Closest match found: Sheet: {exact_match["sheet_name"]}  Coordinates: {exact_match["coordinates"]}  Definition: {exact_match["definition_index"]}  Value: {exact_match["displayed_value"]}')
-    return exact_match
-  else:
-    # print(f'  No match found for value {value}. Checking next closest value...')
-    del value_data[closest_value_index]
-    # print(f"  Values remaining: {len(value_data)}")
-    return find_closest_cell_by_value(cell_list, value_data, value)
-
-def find_closest_value_index(desired_value: float, value_data: list) -> int:
-  exact_match = None
-  closest_delta = 9999999
-  closest_match = None
-  for i, number in enumerate(value_data):
-    if float(number) == desired_value:
-      exact_match = i
-      break
-    delta = abs(float(number) - desired_value)
-    if delta < closest_delta:
-      closest_match = i
-      closest_delta = delta
-  # print(f"Exact: {exact_match}   Closest: {closest_match}   Delta: {closest_delta}")
-  if exact_match is not None:
-    # print(f"  Value at index {exact_match} exactly matches the desired value of {desired_value}")
-    return exact_match
-  # print(f"  Value at index {closest_match} is the closest match with a value of {value_data[closest_match]}")
-  return closest_match
 
 # TODO: more flexible way to handle packaged files
 GLOBAL_FILES = get_global_file_info()

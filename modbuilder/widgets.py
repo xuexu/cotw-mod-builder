@@ -1,3 +1,4 @@
+import textwrap
 import PySimpleGUI as sg
 
 def create_option(mod_option: dict, key: str) -> list[list]:
@@ -25,15 +26,18 @@ def create_option(mod_option: dict, key: str) -> list[list]:
             t = sg.T(f"{mod_option['name']}", p=((30,0),(10,10)))
             td = sg.Slider((mod_option["min"], mod_option["max"]), initial_value, mod_option["increment"], orientation = "h", k = key, p=((80,80),(0,10)), expand_x=True)
             if "note" in mod_option:
-                note = f"({mod_option['note']})"
-                n = sg.T(note, font="_ 12", text_color="orange", p=((10,10),(10,10)))              
+                n = sg.T(mod_option['note'], font="_ 12 italic", text_color="orange", p=((10,10),(10,10)))              
                 mod_details.append([t, n])
             else:
                 mod_details.append([t])
             mod_details.append([td])
         elif mod_option_style == "boolean":
             td = sg.Checkbox(mod_option["name"], initial_value, k=key)
-            mod_details.append([td])
+            if "note" in mod_option:
+                n = sg.T(mod_option['note'], font="_ 12 italic", text_color="orange", p=((10,10),(10,10)))              
+                mod_details.append([td, n])
+            else:
+                mod_details.append([td])
         elif mod_option_style == "listbox":
             option_name = sg.T(f"{mod_option['name']}", p=((30,0),(10,10)))
             listbox_values = mod_option["values"]
@@ -60,7 +64,7 @@ def create_option(mod_option: dict, key: str) -> list[list]:
         else:
             i = sg.Input(initial_value, size=6, k = key, p=((50,0),(10,10)))
         if "note" in mod_option:
-            tn = sg.T(f"({mod_option['note']})", font="_ 12", text_color="orange", p=((10,10),(10,10)))
+            tn = sg.T(mod_option['note'], font="_ 12 italic", text_color="orange", p=((10,10),(10,10)))
             mod_details.append([t, td, tn])
         else:
             mod_details.append([t, td])

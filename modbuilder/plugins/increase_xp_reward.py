@@ -32,15 +32,15 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
       "transform": "multiply",
     },
     {
-      # Weapon Score
-      "coordinates": "B4",
+      # Base Weapon Score
+      "coordinates": "B11",
       "sheet": "harvest_reward_globals",
       "value": xp_reward_multiplier,
       "transform": "multiply",
     },
     {
-      # Base Weapon Score
-      "coordinates": "B4",
+      # Weapon Score Span
+      "coordinates": "B12",
       "sheet": "harvest_reward_globals",
       "value": xp_reward_multiplier,
       "transform": "multiply",
