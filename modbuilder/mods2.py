@@ -28,8 +28,13 @@ def get_cell_by_coordinates(coordinates: str, sheet_name: str, cells: list[XlsxC
   return matching_cell
 
 
+def range_to_coordinates_list(column: str, start_row: int, end_row: int) -> list[str]:
+  coordinates_list = [f"{column}{row}" for row in range(start_row, end_row + 1)]
+  return coordinates_list
+
+
 def format_desired_data(cell: XlsxCell, value: any, transform: str = None) -> dict:
-  desired = {}  
+  desired = {}
   if transform == "multiply":
     desired["value"] = cell.data_value * value
   elif transform == "add":
@@ -53,7 +58,7 @@ def update_file_at_coordinates(src_filename: str, sheet_name: str, coordinates: 
   if cell is None:
     raise ValueError(f'Unable to find cell "{coordinates}" on sheet "{sheet_name}" in file "{src_filename}"')
   other_cells = [c for c in cells if c != cell]
-  desired_data = format_desired_data(cell, value, transform if transform else None)    
+  desired_data = format_desired_data(cell, value, transform if transform else None)
   offsets_and_values = find_best_offsets_and_values_for_cell_update(cell, other_cells, desired_data, extracted_adf)
   mods.update_file_at_offsets_with_values(src_filename, offsets_and_values)
 
@@ -77,7 +82,7 @@ def get_data_array_for_data_type(extracted_adf: dict, data_type: int) -> tuple[l
   if data_type == 0:
     return extracted_adf["BoolData"].value, extracted_adf["BoolData"].data_offset
   if data_type == 1:
-    return extracted_adf["StringData"].value, extracted_adf["StringData"].data_offset 
+    return extracted_adf["StringData"].value, extracted_adf["StringData"].data_offset
   if data_type == 2:
     return extracted_adf["ValueData"].value, extracted_adf["ValueData"].data_offset
 
@@ -108,13 +113,13 @@ def find_best_offsets_and_values_for_cell_update(
     return [update]
   elif cell.data_type == 1 or desired["data_type"] == 1:
     raise NotImplementedError(f'Unable to update cell {cell.coordinates} with type {cell.data_type} to the desired value {desired["value"]} with type {desired["data_type"]}.')
-  
+
   # BoolData and ValueData cells need to be handled with more care
   # Try to find a safe way to overwrite data or repoint cell definitions to preferred values
   cell_with_desired_value = find_cell(other_cells, desired["data_type"], value=desired["value"])
   cell_with_same_definition = find_cell(other_cells, cell.data_type,  definition_index=cell.definition_index)
   cell_with_same_data_index = find_cell(other_cells, cell.data_type, data_index=cell.data_index)
-  
+
   # 2. Check if the desired value already exists in the data array
   if desired["value"] in data_array:
     # print(f'2. Desired value {desired["value"]} is in data array')
@@ -155,7 +160,7 @@ def find_best_offsets_and_values_for_cell_update(
       unused_value_data_item = unused_value_data_items.pop(0)
       unused_cell_definition = unused_cell_definitions.pop(0)
       # print(f'3b. Overwriting unused data array value at index {unused_value_data_item["data_index"]} to new value {desired["value"]}')
-      # print(f'2c. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {unused_value_data_item["data_index"]}...')
+      # print(f'3b. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {unused_value_data_item["data_index"]}')
       # Overwrite the unused data array item
       update = (unused_value_data_item["data_offset"], desired["value"])
       # Point unused cell definition at the updated value

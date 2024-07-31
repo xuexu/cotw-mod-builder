@@ -1,5 +1,5 @@
 from typing import List
-from modbuilder import mods
+from modbuilder import mods, PySimpleGUI_License
 from modbuilder.adf_profile import create_u8, read_u32
 from pathlib import Path
 import PySimpleGUI as sg

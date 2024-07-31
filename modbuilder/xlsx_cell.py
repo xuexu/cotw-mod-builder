@@ -24,7 +24,7 @@ class XlsxCell:
         self.sheet_name = sheet["Name"].value.decode("utf-8")
         if coordinates:
             self.coordinates = coordinates
-            col_str, row = coordinate_from_string(coordinates)
+            col_str, row = split_col_and_row(coordinates)
             col = column_index_from_string(col_str)
             self.index = ( ( row - 1 ) * sheet["Cols"].value ) + col - 1
         else:
@@ -47,7 +47,7 @@ class XlsxCell:
         if self.data_type == 2:
             self.data_value = extracted_adf["ValueData"].value[self.data_index]
             self.data_offset = extracted_adf["ValueData"].data_offset + ( self.data_index * 4 )
-    
+
     def as_dict(self):
         return {slot: getattr(self, slot) for slot in self.__slots__}
 
@@ -57,30 +57,6 @@ class XlsxCell:
         col = cell_number - ( ( row - 1 ) * cols )
         self.coordinates = f"{get_column_letter(col)}{row}"
 
-    def update(
-        self,
-        index: int = None,
-        offset: int = None,
-        definition_index: int = None,
-        definition_offset: int = None,
-        definition_data_offset: int = None,
-        data_index: int = None,
-        data_value: any = None,
-        data_offset: int = None
-    ) -> None:
-        if index:
-            self.index = index
-        if offset:
-            self.offset = offset
-        if definition_index:
-            self.definition_index = definition_index
-        if definition_offset:
-            self.definition_offset = definition_offset
-        if definition_data_offset:
-            self.definition_data_offset = definition_data_offset
-        if data_index:
-            self.data_index = data_index
-        if data_value:
-            self.data_value = data_value
-        if data_offset:
-            self.data_offset = data_offset
+
+def split_col_and_row(coordinates) -> tuple[str, int]:
+    return coordinate_from_string(coordinates)

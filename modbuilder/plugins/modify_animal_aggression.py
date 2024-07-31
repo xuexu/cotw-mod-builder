@@ -1,4 +1,4 @@
-from modbuilder import mods
+from modbuilder import mods, PySimpleGUI_License
 from pathlib import Path
 import PySimpleGUI as sg
 

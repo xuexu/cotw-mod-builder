@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from modbuilder import mods
+from modbuilder import mods, PySimpleGUI_License
 from pathlib import Path
 from deca.file import ArchiveFile
 from deca.ff_adf import Adf

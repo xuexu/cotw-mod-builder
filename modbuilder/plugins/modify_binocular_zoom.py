@@ -1,5 +1,4 @@
-from typing import List 
-from modbuilder import mods
+from modbuilder import mods, PySimpleGUI_License
 from pathlib import Path
 import PySimpleGUI as sg
 
@@ -12,11 +11,16 @@ class Optics:
     self.file = file
     self.bundle_file = bundle_file
     self.name = name
-  
+    self.optics_level_1 = mods.read_file_at_offset(file, 100, "f32")
+    self.optics_level_2 = mods.read_file_at_offset(file, 104, "f32")
+    self.optics_level_3 = mods.read_file_at_offset(file, 108, "f32")
+    self.optics_level_4 = mods.read_file_at_offset(file, 112, "f32")
+    self.optics_level_5 = mods.read_file_at_offset(file, 116, "f32")
+
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
-def load_binoculars() -> List[Optics]:
+def load_binoculars() -> list[Optics]:
   base_file_path = Path("editor/entities/hp_equipment/optics/tuning")
   base_bundle_path = Path("editor/entities/hp_equipment/optics")
   return [
@@ -29,19 +33,29 @@ def load_binoculars() -> List[Optics]:
 def get_option_elements() -> sg.Column:
   optics = load_binoculars()
   return sg.Column([
-    [sg.T("Binoculars:")],
-    [sg.Combo([x.name for x in optics], k="optics_name", p=((10,0),(0,10)))],
+    [sg.T("Binoculars:"), sg.Combo([x.name for x in optics], k="optics_name", p=((10,0),(0,10)), enable_events=True)],
     [sg.T("Level 1:")],
-    [sg.Slider((1, 30), 1.0, 0.5, orientation="h", k="optics_level_1", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_1", p=((10,0),(0,10)))],
     [sg.T("Level 2:")],
-    [sg.Slider((2, 30), 2.0, 0.5, orientation="h", k="optics_level_2", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_2", p=((10,0),(0,10)))],
     [sg.T("Level 3:")],
-    [sg.Slider((3, 30), 3.0, 0.5, orientation="h", k="optics_level_3", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_3", p=((10,0),(0,10)))],
     [sg.T("Level 4:")],
-    [sg.Slider((4, 30), 4.0, 0.5, orientation="h", k="optics_level_4", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_4", p=((10,0),(0,10)))],
     [sg.T("Level 5:")],
-    [sg.Slider((5, 30), 5.0, 0.5, orientation="h", k="optics_level_5", p=((10,0),(0,10)))]
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_5", p=((10,0),(0,10)))]
   ])
+
+def handle_event(event: str, window: sg.Window, values: dict) -> None:
+  if event == "optics_name":
+    optics_name = values["optics_name"]
+    optics = load_binoculars()
+    selected_optics = next(x for x in optics if x.name == optics_name)
+    window["optics_level_1"].update(selected_optics.optics_level_1)
+    window["optics_level_2"].update(selected_optics.optics_level_2)
+    window["optics_level_3"].update(selected_optics.optics_level_3)
+    window["optics_level_4"].update(selected_optics.optics_level_4)
+    window["optics_level_5"].update(selected_optics.optics_level_5)
 
 def add_mod(window: sg.Window, values: dict) -> dict:
   optics_name = values["optics_name"]
@@ -49,7 +63,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     return {
       "invalid": "Please select a binocular first"
     }
-  
+
   optics = load_binoculars()
   selected_optics = next(x for x in optics if x.name == optics_name)
   level_1 = values["optics_level_1"]
@@ -57,12 +71,12 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   level_3 = values["optics_level_3"]
   level_4 = values["optics_level_4"]
   level_5 = values["optics_level_5"]
-  
+
   return {
     "key": f"modify_optics_{optics_name}",
     "invalid": None,
     "options": {
-      "name": optics_name,
+      "name": f"Modify Optics: {optics_name}",
       "file": str(selected_optics.file),
       "bundle_file": str(selected_optics.bundle_file),
       "level_1": level_1,
@@ -74,15 +88,15 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def format(options: dict) -> str:
-  return f"{options['name']} ({options['level_1']},{options['level_2']},{options['level_3']},{options['level_4']},{options['level_5']})"
+  return f"{options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_optics")
 
-def get_files(options: dict) -> List[str]:
+def get_files(options: dict) -> list[str]:
   return [options["file"]]
 
-def merge_files(files: List[str], options: dict) -> None:
+def merge_files(files: list[str], options: dict) -> None:
   lookup = mods.get_sarc_file_info(mods.APP_DIR_PATH / "org" / options["bundle_file"])
   mods.merge_into_archive(options["file"].replace("\\", "/"), options["bundle_file"], lookup)
 
@@ -93,7 +107,7 @@ def process(options: dict) -> None:
   level_4 = options["level_4"]
   level_5 = options["level_5"]
   file = options["file"]
-  
+
   mods.update_file_at_offset(file, 100, level_1)
   mods.update_file_at_offset(file, 104, level_2)
   mods.update_file_at_offset(file, 108, level_3)

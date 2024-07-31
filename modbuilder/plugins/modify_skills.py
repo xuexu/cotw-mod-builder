@@ -1,9 +1,9 @@
-import PySimpleGUI as sg
 import textwrap
 from modbuilder.widgets import create_option, valid_option_value
-from modbuilder.mods import update_file_at_offset
+from modbuilder import mods, PySimpleGUI_License
 from pathlib import Path
 from math import floor
+import PySimpleGUI as sg
 
 DEBUG=False
 NAME="Modify Skills"
@@ -1036,4 +1036,4 @@ def process(options: dict) -> None:
     if func_name in globals():
         updates = globals()[func_name](options)
         for update in updates:
-            update_file_at_offset(Path(FILE), update["offset"], update["value"], update["transform"] if "transform" in update else None)
+            mods.update_file_at_offset(Path(FILE), update["offset"], update["value"], update["transform"] if "transform" in update else None)

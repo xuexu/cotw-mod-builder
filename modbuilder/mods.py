@@ -1,12 +1,12 @@
 import os, sys, imp, struct, shutil, json
-import PySimpleGUI as sg
 from typing import List
 from pathlib import Path
 from deca.file import ArchiveFile
 from deca.ff_adf import Adf
 from deca.ff_sarc import FileSarc, EntrySarc
 from modbuilder.adf_profile import *
-from modbuilder import mods2
+from modbuilder import mods2, PySimpleGUI_License
+import PySimpleGUI as sg
 
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 MOD_PATH = APP_DIR_PATH / "mod" / "dropzone"

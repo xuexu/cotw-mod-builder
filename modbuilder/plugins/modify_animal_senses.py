@@ -1,10 +1,10 @@
-from typing import List
-from modbuilder import mods
+from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Modify Animal Senses"
-DESCRIPTION = "Modify how animals sense and respond to you. The thresholds determine when the animal enters and exits various behavioral states. The higher the threshold, the longer it takes to enter into that state."
+DESCRIPTION = "Modify how animals sense and respond to you. Threshold values determine when an animal enters and exits various behavioral states. The higher the threshold, the longer it takes to enter into that state. Duration values modify how long an animal stays in an elevated state. Detection values modify how sensitive animals are to your character's noise, smell, and visual presence."
 FILE = "settings/hp_settings/animal_senses.bin"
+WARNING = "This mod modifies dozens of values and takes more time to build than other mods. Mod Builder may appear to hang for a few seconds while applying these changes. Please be patient."
 OPTIONS = [
   { "name": "Increase Attentiveness Threshold Percent", "min": 0, "max": 300, "default": 0, "increment": 10 },
   { "name": "Increase Alert Threshold Percent", "min": 0, "max": 300, "default": 0, "increment": 10 },
@@ -24,7 +24,7 @@ def format(options: dict) -> str:
   defensive_percent = int(options['increase_defensive_threshold_percent'])
   return f"Modify Animal Senses ({attentive_percent}%, {alert_percent}%, {alarmed_percent}%, {defensive_percent}%)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
+def update_values_at_coordinates(options: dict) -> list[dict]:
   attentive_percent = 1 + options['increase_attentiveness_threshold_percent'] / 100
   alert_percent = 1 + options['increase_alert_threshold_percent'] / 100
   alarmed_percent = 1 + options['increase_alarmed_threshold_percent'] / 100
@@ -36,134 +36,124 @@ def update_values_at_offset(options: dict) -> List[dict]:
   scent_multiplier = 1 - options['reduce_scent_detection_percent'] / 100
   vision_multiplier = 1 - options['reduce_vision_detection_percent'] / 100
   sound_multiplier = 1 - options['reduce_sound_detection_percent'] / 100
-  
-  nervous_min = 600.0
-  nervous_max = 900.0
-  defensive_min_easy = 18.0
-  defensive_min = 23.0
-  defensive_max_easy = 22.0
-  defensive_max = 27.0
-  new_nervous_min = float(round(nervous_min * nervous_duration_percent))
-  new_nervous_max = float(round(nervous_max * nervous_duration_percent))
-  new_defensive_min_easy = float(round(defensive_min_easy * defensive_duration_percent))
-  new_defensive_min = float(round(defensive_min * defensive_duration_percent))
-  new_defensive_max_easy = float(round(defensive_max_easy * defensive_duration_percent))
-  new_defensive_max = float(round(defensive_max * defensive_duration_percent))
-  new_defensive_min_easy_cell = mods.find_closest_lookup(new_defensive_min_easy, FILE)
-  new_defensive_min_cell = mods.find_closest_lookup(new_defensive_min, FILE)
-  new_defensive_max_easy_cell = mods.find_closest_lookup(new_defensive_max_easy, FILE)
-  new_defensive_max_cell = mods.find_closest_lookup(new_defensive_max, FILE)
-  new_nervous_min_offset = 147064
-  new_nervous_max_offset = 147068
-  new_defensive_min_easy_offset = 14404
-  new_defensive_min_offset = 14788
-  new_defensive_max_easy_offset = 15172
-  new_defensive_max_offset = 15556
-  new_aggressive_easy_offset = 17476
-  new_aggressive_difficult_offset = 17860
-  new_aggressive_decay_offset = 18244
-  
 
-  scent_prone_updates = mods.lookup_column(FILE, "species_data", "B", 119, 126, scent_multiplier)
-  scent_crouch_updates = mods.lookup_column(FILE, "species_data", "B", 130, 137, scent_multiplier)
-  scent_stand_updates = mods.lookup_column(FILE, "species_data", "B", 141, 148, scent_multiplier)
-  scent_updates = scent_prone_updates + scent_crouch_updates + scent_stand_updates
-  
-  vision_shadow_updates = mods.lookup_column(FILE, "species_data", "B", 39, 43, vision_multiplier)
-  vision_prone_updates = mods.lookup_column(FILE, "species_data", "B", 45, 50, vision_multiplier)
-  vision_crouch_updates = mods.lookup_column(FILE, "species_data", "B", 54, 59, vision_multiplier)
-  vision_stand_updates = mods.lookup_column(FILE, "species_data", "B", 63, 68, vision_multiplier)
-  vision_updates = vision_shadow_updates + vision_prone_updates + vision_crouch_updates + vision_stand_updates
-  
-  sound_prone_updates = mods.lookup_column(FILE, "species_data", "B", 93, 95, sound_multiplier)
-  sound_crouch_updates = mods.lookup_column(FILE, "species_data", "B", 98, 100, sound_multiplier)
-  sound_stand_updates = mods.lookup_column(FILE, "species_data", "B", 103, 105, sound_multiplier)
-  sound_updates = sound_prone_updates + sound_crouch_updates + sound_stand_updates
-  
-  attentive_enter = 0.20000000298023224
-  attentive_exit = 0.10000000149011612    
-  alert_enter = 0.5                    
-  alert_exit = 0.400000005960464
-  alarmed_enter = 1.29999995231628
-  alarmed_exit = 1.20000004768372
-  defensive_enter = 1.70000004768372
-  defensive_exit = 1.600000023841858
-  new_attentive_enter_cell = mods.find_closest_lookup(attentive_enter * attentive_percent, FILE)
-  new_attentive_exit_cell = mods.find_closest_lookup(attentive_exit * attentive_percent, FILE)
-  new_alert_enter_cell = mods.find_closest_lookup(alert_enter * alert_percent , FILE)
-  new_alert_exit_cell = mods.find_closest_lookup(alert_exit * alert_percent, FILE)
-  new_alarmed_enter_cell = mods.find_closest_lookup(alarmed_enter * alarmed_percent, FILE)
-  new_alarmed_exit_cell = mods.find_closest_lookup(alarmed_exit * alarmed_percent, FILE)
-  new_defensive_enter_cell = mods.find_closest_lookup(defensive_enter * defensive_percent, FILE)
-  new_defensive_exit_cell = mods.find_closest_lookup(defensive_exit * defensive_percent , FILE)
-  attentive_enter_offset = 10564
-  attentive_exit_offset = 10948
-  alert_enter_offset = 11332
-  alert_exit_offset = 11716
-  alarmed_enter_offset = 12100
-  alarmed_exit_offset = 12484
-  defensive_enter_offset = 12868
-  defensive_exit_offset = 13252
-  
-  mods.update_file_at_offsets_with_values(FILE, scent_updates)
-  mods.update_file_at_offsets_with_values(FILE, vision_updates)
-  mods.update_file_at_offsets_with_values(FILE, sound_updates)
-  
+  sound_prone_cells = mods2.range_to_coordinates_list("B", 93, 95)
+  sound_crouch_cells = mods2.range_to_coordinates_list("B", 98, 100)
+  sound_stand_cells = mods2.range_to_coordinates_list("B", 103, 105)
+  sound_cells = sound_prone_cells + sound_crouch_cells + sound_stand_cells
+
+  vision_shadow_cells = mods2.range_to_coordinates_list("B", 39, 43)
+  vision_prone_cells = mods2.range_to_coordinates_list("B", 45, 50)
+  vision_crouch_cells = mods2.range_to_coordinates_list("B", 54, 59)
+  vision_stand_cells = mods2.range_to_coordinates_list("B", 63, 68)
+  vision_cells = vision_shadow_cells + vision_prone_cells + vision_crouch_cells + vision_stand_cells
+
+  scent_prone_cells = mods2.range_to_coordinates_list("B", 119, 126)
+  scent_crouch_cells = mods2.range_to_coordinates_list("B", 130, 137)
+  scent_stand_cells = mods2.range_to_coordinates_list("B", 141, 148)
+  scent_cells = scent_prone_cells + scent_crouch_cells + scent_stand_cells
+
+  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", sound_cells, sound_multiplier, transform="multiply")
+  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", vision_cells, vision_multiplier, transform="multiply")
+  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", scent_cells, scent_multiplier, transform="multiply")
+
   return [
     {
-      "offset": new_nervous_min_offset,
-      "value": new_nervous_min
+      # attentive_enter_threshold
+      "coordinates": "B4",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": attentive_percent
     },
     {
-      "offset": new_nervous_max_offset,
-      "value": new_nervous_max
+      # attentive_exit_threshold
+      "coordinates": "B5",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": attentive_percent
     },
     {
-      "offset": new_defensive_min_easy_offset,
-      "value": new_defensive_min_easy_cell
+      # alert_enter_threshold
+      "coordinates": "B6",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": alert_percent
     },
     {
-      "offset": new_defensive_min_offset,
-      "value": new_defensive_min_cell
+      # alert_exit_threshold
+      "coordinates": "B7",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": alert_percent
     },
     {
-      "offset": new_defensive_max_easy_offset,
-      "value": new_defensive_max_easy_cell
+      # alarmed_enter_threshold
+      "coordinates": "B8",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": alarmed_percent
     },
     {
-      "offset": new_defensive_max_offset,
-      "value": new_defensive_max_cell
+      # alarmed_exit_threshold
+      "coordinates": "B9",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": alarmed_percent
     },
     {
-      "offset": attentive_enter_offset,
-      "value": new_attentive_enter_cell
+      # defensive_enter_threshold
+      "coordinates": "B10",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_percent
     },
     {
-      "offset": attentive_exit_offset,
-      "value": new_attentive_exit_cell
+      # defensive_exit_threshold
+      "coordinates": "B11",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_percent
     },
     {
-      "offset": alert_enter_offset,
-      "value": new_alert_enter_cell
+      # nervous_min_duration
+      "coordinates": "B12",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": nervous_duration_percent,
     },
     {
-      "offset": alert_exit_offset,
-      "value": new_alert_exit_cell
+      # nervous_max_duration
+      "coordinates": "B13",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": nervous_duration_percent
     },
     {
-      "offset": alarmed_enter_offset,
-      "value": new_alarmed_enter_cell
+      # defensive_min_duration_easy
+      "coordinates": "B14",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_duration_percent
     },
     {
-      "offset": alarmed_exit_offset,
-      "value": new_alarmed_exit_cell
+      # defensive_min_duration_difficult
+      "coordinates": "B15",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_duration_percent
     },
     {
-      "offset": defensive_enter_offset,
-      "value": new_defensive_enter_cell
+      # defensive_max_duration_easy
+      "coordinates": "B16",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_duration_percent
     },
     {
-      "offset": defensive_exit_offset,
-      "value": new_defensive_exit_cell
-    }   
+      # defensive_max_duration_difficult
+      "coordinates": "B17",
+      "sheet": "species_data",
+      "transform": "multiply",
+      "value": defensive_duration_percent
+    },
   ]

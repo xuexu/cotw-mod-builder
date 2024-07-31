@@ -1,5 +1,4 @@
-from typing import List 
-from modbuilder import mods
+from modbuilder import mods, PySimpleGUI_License
 from pathlib import Path
 import PySimpleGUI as sg
 import re, os
@@ -13,7 +12,12 @@ class Scope:
     self.file = file
     self.bundle_file = bundle_file
     self.name = name
-  
+    self.scope_level_1 = mods.read_file_at_offset(file, 100, "f32")
+    self.scope_level_2 = mods.read_file_at_offset(file, 104, "f32")
+    self.scope_level_3 = mods.read_file_at_offset(file, 108, "f32")
+    self.scope_level_4 = mods.read_file_at_offset(file, 112, "f32")
+    self.scope_level_5 = mods.read_file_at_offset(file, 116, "f32")
+
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
@@ -40,7 +44,7 @@ def map_scope_name(folder: str) -> str:
     return "Hawken 1-4x24 Crossbow"
   return folder
 
-def load_scopes() -> List[Scope]:
+def load_scopes() -> list[Scope]:
   scopes = []
   zoomable_scope = re.compile(r'^\w+[\-_]\d+x\w+$')
   base_path = mods.APP_DIR_PATH / "org/editor/entities/hp_weapons/sights"
@@ -56,19 +60,29 @@ def load_scopes() -> List[Scope]:
 def get_option_elements() -> sg.Column:
   scopes = load_scopes()
   return sg.Column([
-    [sg.T("Scope:")],
-    [sg.Combo([x.name for x in scopes], k="scope_name", p=((10,0),(0,10)))],
+    [sg.T("Scope:"), sg.Combo([x.name for x in scopes], k="scope_name", p=((10,0),(0,10)), enable_events=True)],
     [sg.T("Level 1:")],
-    [sg.Slider((1, 30), 1.0, 0.5, orientation="h", k="scope_level_1", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="scope_level_1", p=((10,0),(0,10)))],
     [sg.T("Level 2:")],
-    [sg.Slider((2, 30), 2.0, 0.5, orientation="h", k="scope_level_2", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="scope_level_2", p=((10,0),(0,10)))],
     [sg.T("Level 3:")],
-    [sg.Slider((3, 30), 3.0, 0.5, orientation="h", k="scope_level_3", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="scope_level_3", p=((10,0),(0,10)))],
     [sg.T("Level 4:")],
-    [sg.Slider((4, 30), 4.0, 0.5, orientation="h", k="scope_level_4", p=((10,0),(0,10)))],    
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="scope_level_4", p=((10,0),(0,10)))],
     [sg.T("Level 5:")],
-    [sg.Slider((5, 30), 5.0, 0.5, orientation="h", k="scope_level_5", p=((10,0),(0,10)))]
+    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="scope_level_5", p=((10,0),(0,10)))]
   ])
+
+def handle_event(event: str, window: sg.Window, values: dict) -> None:
+  if event == "scope_name":
+    scope_name = values["scope_name"]
+    scopes = load_scopes()
+    selected_scope = next(x for x in scopes if x.name == scope_name)
+    window["scope_level_1"].update(selected_scope.scope_level_1)
+    window["scope_level_2"].update(selected_scope.scope_level_2)
+    window["scope_level_3"].update(selected_scope.scope_level_3)
+    window["scope_level_4"].update(selected_scope.scope_level_4)
+    window["scope_level_5"].update(selected_scope.scope_level_5)
 
 def add_mod(window: sg.Window, values: dict) -> dict:
   scope_name = values["scope_name"]
@@ -76,7 +90,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     return {
       "invalid": "Please select a scope first"
     }
-  
+
   scopes = load_scopes()
   selected_scope = next(x for x in scopes if x.name == scope_name)
   level_1 = values["scope_level_1"]
@@ -84,12 +98,12 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   level_3 = values["scope_level_3"]
   level_4 = values["scope_level_4"]
   level_5 = values["scope_level_5"]
-  
+
   return {
     "key": f"modify_scope_{scope_name}",
     "invalid": None,
     "options": {
-      "name": scope_name,
+      "name": f"Modify Scope Zoom: {scope_name}",
       "file": str(selected_scope.file),
       "bundle_file": str(selected_scope.bundle_file),
       "level_1": level_1,
@@ -101,29 +115,26 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def format(options: dict) -> str:
-  return f"{options['name']} ({options['level_1']},{options['level_2']},{options['level_3']},{options['level_4']},{options['level_5']})"
+  return f"{options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_scope")
 
-def get_files(options: dict) -> List[str]:
-  return []
-  # return [options["file"]]
+def get_files(options: dict) -> list[str]:
+  return [options["file"]]
 
-def merge_files(files: List[str], options: dict) -> None:
-  return
+def merge_files(files: list[str], options: dict) -> None:
   lookup = mods.get_sarc_file_info(mods.APP_DIR_PATH / "org" / options["bundle_file"])
   mods.merge_into_archive(options["file"].replace("\\", "/"), options["bundle_file"], lookup)
 
 def process(options: dict) -> None:
-  return
   level_1 = options["level_1"]
   level_2 = options["level_2"]
   level_3 = options["level_3"]
   level_4 = options["level_4"]
   level_5 = options["level_5"]
   file = options["file"]
-  
+
   mods.update_file_at_offset(file, 100, level_1)
   mods.update_file_at_offset(file, 104, level_2)
   mods.update_file_at_offset(file, 108, level_3)
