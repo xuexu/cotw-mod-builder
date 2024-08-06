@@ -42,7 +42,7 @@ def get_active_tab(window: sg.Window) -> str:
             active_tab = window["shotgun_group"].find_currently_active_tab_key().lower()
         else:
             active_tab = window["archery_group"].find_currently_active_tab_key().lower()
-    return active_tab    
+    return active_tab
 
 
 def get_skill_options(skill: str) -> list[dict]:
@@ -57,7 +57,7 @@ def get_skill_option_keys(skill: str) -> list[str]:
     skill_options = []
     for option in options:
         skill_options.append(option_to_key(skill, option["name"]))
-    return skill_options    
+    return skill_options
 
 
 def render_pack_mule() -> list[dict]:
@@ -71,7 +71,7 @@ def process_pack_mule(options: dict) -> list[dict]:
     return [{
         "offset": 22176,
         "value": f"set_player_carry_capacity({updated_value})"
-    }] 
+    }]
 
 def render_soft_feet() -> list[dict]:
     return [
@@ -111,7 +111,7 @@ def process_impact_resistance(options: dict) -> list[dict]:
 
 def render_haggle() -> list[dict]:
     return [
-        { "name": "Haggle Percent", "min": 5, "max": 100, "default": 5, "initial": 100, "increment": 1 }  
+        { "name": "Haggle Percent", "min": 5, "max": 100, "default": 5, "initial": 100, "increment": 1 }
     ]
 def format_haggle(options: dict) -> str:
     haggle = options["haggle_percent"]
@@ -133,7 +133,7 @@ def render_keen_eye() -> list[dict]:
         { "name": "Max Number of Zones", "min": 2, "max": 99, "default": 2, "increment": 1 },
         { "name": "Animal Distance", "min": 500, "max": 990, "default": 500, "increment": 10 },
         { "name": "Min Number of Animals", "min": 1, "max": 99, "default": 1, "increment": 1 },
-        { "name": "Max Number of Animals", "min": 3, "max": 99, "default": 3, "increment": 1 }  
+        { "name": "Max Number of Animals", "min": 3, "max": 99, "default": 3, "increment": 1 }
     ]
 def format_keen_eye(options: dict) -> str:
     cool = options["cooldown_seconds"]
@@ -164,7 +164,7 @@ def process_keen_eye(options: dict) -> list[dict]:
 
 def render_endurance() -> list[dict]:
     return [
-        { "name": "Reduce Heart Rate Percent", "min": 66, "max": 100, "default": 66, "initial": 100, "increment": 1 }  
+        { "name": "Reduce Heart Rate Percent", "min": 66, "max": 100, "default": 66, "initial": 100, "increment": 1 }
     ]
 def format_endurance(options: dict) -> str:
     endurance = options["reduce_heart_rate_percent"]
@@ -207,7 +207,7 @@ def format_spotting_knowledge(options: dict) -> str:
 def process_spotting_knowledge(options: dict) -> list[dict]:
     health = options["health"]
     score = options["score"]
-    weight = options["weight"]    
+    weight = options["weight"]
     return [
         {
             "offset": 19192,
@@ -230,7 +230,7 @@ def format_track_knowledge(options: dict) -> str:
     return f"Enhanced Track Knowledge ({health:.2f} health, {weight:.2f} weight)"
 def process_track_knowledge(options: dict) -> list[dict]:
     health = options["health"]
-    weight = options["weight"]    
+    weight = options["weight"]
     return [
         {
             "offset": 17576,
@@ -256,7 +256,7 @@ def format_locate_tracks(options: dict) -> str:
 def process_locate_tracks(options: dict) -> list[dict]:
     angle = options["angle"]
     spawn_distance = options["spawn_distance"]
-    despawn_distance = options["despawn_distance"]    
+    despawn_distance = options["despawn_distance"]
     angle_whole = floor(angle)
     if angle_whole == 0:
         angle_whole = 1
@@ -286,7 +286,7 @@ def format_whos_deer(options: dict) -> str:
     return f"Enhanced Who's Deer ({attraction_probability:.2f} attraction, {response_probability:.2f} response)"
 def process_whos_deer(options: dict) -> list[dict]:
     attraction_probability = options["attraction_probability"]
-    response_probability = options["response_probability"]    
+    response_probability = options["response_probability"]
     return [
         {
             "offset": 20064,
@@ -343,7 +343,7 @@ def format_im_only_happy_when_it_rains(options: dict) -> str:
 def process_im_only_happy_when_it_rains(options: dict) -> list[dict]:
     visibility = options["visibility"]
     hearing = options["hearing"]
-    scent = options["scent"]    
+    scent = options["scent"]
     return [
         {
             "offset": 17256,
@@ -368,7 +368,7 @@ def process_innate_triangulation(options: dict) -> list[dict]:
         {
             "offset": 18520,
             "value": f"audio_clue_accuracy({indicator_accuracy})"
-        }, 
+        },
         {
             "offset": 18544,
             "value": f"audio_clue_accuracy({indicator_accuracy})"
@@ -392,7 +392,7 @@ def process_scent_tinkerer(options: dict) -> list[dict]:
     uses = options["uses"]
     duration = options["duration"]
     range = options["range"]
-    attraction = options["attraction"]    
+    attraction = options["attraction"]
     return [
         {
             "offset": 19480,
@@ -414,24 +414,30 @@ def process_scent_tinkerer(options: dict) -> list[dict]:
 
 def render_tag() -> list[dict]:
     return [
-        { "name": "Duration", "min": 2.0, "max": 999.0, "default": 2.0, "initial": 999.0, "increment": 1.0, "note": "seconds"},
-        { "name": "Spottable", "min": 3.0, "max": 99.0, "default": 3.0, "initial": 99.0, "increment": 1.0},
+        { "name": "Duration", "min": 2.0, "max": 999.0, "default": 2.0, "initial": 999.0, "increment": 1.0, "note": "Seconds"},
+        { "name": "Spottable", "min": 3.0, "max": 99.0, "default": 3.0, "initial": 99.0, "increment": 1.0, "note": 'Level 2 "Tag" skill unlocks the ability to spot multiple animals.'},
+        { "name": "Extra spots at level 1", "style": "boolean", "default": False, "initial": False, "note": 'Enable spotting mutliple animals with level 1 "Tag" skill.'}
     ]
 def format_tag(options: dict) -> str:
     duration = int(options["duration"])
     spottable = int(options["spottable"])
-    return f"Enhanced Tag ({int(duration)}s duration, {int(spottable)} spottable)"
+    extra_spots_text = f", extra spots at level 1" if options["extra_spots_at_level_1"] else ""
+    return f"Enhanced Tag ({int(duration)}s duration, {int(spottable)} spottable{extra_spots_text})"
 def process_tag(options: dict) -> list[dict]:
     duration = int(options["duration"])
-    spottable = int(options["spottable"])    
+    spottable_2 = int(options["spottable"])
+    if bool(options["extra_spots_at_level_1"]):
+        spottable_1 = spottable_2
+    else:
+        spottable_1 = 1
     return [
         {
             "offset": 20312,
-            "value": f"tag({duration:<3},{spottable:<2})"
+            "value": f"tag({duration:>3},{spottable_1:>2})"
         },
         {
             "offset": 20328,
-            "value": f"tag({duration:<3},{spottable:<2})"
+            "value": f"tag({duration:>3},{spottable_2:>2})"
         }
     ]
 
@@ -443,7 +449,7 @@ def format_the_more_the_merrier(options: dict) -> str:
     reward_multiplier = int(options["reward_multiplier"])
     return f"Enhanced The More the Merrier ({int(reward_multiplier)}x)"
 def process_the_more_the_merrier(options: dict) -> list[dict]:
-    reward_multiplier = int(options["reward_multiplier"])    
+    reward_multiplier = int(options["reward_multiplier"])
     return [
         {
             "offset": 20520,
@@ -484,7 +490,7 @@ def process_fast_shouldering(options: dict) -> list[dict]:
         {
             "offset": 25096,
             "value": f"in_out_aim_speed(weapon_category_handguns,{speed_multiplier:<5.2f}\n,weapon_category_rifles,{speed_multiplier:<5.2f}\n,weapon_category_bows,{speed_multiplier:<5.2f}\n,weapon_category_shotguns,{speed_multiplier:<5.2f})"
-        }        
+        }
     ]
 
 def render_focused_shot() -> list[dict]:
@@ -501,7 +507,7 @@ def format_focused_shot(options: dict) -> str:
 def process_focused_shot(options: dict) -> list[dict]:
     ease_in = options["ease_in"]
     ease_out = options["ease_out"]
-    fov_multiplier = options["fov_multiplier"]    
+    fov_multiplier = options["fov_multiplier"]
     return [
         {
             "offset": 22768,
@@ -523,7 +529,7 @@ def format_breath_control(options: dict) -> str:
 def process_breath_control(options: dict) -> list[dict]:
     heart_rate_multiplier = options["heart_rate_multiplier"]
     hold_breath_multiplier = options["hold_breath_multiplier"]
-    wobble_multiplier = options["wobble_multiplier"]    
+    wobble_multiplier = options["wobble_multiplier"]
     return [
         {
             "offset": 22960,
@@ -535,7 +541,7 @@ def process_breath_control(options: dict) -> list[dict]:
         },
         {
             "offset": 23096,
-            "value": f"breath_out_heart_rate_gain_multiplier({heart_rate_multiplier:>5.3f}), hold_breath_duration_multiplier({hold_breath_multiplier:>3.1f}), hold_breath_wobble_multiplier({wobble_multiplier:>4.2f})"            
+            "value": f"breath_out_heart_rate_gain_multiplier({heart_rate_multiplier:>5.3f}), hold_breath_duration_multiplier({hold_breath_multiplier:>3.1f}), hold_breath_wobble_multiplier({wobble_multiplier:>4.2f})"
         }
     ]
 
@@ -570,7 +576,7 @@ def format_survival_instinct(options: dict) -> str:
     return f"Enhanced Survival Instinct ({int(duration)}s duration, {damage_reduction} damage)"
 def process_survival_instinct(options: dict) -> list[dict]:
     duration = options["duration"]
-    damage_reduction = options["damage_reduction"]    
+    damage_reduction = options["damage_reduction"]
     return [
         {
             "offset": 23944,
@@ -661,7 +667,7 @@ def format_both_eyes_open(options: dict) -> str:
 def process_both_eyes_open(options: dict) -> list[dict]:
     blur_start = options["blur_start"]
     start = f"{blur_start:>3.1f}"
-    blur_amount = options["blur_amount"]    
+    blur_amount = options["blur_amount"]
     amount = f"{blur_amount:>5.3f}"
     return [
         {
@@ -686,8 +692,8 @@ def format_recoil_management(options: dict) -> str:
 def process_recoil_management(options: dict) -> list[dict]:
     recoil = options["recoil"]
     recoil = f"{recoil:>3.1f}"
-    speed = options["speed"]  
-    speed = f"{speed:>3.1f}"  
+    speed = options["speed"]
+    speed = f"{speed:>3.1f}"
     return [
         {
             "offset": 25552,
@@ -714,7 +720,7 @@ def format_tracershot(options: dict) -> str:
     return f"Enhanced Tracershot ({tracer_duration}s tracer, {skill_time}s skill)"
 def process_tracershot(options: dict) -> list[dict]:
     tracer_duration = options["tracer_duration"]
-    skill_time = options["skill_time"]    
+    skill_time = options["skill_time"]
     return [
         {
             "offset": 25296,
@@ -760,7 +766,7 @@ def process_full_draw(options: dict) -> list[dict]:
     hold_duration = options["hold_duration"]
     start = f"{wobble_start:>4.1f}"
     multiplier = f"{wobble_multiplier:>4.1f}"
-    hold = f"{hold_duration:>5.1f}"    
+    hold = f"{hold_duration:>5.1f}"
     return [
         {
             "offset": 25760,
@@ -801,7 +807,7 @@ def format_pumping_iron(options: dict) -> str:
     return f"Enhanced Pumping Iron ({draw_length} draw length)"
 def process_pumping_iron(options: dict) -> list[dict]:
     draw_length = options["draw_length"]
-    draw = f"{draw_length:>3.1f}"    
+    draw = f"{draw_length:>3.1f}"
     return [
         {
             "offset": 26584,
@@ -843,7 +849,7 @@ SKILLS = {
         "Improvised Blind",
         "Innate Triangulation",
         "Locate Tracks",
-        "Soft Feet",       
+        "Soft Feet",
         "Track Knowledge",
     ],
     "Ambusher": [
@@ -926,10 +932,10 @@ DESCRIPTIONS = {
     "Recycle": "Unlocks the ability to retrieve fired arrows and bolts."
 }
 NOTES = {
-    "Spotting Knowledge": "the smaller the value the more accurate the information",
-    "Track Knowledge": "the smaller the value the more accurate the information",
-    "Breath Control": "the smaller the value the better",
-    "Steady Hands": "the smaller the value the better",
+    "Spotting Knowledge": "Smaller values = more accurate information",
+    "Track Knowledge": "Smaller values = more accurate information",
+    "Breath Control": "Smaller values = better",
+    "Steady Hands": "Smaller value = better",
 }
 
 
@@ -939,10 +945,11 @@ def get_skill_tab(skills: list[str]) -> list[sg.Tab]:
 
     for i, options in enumerate(skill_options):
         skill_option_details = []
+
         if skills[i] in DESCRIPTIONS:
-            skill_option_details.append([sg.T(textwrap.fill(DESCRIPTIONS[skills[i]], 130), text_color="orange", p=((10, 10),(10,15)))])
+            skill_option_details.append([sg.T(textwrap.fill(DESCRIPTIONS[skills[i]], 130), text_color="orange", p=((10, 10),(10,10)))])
         if skills[i] in NOTES:
-            skill_option_details.append([sg.T(f"({NOTES[skills[i]]})", text_color="orange", p=((10, 10),(0,0)))])
+            skill_option_details.append([sg.T(f"({NOTES[skills[i]]})", font="_ 12 italic", text_color="orange", p=((10, 10),(0,10)))])
         for option in options:
             option_key = option_to_key(skills[i], option["name"])
             new_option = create_option(option, option_key)
@@ -950,16 +957,15 @@ def get_skill_tab(skills: list[str]) -> list[sg.Tab]:
             skill_option_details.extend(new_option)
         skill_option_details.append([sg.T("")])
         skill_details.append(sg.Tab(
-            skills[i], 
-            skill_option_details, 
+            skills[i],
+            skill_option_details,
             k=name_to_key(skills[i])
-        ))    
+        ))
     return skill_details
 
 def get_skill_elements() -> sg.TabGroup:
     stalker = SKILLS["Stalker"]
     ambusher = SKILLS["Ambusher"]
-    
     stalker_options = sg.TabGroup([get_skill_tab(stalker)], k="stalker_group", p=TABGROUP_PADDING)
     ambusher_options = sg.TabGroup([get_skill_tab(ambusher)], k="ambusher_group", p=TABGROUP_PADDING)
     return sg.TabGroup(
@@ -1006,14 +1012,14 @@ def add_mod(window: sg.Window, values: dict) -> dict:
         return {
             "invalid": invalid_result
         }
-        
-        
+
+
     mod_options["name"] = key_to_name(active_tab)
     mod_options["key"] = active_tab
     return {
       "key": f"{KEY_PREFIX}_{active_tab}",
       "invalid": None,
-      "options": mod_options    
+      "options": mod_options
     }
 
 def handle_event(event: str, window: sg.Window, values: dict) -> None:

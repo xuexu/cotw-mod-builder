@@ -93,6 +93,7 @@
   "modify_skills_tag": {
     "duration": 999.0,
     "spottable": 99.0,
+    "extra_spots_at_level_1": false,
     "name": "Tag",
     "key": "tag"
   },

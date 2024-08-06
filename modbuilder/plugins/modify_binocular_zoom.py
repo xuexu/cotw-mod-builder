@@ -33,17 +33,12 @@ def load_binoculars() -> list[Optics]:
 def get_option_elements() -> sg.Column:
   optics = load_binoculars()
   return sg.Column([
-    [sg.T("Binoculars:"), sg.Combo([x.name for x in optics], k="optics_name", p=((10,0),(0,10)), enable_events=True)],
-    [sg.T("Level 1:")],
-    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_1", p=((10,0),(0,10)))],
-    [sg.T("Level 2:")],
-    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_2", p=((10,0),(0,10)))],
-    [sg.T("Level 3:")],
-    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_3", p=((10,0),(0,10)))],
-    [sg.T("Level 4:")],
-    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_4", p=((10,0),(0,10)))],
-    [sg.T("Level 5:")],
-    [sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_5", p=((10,0),(0,10)))]
+    [sg.T("Binoculars:"), sg.Combo([x.name for x in optics], k="optics_name", p=((10,0),(10,10)), enable_events=True)],
+    [sg.T("Level 1:"), sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_1", s=(30,20), p=((10,0),(0,10)))],
+    [sg.T("Level 2:"), sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_2", s=(30,20), p=((10,0),(0,10)))],
+    [sg.T("Level 3:"), sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_3", s=(30,20), p=((10,0),(0,10)))],
+    [sg.T("Level 4:"), sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_4", s=(30,20), p=((10,0),(0,10)))],
+    [sg.T("Level 5:"), sg.Slider((1, 30), 1.0, 0.1, orientation="h", k="optics_level_5", s=(30,20), p=((10,0),(0,10)))]
   ])
 
 def handle_event(event: str, window: sg.Window, values: dict) -> None:

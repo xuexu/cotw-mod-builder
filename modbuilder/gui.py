@@ -4,7 +4,7 @@ from modbuilder.widgets import create_option, valid_option_value
 import PySimpleGUI as sg
 
 DEFAULT_FONT = "_ 14"
-TEXT_WRAP = 140
+TEXT_WRAP = 142
 MOD_LIST = mods.list_mods()
 selected_mods = {}
 selected_mod_names = {}
@@ -30,13 +30,13 @@ def _get_mod_options() -> list[dict]:
       mod_details.append([warning])
 
     if hasattr(mod, "PRESETS"):
-      mod_details.append([sg.T("Presets:", font="_ 14 underline", text_color="orange", p=(10, 10))])
+      mod_details.append([sg.T("Presets:", font="_ 14 underline", text_color="orange", p=((10,10),(10,0)))])
       presets = []
       for preset in mod.PRESETS:
         presets.append(preset["name"])
       mod_details.append([sg.Combo(presets, k=f"preset__{mod_key}", enable_events=True, p=(30,10))])
 
-    mod_details.append([sg.T("Options:", font="_ 14 underline", text_color="orange", p=(10, 10))])
+    mod_details.append([sg.T("Options:", font="_ 14 underline", text_color="orange", p=((10,10),(10,0)))])
     if hasattr(mod, "OPTIONS"):
       for mod_option in mod.OPTIONS:
         mod_name = mod_option['name'] if "name" in mod_option else None
@@ -180,7 +180,7 @@ def main() -> None:
                 [
                   sg.Button("Save", k="save", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True), 
                   sg.Button("Load", k="load", button_color=f"{sg.theme_element_text_color()} on brown"), 
-                  sg.Push(), 
+                  sg.Push(),
                   sg.Button("Remove", k="remove_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True)
                 ],
                 [sg.Button("Build Modifications", k="build_mod", button_color=f"{sg.theme_element_text_color()} on brown", expand_x=True, disabled=True)]
