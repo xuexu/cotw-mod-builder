@@ -74,7 +74,7 @@ def open_file(filename: Path) -> tuple[RtpcNode, bytearray]:
 def load_lures() -> list[Lure]:
   root, _ext = os.path.splitext(FILE)
   equipment_name_hashes = json.load((mods.LOOKUP_PATH / f"{root}.json").open())["equipment_name_hash"]
-  rtpc_root, _data = open_file(Path(f"C:\\Users\\Ryan\\org\\{FILE}"))
+  rtpc_root, _data = open_file(mods.get_org_file(FILE))
 
   lures = []
   for equipment_node in rtpc_root.child_table:
