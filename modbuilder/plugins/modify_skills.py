@@ -584,6 +584,36 @@ def process_survival_instinct(options: dict) -> list[dict]:
         }
     ]
 
+def render_lightning_hands() -> list[dict]:
+    return [
+        {"name": "Reload Speed Multiplier 1", "min": 1.0, "max": 9.0, "default": 1.0, "initial": 1.0, "increment": 1.0},
+        {"name": "Reload Speed Multiplier 2", "min": 2.0, "max": 9.0, "default": 2.0, "initial": 1.0, "increment": 1.0},
+        {"name": "Reload Speed Multiplier 3", "min": 3.0, "max": 9.0, "default": 3.0, "initial": 1.0, "increment": 1.0},
+    ]
+def format_lightning_hands(options: dict) -> str:
+    reload_speed_multiplier_1 = options["reload_speed_multiplier_1"]
+    reload_speed_multiplier_2 = options["reload_speed_multiplier_2"]
+    reload_speed_multiplier_3 = options["reload_speed_multiplier_3"]
+    return f"Enhanced Lightning Hands ({reload_speed_multiplier_1}x,{reload_speed_multiplier_2}x,{reload_speed_multiplier_3}x reload speed)"
+def process_lightning_hands(options: dict) -> list[dict]:
+    reload_speed_multiplier_1 = options["reload_speed_multiplier_1"]
+    reload_speed_multiplier_2 = options["reload_speed_multiplier_2"]
+    reload_speed_multiplier_3 = options["reload_speed_multiplier_3"]
+    return [
+        {
+            "offset": 24040,
+            "value": f"reload_speed_gun({int(reload_speed_multiplier_1)})"
+        },
+        {
+            "offset": 24064,
+            "value": f"reload_speed_gun({int(reload_speed_multiplier_2)})"
+        },
+        {
+            "offset": 24088,
+            "value": f"reload_speed_gun({int(reload_speed_multiplier_3)})"
+        }
+    ]
+
 def render_quick_draw() -> list[dict]:
     return [
         { "name": "Speed Multiplier", "min": 1.5, "max": 99.0, "default": 1.5, "initial": 99.0, "increment": 0.5},
@@ -873,10 +903,11 @@ PERKS = {
         "Steady Hands",
     ],
     "Handguns": [
-        "Survival Instinct",
-        "Quick Draw",
         "Quick Feet",
-        "Ranger"
+        "Survival Instinct",
+        "Ranger",
+        "Lightning Hands",
+        "Quick Draw",
     ],
     "Shotguns": [
         "Body Control",
@@ -916,10 +947,11 @@ DESCRIPTIONS = {
     "Focused Shot": "Holding your breath increases zoom when using rifles with iron, red dot, and holographic sights.",
     "Breath Control": "Steadies a weapon while in aim mode.",
     "Steady Hands": "Decreased wobble when in aim mode using any weapon.",
-    "Survival Instinct": "Damage from animal attacks is reduced for a short duration after landing a shot on an aggressive animal.",
-    "Quick Draw": "Increases the speed and accuracy of hipshots using any weapon except bows and crossbows.",
     "Quick Feet": "Recover a steady aim faster after changing stances when using handguns.",
+    "Survival Instinct": "Damage from animal attacks is reduced for a short duration after landing a shot on an aggressive animal.",
     "Ranger": "Increases accuracy when guaging distance of spotted animals.",
+    "Lightning Hands": "Decreased reload time of all weapons.",
+    "Quick Draw": "Increases the speed and accuracy of hipshots using any weapon except bows and crossbows.",
     "Body Control": "Weapon sights align faster after rotating with any weapon.",
     "Both Eyes Open": "Decrease edge blur when using shotguns with iron, red dot, and holographic sights.",
     "Fast Shouldering": "Increase the speed of entering and exiting aim mode using any weapon as well as the speed of switching weapons.",

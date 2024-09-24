@@ -22,6 +22,8 @@ class Scope:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
 def map_scope_name(folder: str) -> str:
+  if folder == "rifle_scope_night_vision_4-8x_100mm_01":
+    return "Angler 4-8x100 Night Vision Rifle"
   if folder == "rifle_scope_8-16x_50mm_01":
     return "Argus 8-16x50 Rifle"
   if folder == "rifle_scope_1-4x_24mm_01":
@@ -30,8 +32,12 @@ def map_scope_name(folder: str) -> str:
     return "Galileo 4-8x32 Muzzleloader"
   if folder == "rifle_scope_night_vision_1-4x_24mm_01":
     return "GenZero 1-4x24 Night Vision Rifle"
+  if folder == "crossbow_scope_1-4x_24mm_01":
+    return "Hawken 1-4x24 Crossbow"
   if folder == "rifle_scope_4-8x_32mm_01":
     return "Helios 4-8x32 Rifle"
+  if folder == "scope_3-7x_33mm_01":
+    return "Hermes 3-7x33 Handgun-Shotgun"
   if folder == "rifle_scope_4-8x_42mm_01":
     return "Hyperion 4-8x42 Rifle"
   if folder == "handgun_scope_2-4x_20mm_01":
@@ -40,8 +46,10 @@ def map_scope_name(folder: str) -> str:
     return "Falcon 3-9x44 Drilling Shotgun"
   if folder == "shotgun_scope_1-4x_20mm_01":
     return "Meridian 1-4x20 Shotgun"
-  if folder == "crossbow_scope_1-4x_24mm_01":
-    return "Hawken 1-4x24 Crossbow"
+  if folder == "rifle_scope_4-12x_33mm_01":
+    return "Odin 4-12x33 Rifle"
+  if folder == "rifle_scope_6-10x_20mm_01":
+    return "_PLACEHOLDER 6-10x20 Rifle"
   return folder
 
 def load_scopes() -> list[Scope]:

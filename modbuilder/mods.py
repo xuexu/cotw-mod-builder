@@ -348,10 +348,13 @@ def write_dropzone(folder: str) -> None:
 
 def get_dropzone() -> Path:
   steam_path = Path("C:/Program Files (x86)/Steam/steamapps/common/theHunterCotW")
-  if steam_path.exists():
-    return steam_path
-  elif GAME_PATH_FILE.exists():
+  epic_games_path = Path("C:/Program Files/Epic Games/theHunterCotW")
+  if GAME_PATH_FILE.exists():
     return read_dropzone()
+  elif steam_path.exists():
+    return steam_path
+  elif epic_games_path.exists():
+    return epic_games_path
   return None
 
 def load_dropzone() -> None:

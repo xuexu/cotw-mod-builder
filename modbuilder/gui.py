@@ -151,13 +151,17 @@ def main() -> None:
   sg.set_options({ "font": DEFAULT_FONT })
 
   mod_options = _get_mod_options()
+  change_path_text = "(change path)" if mods.get_dropzone() else "(set path)"
 
   layout = [
     [
       sg.Image(logo.value),
       sg.Column([
         [sg.T("Mod Builder", expand_x=True, font="_ 24")],
-        [sg.T(mods.get_dropzone(), font="_ 12", k="game_path"), sg.T("(set path)", font="_ 12 underline", text_color="orange", enable_events=True, k="change_path", visible=(mods.get_dropzone() == None))],
+        [
+          sg.T(mods.get_dropzone(), font="_ 12", k="game_path"),
+          sg.T(change_path_text, font="_ 12 underline", text_color="orange", enable_events=True, k="change_path")
+        ],
       ]),
       sg.Push(),
       sg.T(f"Version: {__version__}", font="_ 12", p=((0,0),(0,60)))
@@ -318,7 +322,7 @@ def main() -> None:
       if game_path:
         mods.write_dropzone(game_path)
         window["game_path"].update(game_path)
-        window["change_path"].update(visible=False)
+        window["change_path"].update("(change path)")
     elif event.startswith("preset__"):
       presets = mod.PRESETS
       preset_mod_key = _mod_name_to_key(mod.NAME)
