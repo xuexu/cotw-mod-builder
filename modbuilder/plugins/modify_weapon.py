@@ -7,7 +7,16 @@ import re, os
 
 DEBUG = False
 NAME = "Modify Weapon"
-DESCRIPTION = 'Modify weapon recoil, zeroing settings, and scope settings. Magazine sizes can be changed separately with the "Increase Magazine Size" mod. When adjusting zeroing settings, it may require changing ammo kinetic energy with the "Modify Ammo" mod to work well.'
+DESCRIPTION = 'Modify weapon recoil, zeroing settings, and scope settings. Magazine sizes can be changed separately with the "Increase Magazine Size" mod.'
+WARNING = 'Changing zeroing distances does not automatically calculate the correct angle to compensate for bullet drop. Use the in-game firing range to test for the proper zeroing angles for each distance. Consider changing ammo kinetic energy with the "Modify Ammo" mod to maintain accuracy at long distances.'
+DEFAULT_ZERO_OFFSET = 448
+DEFAULT_ANGLE_OFFSET = 452
+SHORT_ZERO_OFFSET = 400
+SHORT_ANGLE_OFFSET = 404
+LONG_ZERO_OFFSET = 496
+LONG_ANGLE_OFFSET = 500
+# recoil_yaw and recoil_pitch
+RECOIL_OFFSETS = [280, 284, 288, 292]
 
 def format_name(name: str) -> str:
   return " ".join([x.capitalize() for x in name.split("_")])
@@ -180,6 +189,13 @@ def map_weapon(name: str) -> str:
     return "Strecker SxS 20G (Bird/Buckshot)"
   if name == "shotgun_sbs_slugs":
     return "Strecker SxS 20G (Slug)"
+  # Placeholders (future DLC?)
+  if name == "sa_rifle_30-60":
+    return "_PLACEHOLDER Single-Action 30-60 Rifle"
+  if name == "sa_rifle_308":
+    return "_PLACEHOLDER Single-Action 308 Rifle"
+  if name == "sa_rifle_7_62":
+    return "_PLACEHOLDER Single-Action 7.62 Rifle"
   # NO MATCH
   return name
 
@@ -190,7 +206,7 @@ def build_weapon_tab(weapon_type: str, weapons: list[dict]) -> sg.Tab:
     [sg.Combo(weapon_names, p=((10,0),(20,10)), k=f"{type_key}_weapon", enable_events=True)],
     [sg.T("Decrease Recoil Percentage:")],
     [sg.Slider((0,100), 0, 2, orientation="h", p=((50,0),(0,20)), k=f"{type_key}_recoil_percent")],
-    [sg.T("Zeroing Settings:"), sg.T("(distance, angle)", font="_ 12")],
+    [sg.T("Zeroing Settings:"), sg.T('(distance, angle) Level 1 is default. Levels 2 and 3 require the "Zeroing" perk', font="_ 12")],
     [sg.T("Level 1: ", p=((20,0),(10,10))), sg.Input("", size=4, p=((10,0),(0,0)), k=f"{type_key}_level_1_distance"), sg.Input("", p=((10,10),(0,0)), k=f"{type_key}_level_1_angle")],
     [sg.T("Level 2: ", p=((20,0),(10,10))), sg.Input("", size=4, p=((10,0),(0,0)), k=f"{type_key}_level_2_distance"), sg.Input("", p=((10,10),(0,0)), k=f"{type_key}_level_2_angle")],
     [sg.T("Level 3: ", p=((20,0),(10,10))), sg.Input("", size=4, p=((10,0),(0,0)), k=f"{type_key}_level_3_distance"), sg.Input("", p=((10,10),(0,0)), k=f"{type_key}_level_3_angle")],
@@ -236,54 +252,66 @@ class WeaponScopeSettings:
     self.vertical_pos = vertical_pos
 
   def parse_name(self, scope: str) -> str:
+    if "illum_iron" in scope:
+      return "Iron Sights"
     if "red_dot" in scope:
       return "Red Dot"
-    elif "illum_iron" in scope:
-      return "Iron Sights"
-    elif "rifle_scope_1-4x_24mm" in scope:
-      return "Ascent 1-4x24"
-    elif "night_vision_1-4x_24mm" in scope:
-      return "GenZero Night Vision 1-4x24"
-    elif "4-8x_42mm" in scope:
-      return "Hyperion 4-8x42"
-    elif "8-16x_50mm" in scope:
-      return "Argus 8-16x50"
-    elif "4-8x_32mm" in scope:
-      return "Helios 4-8x32"
-    elif "4-8x32" in scope:
+    if "reflex" in scope:
+      return "Reflex"
+    if scope.startswith("compound_bow_1pin_illum"):
+      return "Brightsight Single-Pin"
+    if scope.startswith("compound_bow_3pin"):
+      return "Swift-Mark 3-pin"
+    if scope.startswith("compound_bow_5pin"):
+      return "Swift-Mark 5-pin"
+    if scope.startswith("compound_bow_rangefinder"):
+      return "Brightsignt Rangefinder"
+    if scope.startswith("crossbow_scope_1-5x_30mm"):
+      return "Hawken 1-5x30"
+    if scope.startswith("equipment_scope_3-7x_33mm"):
+      return "Hermes 3-7x33"
+    if scope.startswith("equipment_scope_muzzleloader_4-8x32"):
       return "Galileo 4-8x32"
-    elif "2-4x_20mm" in scope:
+    if scope.startswith("handgun_scope_2-4x_20mm"):
       return "Goshawk Redeye 2-4x20"
-    elif "1-4x_20mm" in scope:
-      return "Meridian 1-4x20"
-    elif "3_9x44mm" in scope:
+    if scope.startswith("rifle_scope_1-4x_24mm"):
+      return "Ascent 1-4x24"
+    if scope.startswith("rifle_scope_3_9x44mm"):
       return "Falcon 3-9x44 Drilling"
-    elif "bow_1pin" in scope:
-      return "Bow 1-pin"
-    elif "bow_3pin" in scope:
-      return "Bow 3-pin"
-    elif "bow_5pin" in scope:
-      return "Bow 5-pin"
-    elif "bow_rangefinder" in scope:
-      return "Rangefinder"
-    elif "crossbow_scope_1-4x_24mm" in scope:
-      return "Hawken 1-4x24"
-    else:
-      return scope
+    if scope.startswith("rifle_scope_4-8x_32mm"):
+      return "Helios 4-8x32"
+    if scope.startswith("rifle_scope_4-8x_42mm"):
+      return "Hyperion 4-8x42"
+    if scope.startswith("rifle_scope_4-12x_33mm"):
+      return "Odin 4-12x33"
+    if scope.startswith("rifle_scope_8-16x_50mm"):
+      return "Argus 8-16x50"
+    if scope.startswith("rifle_scope_night_vision_1-4x_24mm"):
+      return "GenZero 1-4x24 Night Vision"
+    if scope.startswith("rifle_scope_night_vision_4-8x_100mm"):
+      return "Angler 4-8x100 Night Vision"
+    if scope.startswith("shotgun_scope_1-4x_20mm"):
+      return "Meridian 1-4x20"
+    # Placeholder (future DLC?)
+    if scope.startswith("la_rifle_scope_6-10x_20mm"):
+      return "_PLACEHOLDER Lever-Action 6-10x20"
+    # NO MATCH
+    return scope
 
   def __repr__(self) -> str:
     return f"{self.scope} [{self.scope_index}], {self.horizontal_pos}, {self.vertical_pos}"
 
 def load_weapon_zeroing(file: str) -> WeaponZeroing:
-  two_distance = mods.read_file_at_offset(file, 384, "f32")
-  if two_distance == 0:
+  short_distance = mods.read_file_at_offset(file, SHORT_ZERO_OFFSET, "f32")
+  if short_distance == 0:
+    # Weapon does not support multiple zeroing ranges
     return None
-  two_angle = round(mods.read_file_at_offset(file, 388, "f32"), 4)
-  one_distance = mods.read_file_at_offset(file, 432, "f32")
-  one_angle = round(mods.read_file_at_offset(file, 436, "f32"), 4)
-  three_distance = mods.read_file_at_offset(file, 480, "f32")
-  three_angle = round(mods.read_file_at_offset(file, 484, "f32"), 4)
-  return WeaponZeroing(one_distance, one_angle, two_distance, two_angle, three_distance, three_angle)
+  short_angle = round(mods.read_file_at_offset(file, SHORT_ANGLE_OFFSET, "f32"), 4)
+  default_distance = mods.read_file_at_offset(file, DEFAULT_ZERO_OFFSET, "f32")
+  default_angle = round(mods.read_file_at_offset(file, DEFAULT_ANGLE_OFFSET, "f32"), 4)
+  long_distance = mods.read_file_at_offset(file, LONG_ZERO_OFFSET, "f32")
+  long_angle = round(mods.read_file_at_offset(file, LONG_ANGLE_OFFSET, "f32"), 4)
+  return WeaponZeroing(default_distance, default_angle, short_distance, short_angle, long_distance, long_angle)
 
 def load_weapon_scopes(file: str) -> list[WeaponScopeSettings]:
   adf = Adf()
@@ -307,6 +335,7 @@ def load_weapon_scopes(file: str) -> list[WeaponScopeSettings]:
       scope_vertical_offset = scope.value["VerticalOffset"].value
       scope_vertical_offset_pos = int(scope.value["VerticalOffset"].data_offset)
       scopes.append(WeaponScopeSettings(scope_i, scope_name, scope_horizontal_offset, scope_vertical_offset, scope_horizontal_offset_pos, scope_vertical_offset_pos))
+  scopes.sort(key=lambda x: x.scope)
   return scopes
 
 def zeroing_disabled(disable: bool, type_key: str, window: sg.Window) -> None:
@@ -458,8 +487,7 @@ def process(options: dict) -> None:
 
   if "recoil_percent" in options:
     recoil_multiplier = 1 - options["recoil_percent"] / 100
-
-    mods.update_file_at_offsets(Path(file), [264, 268, 272, 276], recoil_multiplier, "multiply")
+    mods.update_file_at_offsets(Path(file), RECOIL_OFFSETS, recoil_multiplier, "multiply")
 
     if "one_distance" in options:
       one_distance = options["one_distance"]
@@ -469,12 +497,12 @@ def process(options: dict) -> None:
       three_distance = options["three_distance"]
       three_angle = options["three_angle"]
 
-      mods.update_file_at_offset(Path(file), 384, two_distance)
-      mods.update_file_at_offset(Path(file), 388, two_angle)
-      mods.update_file_at_offset(Path(file), 432, one_distance)
-      mods.update_file_at_offset(Path(file), 436, one_angle)
-      mods.update_file_at_offset(Path(file), 480, three_distance)
-      mods.update_file_at_offset(Path(file), 484, three_angle)
+      mods.update_file_at_offset(Path(file), DEFAULT_ZERO_OFFSET, one_distance)
+      mods.update_file_at_offset(Path(file), DEFAULT_ANGLE_OFFSET, one_angle)
+      mods.update_file_at_offset(Path(file), SHORT_ZERO_OFFSET, two_distance)
+      mods.update_file_at_offset(Path(file), SHORT_ANGLE_OFFSET, two_angle)
+      mods.update_file_at_offset(Path(file), LONG_ZERO_OFFSET, three_distance)
+      mods.update_file_at_offset(Path(file), LONG_ANGLE_OFFSET, three_angle)
   else:
     horizontal_offset = options["horizontal_offset"]
     vertical_offset = options["vertical_offset"]

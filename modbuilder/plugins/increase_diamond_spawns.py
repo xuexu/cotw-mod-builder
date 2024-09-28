@@ -30,7 +30,7 @@ PRESETS = [
 def format(options: dict) -> str:
   return f"Increase Diamond Spawns ({options['weight_bias']} weight bias)"
 
-def open_rtpc(filename: Path) -> RtpcNode:
+def open_rtpc(filename: Path) -> list[RtpcNode]:
   with filename.open("rb") as f:
     data = rtpc_from_binary(f)
   root = data.root_node

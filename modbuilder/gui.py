@@ -157,7 +157,7 @@ def main() -> None:
     [
       sg.Image(logo.value),
       sg.Column([
-        [sg.T("Mod Builder", expand_x=True, font="_ 24")],
+        [sg.T("Mod Builder - Revived", expand_x=True, font="_ 24")],
         [
           sg.T(mods.get_dropzone(), font="_ 12", k="game_path"),
           sg.T(change_path_text, font="_ 12 underline", text_color="orange", enable_events=True, k="change_path")
@@ -198,7 +198,7 @@ def main() -> None:
     ]
   ]
 
-  window = sg.Window("COTW: Mod Builder", layout, resizable=True, font=DEFAULT_FONT, icon=logo.value, size=(1300, 800), finalize=True)
+  window = sg.Window("COTW: Mod Builder - Revived", layout, resizable=True, font=DEFAULT_FONT, icon=logo.value, size=(1300, 800), finalize=True)
 
   while True:
     event, values = window.read()

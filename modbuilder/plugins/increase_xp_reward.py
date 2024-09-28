@@ -1,20 +1,20 @@
-from typing import List
-from modbuilder import mods
-
 DEBUG = False
 NAME = "Increase XP Reward"
-DESCRIPTION = "Increase the XP (experience) and weapon score reward when harvesting kills, completing missions, and finding points of interest."
+DESCRIPTION = "Increase the player experience and weapon score rewards when harvesting kills, completing missions, and finding points of interest."
 FILE = "settings/hp_settings/player_rewards.bin"
 OPTIONS = [
-  { "name": "XP Reward Multiplier", "min": 2, "max": 20, "default": 1, "increment": 1 }
+  { "name": "XP Reward Multiplier", "min": 1, "max": 20, "default": 1, "increment": 1 },
+  { "name": "Weapon Score Multiplier", "min": 1, "max": 20, "default": 1, "increment": 1 }
 ]
 
 def format(options: dict) -> str:
   xp_reward_multiplier = int(options['xp_reward_multiplier'])
-  return f"Increase XP Reward ({xp_reward_multiplier}x)"
+  weapon_score_multiplier = int(options['weapon_score_multiplier'])
+  return f"Increase XP Reward ({xp_reward_multiplier}x XP, {weapon_score_multiplier}x weapon score)"
 
-def update_values_at_coordinates(options: dict) -> List[dict]:
+def update_values_at_coordinates(options: dict) -> list[dict]:
   xp_reward_multiplier = options['xp_reward_multiplier']
+  weapon_score_multiplier = options['weapon_score_multiplier']
 
   return [
     {
@@ -35,32 +35,32 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
       # Base Weapon Score
       "coordinates": "B11",
       "sheet": "harvest_reward_globals",
-      "value": xp_reward_multiplier,
+      "value": weapon_score_multiplier,
       "transform": "multiply",
     },
     {
       # Weapon Score Span
       "coordinates": "B12",
       "sheet": "harvest_reward_globals",
-      "value": xp_reward_multiplier,
+      "value": weapon_score_multiplier,
       "transform": "multiply",
     },
     {
-      # reward_mission_cash_small (Name is correct, we are modifying XP)
+      # reward_mission_cash_small  (Row name, we are modifying the XP column)
       "coordinates": "C3",
       "sheet": "custom_rewards",
       "value": xp_reward_multiplier,
       "transform": "multiply",
     },
     {
-      # reward_mission_cash_medium  (Name is correct, we are modifying XP)
+      # reward_mission_cash_medium  (Row name, we are modifying the XP column)
       "coordinates": "C4",
       "sheet": "custom_rewards",
       "value": xp_reward_multiplier,
       "transform": "multiply",
     },
     {
-      # reward_mission_cash_large  (Name is correct, we are modifying XP)
+      # reward_mission_cash_large  (Row name, we are modifying the XP column)
       "coordinates": "C5",
       "sheet": "custom_rewards",
       "value": xp_reward_multiplier,

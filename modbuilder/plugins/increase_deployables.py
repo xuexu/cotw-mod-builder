@@ -1,4 +1,3 @@
-from typing import Tuple, List
 from deca.ff_rtpc import rtpc_from_binary, RtpcProperty, RtpcNode
 from pathlib import Path
 from modbuilder import mods
@@ -11,7 +10,7 @@ FILE = "settings/hp_settings/reserve_*.bin"
 OPTIONS = [
   { "name": "Deployable Multiplier", "min": 2, "max": 20, "default": 1, "increment": 1 }
 ]
-  
+
 def format(options: dict) -> str:
   return f"Increase Deployables ({int(options['deployable_multiplier'])}x)"
 
@@ -37,7 +36,7 @@ def is_deployable_prop(value: str):
         Deployable.TRIPOD in value or \
           Deployable.GROUNDBLIND in value
 
-def is_deployable(props: List[RtpcProperty]) -> bool:
+def is_deployable(props: list[RtpcProperty]) -> bool:
   for prop in props:
     if isinstance(prop.data, bytes) and is_deployable_prop(prop.data.decode("utf-8")):
       return True
@@ -49,9 +48,10 @@ def update_uint(data: bytearray, offset: int, new_value: int) -> None:
         data[offset + i] = value_bytes[i]
 
 def update_reserve_deployables(root: RtpcNode, f_bytes: bytearray, multiply: int) -> None:
-  deployables = root.child_table[6].child_table
-  if len(deployables) == 0:    
-    deployables = root.child_table[5].child_table
+  deployables = root.child_table[5].child_table
+  if len(deployables) == 0:
+    # Medved (reserve_2.bin) has deployables in a different table for some reason
+    deployables = root.child_table[4].child_table
   deployable_values = []
   for deployable in deployables:
     if is_deployable(deployable.prop_table):
@@ -62,16 +62,16 @@ def update_reserve_deployables(root: RtpcNode, f_bytes: bytearray, multiply: int
     for deployable_value in deployable_values:
       update_uint(f_bytes, deployable_value.offset, deployable_value.value * multiply)
   except Exception as ex:
-     print(f"received error: {ex}")      
+     print(f"received error: {ex}")
 
 def save_file(filename: str, data: bytearray) -> None:
     base_path = mods.APP_DIR_PATH / "mod/dropzone/settings/hp_settings"
     base_path.mkdir(exist_ok=True, parents=True)
-    (base_path / filename).write_bytes(data) 
+    (base_path / filename).write_bytes(data)
 
-def open_reserve(filename: Path) -> Tuple[RtpcNode, bytearray]:
+def open_reserve(filename: Path) -> tuple[RtpcNode, bytearray]:
   with(filename.open("rb") as f):
-    data = rtpc_from_binary(f) 
+    data = rtpc_from_binary(f)
   f_bytes = bytearray(filename.read_bytes())
   return (data.root_node, f_bytes)
 
