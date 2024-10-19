@@ -51,7 +51,7 @@ def format_desired_data(cell: XlsxCell, value: any, transform: str = None) -> di
   return desired
 
 
-def update_file_at_coordinates(src_filename: str, sheet_name: str, coordinates: str, value: any, transform: str = None) -> None:
+def update_file_at_coordinates(src_filename: str, sheet_name: str, coordinates: str, value: any, transform: str = None, force: bool = False, verbose: bool = None) -> None:
   extracted_adf = deserialize_adf(src_filename)
   cells = parse_cells_from_adf(extracted_adf)
   cell = get_cell_by_coordinates(coordinates, sheet_name, cells)
@@ -59,13 +59,13 @@ def update_file_at_coordinates(src_filename: str, sheet_name: str, coordinates: 
     raise ValueError(f'Unable to find cell "{coordinates}" on sheet "{sheet_name}" in file "{src_filename}"')
   other_cells = [c for c in cells if c != cell]
   desired_data = format_desired_data(cell, value, transform if transform else None)
-  offsets_and_values = find_best_offsets_and_values_for_cell_update(cell, other_cells, desired_data, extracted_adf)
+  offsets_and_values = find_best_offsets_and_values_for_cell_update(cell, other_cells, desired_data, extracted_adf, force=force, verbose=verbose)
   mods.update_file_at_offsets_with_values(src_filename, offsets_and_values)
 
 
-def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name: str, coordinates_list: list[str], value: any, transform: str = None) -> None:
+def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name: str, coordinates_list: list[str], value: any, transform: str = None, force: bool = False, verbose: bool = False) -> None:
   for coordinates in coordinates_list:
-    update_file_at_coordinates(src_filename, sheet_name, coordinates, value, transform)
+    update_file_at_coordinates(src_filename, sheet_name, coordinates, value, transform, force=force, verbose=verbose)
 
 
 def get_sheet(sheet_name: str, extracted: dict) -> dict:
@@ -91,24 +91,29 @@ def find_best_offsets_and_values_for_cell_update(
     cell: XlsxCell,
     other_cells: list[XlsxCell],
     desired: dict,
-    extracted_adf: dict
+    extracted_adf: dict,
+    force: bool = False,
+    verbose: bool = False
   ) -> list[tuple]:
   unused_cell_definitions = get_unused_cell_definitions(extracted_adf, [cell] + other_cells)
   unused_value_data_items = get_unused_value_data_indicies_and_offsets(extracted_adf, [cell] + other_cells)
   data_array, data_array_offset = get_data_array_for_data_type(extracted_adf, desired["data_type"])
-  # print()
-  # print(f'Cell = Coordinates: {cell.coordinates}   Sheet: {cell.sheet_name}   Definition: {cell.definition_index}   Value: {cell.data_value}   Data Type: {cell.data_type}   Value Index: {cell.data_index})')
-  # print(f'Desired = Value: {desired["value"]}   Data Type: {desired["data_type"]}')
+  if verbose:
+    print()
+    print(f'Cell = Coordinates: {cell.coordinates}   Sheet: {cell.sheet_name}   Definition: {cell.definition_index}   Value: {cell.data_value}   Data Type: {cell.data_type}   Value Index: {cell.data_index})')
+    print(f'Desired = Value: {desired["value"]}   Data Type: {desired["data_type"]}')
 
   # 0. If current cell already has desired value and is the correct type, don't change anything
   if cell.data_value == desired["value"] and cell.data_type == desired["data_type"]:
-    # print('0. Current value and data type match. No changes to apply')
+    if verbose:
+      print('0. Current value and data type match. No changes to apply')
     return []
 
   # 1. StringData values can be directly overwritten in the StringData array
   #    This does not handle writing StringData to a non-StringData cell. That should error out for now.
   if cell.data_type == desired["data_type"] == 1:
-    # print(f'1. Overwriting StringData index {cell.data_index} with value {desired["value"]}')
+    if verbose:
+      print(f'1. Overwriting StringData index {cell.data_index} with value {desired["value"]}')
     update = (cell.data_offset, desired["value"])
     return [update]
   elif cell.data_type == 1 or desired["data_type"] == 1:
@@ -122,23 +127,27 @@ def find_best_offsets_and_values_for_cell_update(
 
   # 2. Check if the desired value already exists in the data array
   if desired["value"] in data_array:
-    # print(f'2. Desired value {desired["value"]} is in data array')
+    if verbose:
+      print(f'2. Desired value {desired["value"]} is in data array')
     desired["data_index"] = data_array.index(desired["value"])
     # 2a. Point current cell at a different definition that references the desired value
     if cell_with_desired_value:
-      # print(f'2a. Cell {cell_with_desired_value.coordinates} contains desired value. Copying defintion {cell_with_desired_value.definition_index}')
+      if verbose:
+        print(f'2a. Cell {cell_with_desired_value.coordinates} contains desired value. Copying defintion {cell_with_desired_value.definition_index}')
       update = (cell.offset, cell_with_desired_value.definition_index)
       return [update]
     # 2b. Point current cell definition at desired value if we do not share a definition with other cells
     if cell_with_same_definition is None:
-      # print(f'2b. No other cells share the same definition. Repointing definition at data index {desired["data_index"]}')
+      if verbose:
+       print(f'2b. No other cells share the same definition. Repointing definition at data index {desired["data_index"]}')
       update = (cell.definition_data_offset, desired["data_index"])
       return [update]
     # 2c. Overwrite an unused cell definition (if one exists) to point it at the desired value in the data array
     #     Then point our cell at the customized cell definition
     if unused_cell_definitions:
       unused_cell_definition = unused_cell_definitions.pop(0)
-      # print(f'2c. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {desired["data_index"]}')
+      if verbose:
+        print(f'2c. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {desired["data_index"]}')
       # Point unused cell definition at the desired value
       update = (unused_cell_definition["definition_data_offset"], desired["data_index"])
       # Point our cell at the updated definition
@@ -147,10 +156,12 @@ def find_best_offsets_and_values_for_cell_update(
 
   # 3. Desired value does not exist in the data array
   else:
-    # print(f'3. Desired value {desired["value"]} is not in the data array')
+    if verbose:
+      print(f'3. Desired value {desired["value"]} is not in the data array')
     # 3a. Overwrite our current value in the ValueData array if no other cells point at the same value
     if cell_with_same_data_index is None:
-      # print(f'3a. Overwriting data array value at index {cell.data_index} to new value {desired["value"]}')
+      if verbose:
+        print(f'3a. Overwriting data array value at index {cell.data_index} to new value {desired["value"]}')
       update = (cell.data_offset, desired["value"])
       return [update]
     # 3b. Overwrite an unused data array item (if one exists) with the desired value
@@ -159,8 +170,9 @@ def find_best_offsets_and_values_for_cell_update(
     if unused_value_data_items and unused_cell_definitions:
       unused_value_data_item = unused_value_data_items.pop(0)
       unused_cell_definition = unused_cell_definitions.pop(0)
-      # print(f'3b. Overwriting unused data array value at index {unused_value_data_item["data_index"]} to new value {desired["value"]}')
-      # print(f'3b. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {unused_value_data_item["data_index"]}')
+      if verbose:
+        print(f'3b. Overwriting unused data array value at index {unused_value_data_item["data_index"]} to new value {desired["value"]}')
+        print(f'3b. Overwriting unused cell definition {unused_cell_definition["definition_index"]} to point at data index {unused_value_data_item["data_index"]}')
       # Overwrite the unused data array item
       update = (unused_value_data_item["data_offset"], desired["value"])
       # Point unused cell definition at the updated value
@@ -169,19 +181,28 @@ def find_best_offsets_and_values_for_cell_update(
       update3 = (cell.offset, unused_cell_definition["definition_index"])
       return [update, update2, update3]
 
-  # 4. Cannot update the value of the specified cell to match the exact desired value without affecting other cells
-  # print(f'Cannot update cell {cell.coordinates} to value {desired["value"]} without affecting other cells')
-  # 4a. Point our cell an existing cell definition that has the closest value to the desired value
+  # 4. Cannot update the value of the specified cell to match the exact desired value without affecting other celll
+  if verbose:
+    print(f'Cannot update cell {cell.coordinates} to value {desired["value"]} without affecting other cells')
+  # 4a. If we were told to force the value then overwrite the value in the ValueData array
+  if force:
+    if verbose:
+      print(f'4a. FORCE: Overwriting data value {cell.data_index} with {desired["value"]}')
+    update = (cell.data_offset, desired["value"])
+    return [update]
+  # 4b. Point our cell an existing cell definition that has the closest value to the desired value
   closest_cell = find_closest_cell_by_value(cell, other_cells, data_array, desired)
   if closest_cell:
-    # print(f'4. Pointing cell {cell.coordinates} at definition {closest_cell.definition_index} with closest value {closest_cell.data_value}')
+    if verbose:
+      print(f'4b. Pointing cell {cell.coordinates} at definition {closest_cell.definition_index} with closest value {closest_cell.data_value}')
     update = (cell.offset, closest_cell.definition_index)
     return [update]
-  # 3b. Find the closest value in the ValueData array and point our cell definition at it
+  # 4c. Find the closest value in the ValueData array and point our cell definition at it
   #     This may have unintended consequences. Consider throwing an error and see how many mods break from the error
   closest_value_index = find_closest_value_index(data_array, desired["value"])
   if closest_value_index:
-    # print(f'5. Pointing cell {cell.coordinates} definition {cell.definition_index} at data index {closest_value_index} with closest value {data_array[closest_value_index]}')
+    if verbose:
+      print(f'4c. Pointing cell {cell.coordinates} definition {cell.definition_index} at data index {closest_value_index} with closest value {data_array[closest_value_index]}')
     update = (cell.definition_data_offset, closest_value_index)
     return [update]
 

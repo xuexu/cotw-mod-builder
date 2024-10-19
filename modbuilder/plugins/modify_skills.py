@@ -586,31 +586,25 @@ def process_survival_instinct(options: dict) -> list[dict]:
 
 def render_lightning_hands() -> list[dict]:
     return [
-        {"name": "Reload Speed Multiplier 1", "min": 1.0, "max": 9.0, "default": 1.0, "initial": 1.0, "increment": 1.0},
-        {"name": "Reload Speed Multiplier 2", "min": 2.0, "max": 9.0, "default": 2.0, "initial": 1.0, "increment": 1.0},
-        {"name": "Reload Speed Multiplier 3", "min": 3.0, "max": 9.0, "default": 3.0, "initial": 1.0, "increment": 1.0},
+        {"name": "Reload Speed Modifier", "min": 1.0, "max": 9.0, "default": 1.0, "initial": 1.0, "increment": 1.0},
     ]
 def format_lightning_hands(options: dict) -> str:
-    reload_speed_multiplier_1 = options["reload_speed_multiplier_1"]
-    reload_speed_multiplier_2 = options["reload_speed_multiplier_2"]
-    reload_speed_multiplier_3 = options["reload_speed_multiplier_3"]
-    return f"Enhanced Lightning Hands ({reload_speed_multiplier_1}x,{reload_speed_multiplier_2}x,{reload_speed_multiplier_3}x reload speed)"
+    reload_speed_modifier = int(options.get("reload_speed_modifier", options.get("reload_speed_multiplier_1", 1.0)))
+    return f"Enhanced Lightning Hands ({reload_speed_modifier}x)"
 def process_lightning_hands(options: dict) -> list[dict]:
-    reload_speed_multiplier_1 = options["reload_speed_multiplier_1"]
-    reload_speed_multiplier_2 = options["reload_speed_multiplier_2"]
-    reload_speed_multiplier_3 = options["reload_speed_multiplier_3"]
+    reload_speed_modifier = options.get("reload_speed_modifier", options.get("reload_speed_multiplier_1", 1.0))
     return [
         {
             "offset": 24040,
-            "value": f"reload_speed_gun({int(reload_speed_multiplier_1)})"
+            "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         },
         {
             "offset": 24064,
-            "value": f"reload_speed_gun({int(reload_speed_multiplier_2)})"
+            "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         },
         {
             "offset": 24088,
-            "value": f"reload_speed_gun({int(reload_speed_multiplier_3)})"
+            "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         }
     ]
 

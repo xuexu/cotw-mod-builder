@@ -76,7 +76,7 @@ def build_tab(ammo_type: str, ammo: List[str]) -> sg.Tab:
       [sg.Slider((0, 200), 0, 2, orientation = "h", p=((50,0),(0,10)), k=f"{type_key}_damage")],
       [sg.T("Increase Mass Percent", p=(0, 8))],
       [sg.Slider((0, 200), 0, 2, orientation = "h", p=((50,0),(0,10)), k=f"{type_key}_mass")],
-      [sg.T("Increase Projecticle Number", p=(0, 8)) if type_key == "shotgun" else sg.T("", visible=False)],
+      [sg.T("Increase Projectile Number", p=(0, 8)) if type_key == "shotgun" else sg.T("", visible=False)],
       [sg.Slider((0, 100), 0, 2, orientation = "h", p=((50,0),(0,10)), k=f"{type_key}_projectiles") if type_key == "shotgun" else sg.T("", visible=False)],
       [sg.T("Classes", p=(0, 8)), sg.T("(select one or more)", font="_ 12")],
       [sg.Listbox(list(range(1,10)), s=(None, 5), k=f"{type_key}_classes", select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, p=((50,0),(0,20)))]

@@ -369,7 +369,10 @@ def load_replace_dropzone() -> None:
   dropzone_path = get_dropzone()
   if dropzone_path:
     dropzone_path = dropzone_path / "dropzone"
-    shutil.rmtree(dropzone_path)
+    try:
+      shutil.rmtree(dropzone_path)
+    except FileNotFoundError as e:  # suppress error if user hits "Replace" when there is no /dropzone folder
+      pass
     shutil.copytree(APP_DIR_PATH / "mod/dropzone", dropzone_path, dirs_exist_ok=True)
   else:
     raise Exception("Could not find game path to save mods!")
