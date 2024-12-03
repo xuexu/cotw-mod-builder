@@ -40,18 +40,24 @@ def update_values_at_coordinates(options: dict) -> list[dict]:
   sound_prone_cells = mods2.range_to_coordinates_list("B", 93, 95)
   sound_crouch_cells = mods2.range_to_coordinates_list("B", 98, 100)
   sound_stand_cells = mods2.range_to_coordinates_list("B", 103, 105)
-  sound_cells = sound_prone_cells + sound_crouch_cells + sound_stand_cells
+  sound_run_cells = mods2.range_to_coordinates_list("B", 108, 110)
+  sound_swim_cells = mods2.range_to_coordinates_list("B", 113, 116)
+  sound_cells = sound_prone_cells + sound_crouch_cells + sound_stand_cells + sound_run_cells + sound_swim_cells
 
   vision_shadow_cells = mods2.range_to_coordinates_list("B", 39, 43)
   vision_prone_cells = mods2.range_to_coordinates_list("B", 45, 50)
   vision_crouch_cells = mods2.range_to_coordinates_list("B", 54, 59)
   vision_stand_cells = mods2.range_to_coordinates_list("B", 63, 68)
-  vision_cells = vision_shadow_cells + vision_prone_cells + vision_crouch_cells + vision_stand_cells
+  vision_run_cells = mods2.range_to_coordinates_list("B", 72, 77)
+  vision_swim_cells = mods2.range_to_coordinates_list("B", 81, 86)
+  vision_cells = vision_shadow_cells + vision_prone_cells + vision_crouch_cells + vision_stand_cells + vision_run_cells + vision_swim_cells
 
   scent_prone_cells = mods2.range_to_coordinates_list("B", 119, 126)
   scent_crouch_cells = mods2.range_to_coordinates_list("B", 130, 137)
   scent_stand_cells = mods2.range_to_coordinates_list("B", 141, 148)
-  scent_cells = scent_prone_cells + scent_crouch_cells + scent_stand_cells
+  scent_run_cells = mods2.range_to_coordinates_list("B", 152, 159)
+  scent_swim_cells = mods2.range_to_coordinates_list("B", 163, 170)
+  scent_cells = scent_prone_cells + scent_crouch_cells + scent_stand_cells + scent_run_cells + scent_swim_cells
 
   mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", sound_cells, sound_multiplier, transform="multiply")
   mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", vision_cells, vision_multiplier, transform="multiply")

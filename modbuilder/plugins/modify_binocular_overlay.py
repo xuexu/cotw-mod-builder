@@ -19,7 +19,7 @@ def merge_files(files: List[str], options: dict) -> None:
   to_base = mods.APP_DIR_PATH / "mod/dropzone/ui"
   overlay = options['binoculars_overlay']
   try:
-    mods.copy_file(from_base / f"{overlay}.ddsc", to_base / "hud_i485.ddsc")
+    mods.copy_file(from_base / f"{overlay}.ddsc", to_base / "hud_i49d.ddsc")
   except:
     print(f"Error: Could not copy {overlay}.ddsc")
     pass

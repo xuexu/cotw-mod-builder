@@ -23,12 +23,13 @@ class Optics:
 def load_binoculars() -> list[Optics]:
   base_file_path = Path("editor/entities/hp_equipment/optics/tuning")
   base_bundle_path = Path("editor/entities/hp_equipment/optics")
-  return [
+  binoculars = [
+    Optics(base_file_path / "equipment_optics_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_binoculars_01.ee", "Vantage 8x42 Binoculars"),
     Optics(base_file_path / "equipment_optics_rangefinder_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_01.ee", "Venture 5x30 Rangefinder"),
     Optics(base_file_path / "equipment_optics_rangefinder_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_binoculars_01.ee", "Apexview 7x42 Rangefinder Binoculars"),
-    Optics(base_file_path / "equipment_optics_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_binoculars_01.ee", "Vantage 8x42 Binoculars"),
     Optics(base_file_path / "equipment_optics_night_vision_01.sighttunec", base_bundle_path / "equipment_optics_night_vision_01.ee", "GenZero 8x50 Night Vision"),
   ]
+  return sorted(binoculars, key=lambda x: x.name)
 
 def get_option_elements() -> sg.Column:
   optics = load_binoculars()

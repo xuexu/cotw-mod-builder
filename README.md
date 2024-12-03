@@ -4,6 +4,8 @@ A tool that makes it easy to customize and create mods for theHunter: Call of th
 
 Release builds are available here on GitHub and on NexusMods: https://www.nexusmods.com/thehuntercallofthewild/mods/410
 
+> Enable mods by adding the following launch options to your game executable: `--vfs-fs dropzone --vfs-archive archives_win64 --vfs-archive patch_win64 --vfs-archive dlc_win64 --vfs-fs .`
+
 ![Screenshot](screenshot.png)
 
 ## How to Build

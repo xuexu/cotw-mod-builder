@@ -9,14 +9,14 @@ DEBUG = False
 NAME = "Modify Weapon"
 DESCRIPTION = 'Modify weapon recoil, zeroing settings, and scope settings. Magazine sizes can be changed separately with the "Increase Magazine Size" mod.'
 WARNING = 'Changing zeroing distances does not automatically calculate the correct angle to compensate for bullet drop. Use the in-game firing range to test for the proper zeroing angles for each distance. Consider changing ammo kinetic energy with the "Modify Ammo" mod to maintain accuracy at long distances.'
-DEFAULT_ZERO_OFFSET = 448
-DEFAULT_ANGLE_OFFSET = 452
-SHORT_ZERO_OFFSET = 400
-SHORT_ANGLE_OFFSET = 404
-LONG_ZERO_OFFSET = 496
-LONG_ANGLE_OFFSET = 500
+DEFAULT_ZERO_OFFSET = 432
+DEFAULT_ANGLE_OFFSET = 436
+SHORT_ZERO_OFFSET = 384
+SHORT_ANGLE_OFFSET = 388
+LONG_ZERO_OFFSET = 480
+LONG_ANGLE_OFFSET = 484
 # recoil_yaw and recoil_pitch
-RECOIL_OFFSETS = [280, 284, 288, 292]
+RECOIL_OFFSETS = [264, 268, 272, 276]
 
 def format_name(name: str) -> str:
   return " ".join([x.capitalize() for x in name.split("_")])
@@ -106,6 +106,12 @@ def map_weapon(name: str) -> str:
     return "Olsson Model 23 .308"
   if name == "ba_rifle_338_01":
     return "Tsurugi LLR .338"
+  if name == "ba_rifle_375_01":
+    return "Vallgarda .375"
+  if name == "ba_rifles_300":
+    return "Fors Elite .300"
+  if name == "ba_rifles_450":
+    return "Johansson .450"
   if name == "ba_rifle_7mm_01":
     return "Malmer 7mm Magnum"
   if name == "caplock_muzzleloader":
@@ -173,6 +179,10 @@ def map_weapon(name: str) -> str:
     return "Caversham Steward 12G (Bird/Buckshot)"
   if name == "shotgun_ou_slugs":
     return "Caversham Steward 12G (Slug)"
+  if name == "shotgun_ou_10ga":
+    return "Gopi 10G Grand (Bird/Buckshot)"
+  if name == "shotgun_ou_10ga_slugs":
+    return "Gopi 10G Grand (Slug)"
   if name == "shotgun_pa":
     return "Cacciatore 12G (Bird/Buckshot)"
   if name == "shotgun_pa_slugs":

@@ -1,4 +1,3 @@
-from typing import List
 from modbuilder import mods, PySimpleGUI_License
 from modbuilder.adf_profile import create_u8, read_u32
 from pathlib import Path
@@ -34,7 +33,7 @@ def replace_ammo_names(name: str) -> str:
       .replace("bh_", "")\
       .replace("jp_", "")
 
-def load_ammo(root: Path, name_pattern: any) -> None:
+def load_ammo(root: Path, name_pattern: any) -> tuple[list[str], list[str]]:
   files = []
   ammo = []
   for file in root.glob("*.ammotunec"):
@@ -63,7 +62,7 @@ def get_ammo() -> dict:
     "shotgun": { "files": shotgun_ammo_files, "ammo": shotgun_ammo }
   }
 
-def build_tab(ammo_type: str, ammo: List[str]) -> sg.Tab:
+def build_tab(ammo_type: str, ammo: list[str]) -> sg.Tab:
   type_key = ammo_type.lower()
   layout = [
       [sg.T("Increase Kinetic Energy Percent")],
@@ -150,18 +149,18 @@ def format(options: dict) -> str:
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_ammo")
 
-def get_files(options: dict) -> List[str]:
+def get_files(options: dict) -> list[str]:
   return [options["file"]]
 
 def get_bundle_file(file: str) -> Path:
   return Path(file).parent / f"{Path(file).name.split('.')[0]}.ee"
 
-def merge_files(files: List[str], options: dict) -> None:
+def merge_files(files: list[str], options: dict) -> None:
   for file in files:
     bundle_file = get_bundle_file(file)
     mods.expand_into_archive(file, str(bundle_file))
 
-def create_classes(classes: List[int]):
+def create_classes(classes: list[int]):
   result = bytearray()
   for c in classes:
     result += create_u8(c)
@@ -191,7 +190,7 @@ def process(options: dict) -> None:
 
   if len(classes) > 0:
     header_offset = 152
-    data_offset = 272
+    data_offset = 280
     file_data = mods.get_modded_file(file).read_bytes()
     old_array_length = read_u32(file_data[header_offset+8:header_offset+12])
     new_array_length = len(classes)

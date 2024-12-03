@@ -9,6 +9,10 @@ DESCRIPTION = "Increase the magazine size of weapons. All variants of a selected
 FILE = "settings/hp_settings/equipment_data.bin"
 
 class Weapon:
+  __slots__ = (
+    'name', 'type', 'magazine_size', 'magazine_data_offsets'
+  )
+
   def __init__(self, weapon_data: RtpcNode) -> None:
     weapon_name = parse_weapon_name(weapon_data)
     self.name, self.type = map_weapon(weapon_name)
@@ -17,14 +21,22 @@ class Weapon:
     self.magazine_data_offsets = [magazine.data_pos]
 
 def parse_weapon_name(weapon_data: RtpcNode) -> dict:
-  raw_name = weapon_data.prop_table[4].data
-  if type(raw_name) is bytes:
-    name = raw_name.decode("utf-8")
-  else:
-    name = weapon_data.prop_table[5].data.decode("utf-8")
+  name = ""
+  for i in [4,5,6]:
+    raw_name = weapon_data.prop_table[i].data
+    if type(raw_name) is bytes:
+      name = raw_name.decode("utf-8")
+      if name == "store_featured":
+        name = ""
+        continue
+      break
+  if not name:
+    raise ValueError("Unable to parse weapon name", weapon_data)
   return name
 
 def map_weapon(name: str) -> tuple[str, str]:
+  if name.startswith("10 GA O/U Shotgun"):
+    return ("Gopi 10G Grand", "Shotgun")
   if name.startswith(".223 Bolt-Action Rifle (223 DOCENT)"):
     return (".223 Docent", "Rifle")
   if name.startswith(".22LR Semi-Auto Rifle"):
@@ -39,6 +51,8 @@ def map_weapon(name: str) -> tuple[str, str]:
     return ("Eckers .30-06", "Rifle")
   if name.startswith(".30-30 Lever Action Rifle (WHITLOCK MODEL 86)"):
     return ("Whitlock Model 86", "Rifle")
+  if name == ".300 Bolt-Action Rifle":  # only 1 variant and shares beginning of name with .300 Canning Magnum
+    return ("Fors Elite .300", "Rifle")
   if name.startswith(".300 Bolt-Action Rifle wby"):
     return (".300 Canning Magnum", "Rifle")
   if name.startswith(".338 Bolt Action Rifle 01 (SAKO TRG 42/TSURUGI LRR)"):
@@ -47,12 +61,16 @@ def map_weapon(name: str) -> tuple[str, str]:
     return ("Rangemaster 338", "Rifle")
   if name.startswith(".357 Mag. Revolver (FOCOSO 357)"):
     return ("Focoso 357","Handgun")
+  if name.startswith(".375 Bolt Action Rifle"):
+    return ("Vallgarda .375", "Rifle")
   if name.startswith(".410 Mag. Revolver"):
     return ("Mangiafico 410/45 Colt", "Handgun")
   if name.startswith(".44 Mag. Revolver"):
     return (".44 Magnum", "Handgun")
   if name.startswith(".44 Magnum Lever Action Rifle"):
     return ("Moradi Model 1894", "Rifle")
+  if name.startswith(".450 Bolt-Action Rifle"):
+    return ("Johansson .450", "Rifle")
   if name.startswith(".454 Revolver (RHINO 454)"):
     return ("Rhino/Sundberg 454", "Handgun")
   if name.startswith(".470 NE Double-barreled Rifle"):
