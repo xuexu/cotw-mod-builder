@@ -18,7 +18,7 @@ class XlsxCell:
         'data_offset',
     )
 
-    def __init__(self, extracted_adf: dict, sheet: dict, index: int = None, coordinates: str = None, desired_value: any = None):
+    def __init__(self, extracted_adf: dict, sheet: dict, index: int = None, coordinates: str = None, desired_value: any = None) -> None:
         if index is None and coordinates is None:
             raise ValueError('Must provide one of "coordinates" or "index"')
         self.sheet_name = sheet["Name"].value.decode("utf-8")
@@ -48,7 +48,7 @@ class XlsxCell:
             self.data_value = extracted_adf["ValueData"].value[self.data_index]
             self.data_offset = extracted_adf["ValueData"].data_offset + ( self.data_index * 4 )
 
-    def as_dict(self):
+    def as_dict(self) -> dict:
         return {slot: getattr(self, slot) for slot in self.__slots__}
 
     def calculate_coordinates(self, index: int, cols: int) -> str:

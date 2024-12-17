@@ -53,7 +53,7 @@ def load_scopes() -> list[Scope]:
       if folder == scope["folder"]:
         ee_file = base_path / folder / scope["ee"]
         lens_files = scope["lenses"]
-        bundle_file = os.path.relpath(ee_file, mods.APP_DIR_PATH / "org")
+        bundle_file = mods.get_relative_path(ee_file)
         from pprint import pprint
         pprint(lens_files)
         scopes.append(Scope(lens_files, bundle_file, scope["name"]))

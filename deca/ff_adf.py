@@ -1,10 +1,20 @@
 import io
+import os
 import enum
+import struct
 from typing import List, Dict
+from io import BytesIO
 from deca.errors import *
 from deca.file import ArchiveFile
 from deca.fast_file import *
 from deca.hashes import hash32_func
+from deca.ff_types import FTYPE_ADF_BARE, FTYPE_ADF0, FTYPE_ADF5
+
+# https://github.com/tim42/gibbed-justcause3-tools-fork/blob/master/Gibbed.JustCause3.FileFormats/AdfFile.cs
+
+# TODO first pass find types?
+# TODO first pass find string hashes?
+# TODO ./files/effects/vehicles/wheels/rear_snow.effc good for basic types
 
 adf_hash_fields = {
     'EquipmentHash', 'Name', 'RegionHash',
@@ -202,6 +212,20 @@ class InstanceEntry:
     #     return v
 
 
+# Type-hashes and their coresponding type-names
+# The last 3 digits represent a metatype, size in bytes and byte-alignment
+# 0x580D0A62 == hashlittle2("int8011")
+# 0x0CA2821D == hashlittle2("uint8011")
+# 0xD13FCF93 == hashlittle2("int16022")
+# 0x86D152BD == hashlittle2("uint16022")
+# 0x192FE633 == hashlittle2("int32044")
+# 0x075E4E4F == hashlittle2("uint32044")
+# 0xAF41354F == hashlittle2("int64088")
+# 0xA139E01F == hashlittle2("uint64088")
+# 0x7515A207 == hashlittle2("float044")
+# 0xC609F663 == hashlittle2("double088")
+# 0x8955583E == hashlittle2("String588")
+        
 typedef_s8 = 0x580D0A62
 typedef_u8 = 0x0ca2821d
 typedef_s16 = 0xD13FCF93
@@ -265,16 +289,19 @@ def dump_type(type_id, type_map, offset=0, displayed_types=None):
     elif type_def.metatype == 1:  # Structure
         for m in type_def.members:
             sbuf = sbuf + '{}{} o:{}({:08x})[{}] s:{} t:{:08x} dt:{:08x} dv:{:016x}\n'.format(
-                ' ' * (offset + 2), m.name_utf8, m.offset, m.offset, m.bit_offset, m.size, m.type_hash, m.default_type, m.default_value)
+                ' ' * (offset + 2), m.name_utf8, m.offset, m.offset, m.bit_offset, m.size, m.type_hash, m.default_type,
+                m.default_value)
             sbuf = sbuf + dump_type(m.type_hash, type_map, offset + 4, displayed_types=displayed_types + [type_id])
     elif type_def.metatype == 2:  # Pointer
         pass
     elif type_def.metatype == 3:  # Array
         sbuf = sbuf + '{}Length: {}\n'.format(' ' * (offset + 2), type_def.element_length)
-        sbuf = sbuf + dump_type(type_def.element_type_hash, type_map, offset+2, displayed_types=displayed_types + [type_id])
+        sbuf = sbuf + dump_type(type_def.element_type_hash, type_map, offset + 2,
+                                displayed_types=displayed_types + [type_id])
     elif type_def.metatype == 4:  # Inline Array
         sbuf = sbuf + '{}Length: {}\n'.format(' ' * (offset + 2), type_def.element_length)
-        sbuf = sbuf + dump_type(type_def.element_type_hash, type_map, offset+2, displayed_types=displayed_types + [type_id])
+        sbuf = sbuf + dump_type(type_def.element_type_hash, type_map, offset + 2,
+                                displayed_types=displayed_types + [type_id])
     elif type_def.metatype == 7:  # BitField
         pass
     elif type_def.metatype == 8:  # Enumeration
@@ -320,7 +347,8 @@ def adf_type_id_to_str(type_id, type_map):
 class AdfValue:
     __slots__ = ('value', 'type_id', 'info_offset', 'data_offset', 'bit_offset', 'enum_string', 'hash_string')
 
-    def __init__(self, value, type_id, info_offset, data_offset=None, bit_offset=None, enum_string=None, hash_string=None):
+    def __init__(self, value, type_id, info_offset, data_offset=None, bit_offset=None, enum_string=None,
+                 hash_string=None):
         self.value = value
         self.type_id = type_id
         self.info_offset = info_offset
@@ -349,6 +377,30 @@ class AdfValue:
 
         return s
 
+
+# def hash_lookup(vfs: VfsDatabase, hash_code, default=None, prefix=''):
+#     if isinstance(hash_code, int):
+#         ele = vfs.lookup_equipment_from_hash(hash_code)
+#         if ele is not None:
+#             display_name_hash = ele["DisplayNameHash"]
+#             display_name = vfs.hash_string_match(hash32=display_name_hash)
+#             if display_name:
+#                 display_name = display_name[0][1].decode('utf-8')
+#                 display_translated = vfs.lookup_translation_from_name(display_name)
+#                 if display_translated is None:
+#                     display_translated = display_name
+#             else:
+#                 display_translated = display_name_hash
+#             return f'{prefix}# {ele["EquipmentName"].decode("utf-8")} "{display_translated}"'
+#         else:
+#             hsm = vfs.hash_string_match(hash32=hash_code)
+#             if hsm:
+#                 display_name = hsm[0][1].decode('utf-8')
+#                 return f'{prefix}# {display_name}'
+
+#     return default
+
+
 def adf_format(v, type_map, indent=0):
     if isinstance(v, AdfValue):
         type_def = type_map.get(v.type_id, TypeDef())
@@ -376,8 +428,14 @@ def adf_format(v, type_map, indent=0):
             for k, iv in v.value.items():
                 s = s + '  ' * (indent + 1) + k + ':\n'
                 s = s + adf_format(iv, type_map, indent + 2)
+                # add details for equipment hashes
+                # if isinstance(iv.value, int) and k in adf_hash_fields:
                 if not hasattr(iv, 'value'):
                     pass
+                # elif isinstance(iv.value, int):
+                #     hs = hash_lookup(vfs, iv.value)
+                #     if hs:
+                #         s = s + '  ' * (indent + 2) + hs + '\n'
 
             s = s + '  ' * indent + '}\n'
         elif type_def.metatype == MetaType.Pointer:
@@ -386,7 +444,7 @@ def adf_format(v, type_map, indent=0):
             s = s + '  ' * indent + '# ' + value_info + '\n'
             s = s + '  ' * indent + '[\n'
             for iv in v.value:
-                s = s + adf_format(iv, type_map, indent + 1)
+                s = s + adf_format(iv, vfs, type_map, indent + 1)
             s = s + '  ' * indent + ']\n'
         elif type_def.metatype == MetaType.String:
             s = s + '  ' * indent + '{}  # {}\n'.format(v.value, value_info)
@@ -399,15 +457,33 @@ def adf_format(v, type_map, indent=0):
                 vp = '0x{:08x}'.format(v.value)
                 hash_string = v.hash_string
                 if hash_string is None:
+                    # name = vfs.hash_string_match(hash32=v.value)
+                    # if len(name):
+                    #     hash_string = 'DB:"{}"'.format(name[0][1].decode('utf-8'))
+                    # else:
                     hash_string = 'Hash4:0x{:08x}'.format(v.value)
             elif type_def.size == 6:
                 vp = '0x{:012x}'.format(v.value)
                 hash_string = v.hash_string
                 if hash_string is None:
+                    # name = vfs.hash_string_match(hash48=v.value & 0x0000FFFFFFFFFFFF)
+                    # if len(name):
+                    #     hash_string = 'DB:"{}"'.format(name[0][1].decode('utf-8'))
+                    # else:
                     hash_string = 'Hash6:0x{:012x}'.format(v.value)
             elif type_def.size == 8:
                 vp = '0x{:016x}'.format(v.value)
                 hash_string = v.hash_string
+                # if hash_string is None:
+                #     name48 = vfs.hash_string_match(hash48=v.value & 0x0000FFFFFFFFFFFF)
+                #     if len(name48):
+                #         hash_string = 'DB:H6:"{}"'.format(name48[0][1].decode('utf-8'))
+                #     else:
+                #         name64 = vfs.hash_string_match(hash48=v.value)
+                #         if len(name64):
+                #             hash_string = 'DB:H6:"{}"'.format(name64[0][1].decode('utf-8'))
+                #         else:
+                #             hash_string = 'Hash8:0x{:016x}'.format(v.value)
             else:
                 vp = v.value
                 hash_string = v.hash_string
@@ -421,14 +497,15 @@ def adf_format(v, type_map, indent=0):
         s = ''
         s = s + '  ' * indent + '[\n'
         for ent in v:
-            comment = None
+            comment = None #hash_lookup(vfs, ent, default='', prefix='  ')
             s = s + '  ' * (indent + 1) + f'{ent}{comment}\n'
         s = s + '  ' * indent + ']\n'
 
         return s
     else:
-        comment = None
+        comment = None #hash_lookup(vfs, v, default='', prefix='  ')
         return '  ' * indent + f'{v}{comment}\n'
+
 
 def adf_value_extract(v):
     if isinstance(v, AdfValue):
@@ -447,7 +524,6 @@ def adf_value_extract(v):
 def read_instance(
         buffer, n_buffer, buffer_pos, type_id, map_typedef, map_string_hash, abs_offset,
         bit_offset=None, found_strings=None):
-
     dpos = buffer_pos
     if type_id == typedef_s8:
         v, buffer_pos = ff_read_s8(buffer, n_buffer, buffer_pos)
@@ -516,73 +592,113 @@ def read_instance(
             v = AdfValue(v, type_id, dpos + abs_offset, v0[0] + abs_offset)
 
     elif type_id == 0x178842fe:  # gdc/global.gdcc
-        # TODO this should probably be it's own file type and the adf should be considered a wrapper
-        gdf_buffer = buffer[buffer_pos:]
-        gdf_n_buffer = len(gdf_buffer)
-        gdf_buffer_pos = 0
+        # TypeID 0x178842fe is the GameDataCollection structure (metatype = 1).
+        # This structure consist of two arrays A[GDCFileEntry] (metatype 3) and A[StringHash] (metatype 3)
+        # Usualy these additional types can be found in ADF parts of EXE file.
+        #
+        # For exemple "theHunterCotW_F.exe" contains the file "gamedatacollection.adf"
+        # with the folowing types:
+        #
+        #     GameDataCollection (Struct, 0x178842fe,  metatype = 1)
+        #         Files: A[GDCFileEntry] (ArrayEntry, 0xe3524ceb, metatype = 3)
+        #         Names: A[StringHash] (ArrayEntry, 0xb68e5583, metatype = 3)
+        #
+        #     GDCFileEntry (Struct, 0x0a0c56ee, metatype = 1)
+        #         Data: (Deferred, 0xdefe88ed, metatype = 6)
+        #         FileName: (String, 0x8955583e, metatype = 5)
+        #         Version: (UInt32, 0x075e4e4f, metatype = 0)
+        #
+        #     StringHash (StringHash, 0x48c5294d, metatype = 5)
+        #
+        #     etc...
+        #
+        # TODO: We need to get rid of the hacks below. This part should be completely reworked.
+        # The file "gdc/global.gdcc" doesn't contain GameDataCollection types. We need to retrieve these
+        # types from ADF-part of the EXE file and then continue parsing "gdc/global.gdcc".
 
-        count, gdf_buffer_pos = ff_read_u32s(gdf_buffer, gdf_n_buffer, gdf_buffer_pos, 8)
-        assert(count[0] == 32)
-        assert(count[1] == 16)
-        assert(count[2] == count[6])
-        assert(count[3] == 0)
-        # assert(count[4] == filesize +- k)
-        assert(count[5] == 16)
-        assert(count[6] == count[2])
-        assert(count[7] == 0)
-        dir_list = []
-        for i in range(count[2]):
-            d00_offset, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d04_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d08_filetype_hash, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d12_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d16_vpath_offset, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d20_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d24_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            d28_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            assert(d04_unk == 16)
-            assert(d12_unk == 0)
-            assert(d20_unk == 16)
-            assert(d24_unk == 0)
-            assert(d28_unk == 0)
-            entry = [d00_offset, d16_vpath_offset, d08_filetype_hash, d04_unk, d12_unk, d20_unk, d24_unk, d28_unk]
-            dir_list.append(entry)
+        try:
+            gdf_buffer = buffer[buffer_pos:]
+            gdf_n_buffer = len(gdf_buffer)
+            gdf_buffer_pos = 0
 
-        dir_contents = []
-        idx = 0
-        for e1 in dir_list:
-            # TODO something weird is going on with this second header, sometimes it makes sense, sometimes it may
-            # have floats? or indicate that is should be 24 byte long?
-            string_offset = e1[1]
-            ftype_hash = e1[2]
+            count, gdf_buffer_pos = ff_read_u32s(gdf_buffer, gdf_n_buffer, gdf_buffer_pos, 8)
 
-            gdf_buffer_pos = string_offset
-            v_path, gdf_buffer_pos = ff_read_strz(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
-            v_hash = hash32_func(v_path)
+            # A[GDCFileEntry] (metatype = 3, typehash = 0xe3524ceb)
+            # Array-Offset :: 2 x ArrayEntries [2 * 16 = 32] or zero [0] on empty data
+            assert count[0] == 32 or count[0] == 0, f"{count[0]=}"
+            # Chain-Offset :: Offset to the next entry [16] or zero [0] on empty data
+            assert count[1] == 16 or count[1] == 0, f"{count[1]=}"
+            # Array-Length :: Files count (this entry) == Names count (next entry)
+            assert count[2] == count[6], f"{count[2]=} {count[6]=}"
+            # Zero-Fill :: 16 bytes alignment
+            assert count[3] == 0, f"{count[3]=}"
 
-            if ftype_hash in {0xD74CC4CB}:  # RTPC read directly
-                # TODO this follows the data structure for an array of some type, 0xD74CC4CB is probably it's hash
-                gdf_buffer_pos = e1[0]
-                header2, gdf_buffer_pos = ff_read_u32s(gdf_buffer, gdf_n_buffer, gdf_buffer_pos, 4)
-                actual_offset = header2[0]
-                actual_size = header2[2]
-                adf_type_hash = None
-            else:  # TODO current guess is that it is a bare ADF instance
-                actual_offset = e1[0]
-                actual_size = None
-                adf_type_hash = ftype_hash
+            # A[StringHash] (metatype = 3, typehash = 0xb68e5583)
+            # Array-Offset :: Unpredictable due to multiple byte-alignments, or zero [0] on empty data
+            # assert(count[4] == filesize +- k)
+            # Chain-Offset :: Offset to the next entry [16] or zero [0] on empty data
+            assert count[5] == 16 or count[5] == 0, f"{count[5]=}"
+            # Array-Length :: Names count (this entry) == Files count (prev entry)
+            assert count[6] == count[2], f"{count[2]=} {count[6]=}"
+            # Zero-Fill :: 16 bytes alignment
+            assert count[7] == 0, f"{count[7]=}"
 
-            entry = GdcArchiveEntry(
-                index=idx,
-                offset=actual_offset,
-                size=actual_size,
-                v_hash=v_hash,
-                filetype_hash=ftype_hash,
-                adf_type_hash=adf_type_hash,
-                v_path=v_path)
-            dir_contents.append(entry)
-            idx += 1
-        v = dir_contents
+            dir_list = []
+            for i in range(count[2]):
+                d00_offset, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d04_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d08_filetype_hash, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d12_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d16_vpath_offset, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d20_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d24_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                d28_unk, gdf_buffer_pos = ff_read_u32(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                assert (d04_unk == 16)
+                assert (d12_unk == 0)
+                assert (d20_unk == 16)
+                assert (d24_unk == 0)
+                assert (d28_unk == 0)
+                entry = [d00_offset, d16_vpath_offset, d08_filetype_hash, d04_unk, d12_unk, d20_unk, d24_unk, d28_unk]
+                dir_list.append(entry)
+
+            dir_contents = []
+            idx = 0
+            for e1 in dir_list:
+                # TODO something weird is going on with this second header, sometimes it makes sense, sometimes it may
+                # have floats? or indicate that is should be 24 byte long?
+                string_offset = e1[1]
+                ftype_hash = e1[2]
+
+                gdf_buffer_pos = string_offset
+                v_path, gdf_buffer_pos = ff_read_strz(gdf_buffer, gdf_n_buffer, gdf_buffer_pos)
+                v_hash = hash32_func(v_path)
+
+                if ftype_hash in {0xD74CC4CB}:  # RTPC read directly
+                    # TODO this follows the data structure for an array of some type, 0xD74CC4CB is probably it's hash
+                    gdf_buffer_pos = e1[0]
+                    header2, gdf_buffer_pos = ff_read_u32s(gdf_buffer, gdf_n_buffer, gdf_buffer_pos, 4)
+                    actual_offset = header2[0]
+                    actual_size = header2[2]
+                    adf_type_hash = None
+                else:  # TODO current guess is that it is a bare ADF instance
+                    actual_offset = e1[0]
+                    actual_size = None
+                    adf_type_hash = ftype_hash
+
+                entry = GdcArchiveEntry(
+                    index=idx,
+                    offset=actual_offset,
+                    size=actual_size,
+                    v_hash=v_hash,
+                    filetype_hash=ftype_hash,
+                    adf_type_hash=adf_type_hash,
+                    v_path=v_path)
+                dir_contents.append(entry)
+                idx += 1
+            v = dir_contents
+        except:
+            print(f"ERROR: Failed to process gdc/global.gdcc")
+            v = []
 
     else:
         if type_id not in map_typedef:
@@ -889,6 +1005,8 @@ class Adf:
             self.map_typedef[self.table_typedef[i].type_hash] = self.table_typedef[i]
             self.extended_map_typedef[self.table_typedef[i].type_hash] = self.table_typedef[i]
 
+        # print(typedef_map)
+
         # instance
         self.table_instance = [InstanceEntry() for i in range(self.instance_count)]
         self.map_instance = {}
@@ -913,3 +1031,7 @@ class Adf:
                     found_strings=self.found_strings)
                 self.table_instance_full_values[i] = v
                 self.table_instance_values[i] = adf_value_extract(v)
+                # except EDecaMissingAdfType as ae:
+                #     print('Missing HASHID {:08x}'.format(ae.hashid))
+                # except Exception as exp:
+                #     print(exp)

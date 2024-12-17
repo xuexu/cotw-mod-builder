@@ -1,5 +1,4 @@
-from typing import List
-from modbuilder import mods
+from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Modify ATV"
@@ -91,12 +90,12 @@ def map_options(options: dict) -> dict:
   traction = options["traction"] if options["traction"] else "default"
   noise = options["noise_distance"] if "noise_distance" in options else 500.0
   vision = options["vision_distance"] if "vision_distance" in options else 200.0
-  
+
   if top_speed != "70" and acceleration == "default":
     acceleration = "medium"
   elif top_speed == "170" and acceleration != "high":
-    acceleration = "high"  
-  
+    acceleration = "high"
+
   return {
     "top_speed": top_speed,
     "acceleration": acceleration,
@@ -104,7 +103,7 @@ def map_options(options: dict) -> dict:
     "noise_distance": noise,
     "vision_distance": vision
   }
-  
+
 
 def format(options: dict) -> str:
   options = map_options(options)
@@ -112,27 +111,28 @@ def format(options: dict) -> str:
   acceleration = options["acceleration"]
   traction = options["traction"]
   noise = options["noise_distance"]
-  return f"Modify ATV ({top_speed}km/h, {acceleration}, {traction}, {int(noise)}m)"
+  vision = options["vision_distance"]
+  return f"Modify ATV ({top_speed}km/h, {acceleration}, {traction}, {int(noise)}m, {int(vision)}m)"
 
-def get_files(options: dict) -> List[str]:
+def get_files(options: dict) -> list[str]:
   noise = options["noise_distance"]
   atv_files = [TRANSMISSION_FILE, LANDENGINE_FILE, AERODYNAMICS_FILE, LANDGLOBAL_FILE]
   if noise != 500.0:
     atv_files.append(NOISE_PATH)
   return atv_files
 
-def _update_gears(values: List[float], start_offset: int) -> None:
+def _update_gears(values: list[float], start_offset: int) -> None:
   for i, value in enumerate(values):
       mods.update_file_at_offset(TRANSMISSION_FILE, start_offset + (i * 4), float(value))
 
 def process(options: dict) -> None:
   options = map_options(options)
-  top_speed = options["top_speed"] 
+  top_speed = options["top_speed"]
   acceleration = options["acceleration"]
   traction = options["traction"]
   noise = options["noise_distance"]
   vision = options["vision_distance"]
-  
+
   if top_speed == "90":
     speed_options = SPEED_90
   elif top_speed == "120":
@@ -142,86 +142,63 @@ def process(options: dict) -> None:
   elif top_speed == "170":
     speed_options = SPEED_170
   else:
-    speed_options = SPEED_70  
-  
+    speed_options = SPEED_70
+
   if acceleration == "medium":
     torque_option = TORQUE_MEDIUM
   elif acceleration == "high":
-    torque_option = TORQUE_HIGH   
+    torque_option = TORQUE_HIGH
   else:
-    torque_option = TORQUE_DEFAULT    
-    
+    torque_option = TORQUE_DEFAULT
+
   if traction == "medium":
     traction_option = TRACTION_MEDIUM
   elif traction == "high":
     traction_option = TRACTION_HIGH
   else:
     traction_option = TRACTION_DEFAULT
-  
+
   gears = speed_options["gears"]
   upshift = speed_options["upshift"]
-  downshift = speed_options["downshift"] 
-  
+  downshift = speed_options["downshift"]
+
   _update_gears([gears[0], gears[1], gears[2], gears[3], gears[4], gears[5], gears[6], gears[7]], 196)
   _update_gears([upshift[0], upshift[1], upshift[2], upshift[3], upshift[4], upshift[5], upshift[6], upshift[7]], 228)
   _update_gears([downshift[0], downshift[1], downshift[2], downshift[3], downshift[4], downshift[5], downshift[6], downshift[7]], 260)
-  
-  mods.update_file_at_offset(TRANSMISSION_FILE, 192, 1)  
-  mods.update_file_at_offset(TRANSMISSION_FILE, 316, 250.0)  
+
+  mods.update_file_at_offset(TRANSMISSION_FILE, 192, 1)
+  mods.update_file_at_offset(TRANSMISSION_FILE, 316, 250.0)
   mods.update_file_at_offset(TRANSMISSION_FILE, 332, 3.0)
-  
+
   mods.update_file_at_offset(LANDGLOBAL_FILE, 236, traction_option["front_friction"])
   mods.update_file_at_offset(LANDGLOBAL_FILE, 240, 0.0)
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 268, traction_option["rear_friction"])  
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 272, 0.0)  
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 228, 0, format="sint08")  
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 260, 0, format="sint08")  
-  
+  mods.update_file_at_offset(LANDGLOBAL_FILE, 268, traction_option["rear_friction"])
+  mods.update_file_at_offset(LANDGLOBAL_FILE, 272, 0.0)
+  mods.update_file_at_offset(LANDGLOBAL_FILE, 228, 0, format="sint08")
+  mods.update_file_at_offset(LANDGLOBAL_FILE, 260, 0, format="sint08")
   mods.update_file_at_offset(LANDENGINE_FILE, 196, 0.05)
   mods.update_file_at_offset(LANDENGINE_FILE, 208, speed_options["max_rpm"])
   mods.update_file_at_offset(LANDENGINE_FILE, 216, speed_options["optimal_rpm"])
   mods.update_file_at_offset(LANDENGINE_FILE, 220, torque_option["max"])
   mods.update_file_at_offset(LANDENGINE_FILE, 224, torque_option["min"])
   mods.update_file_at_offset(LANDENGINE_FILE, 228, torque_option["optimal"])
-  
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 192, 1.25)  
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 196, 0.3)
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 200, 0.3)  
-  
-  cell_index = {
-    "0": 30,
-    "50": 601,
-    "100": 456,
-    "150": 457,
-    "200": 543,
-    "250": 660,
-    "300": 661,
-    "350": 245,
-    "400": 250,
-    "450": 255
-  }
-  
-  if noise != 500.0:
-    index_offset = [95060, 95064]
-    one_index_offset = [95036, 95040]
-    value_cell_index = cell_index[str(int(noise))]
-    for offset in index_offset:
-      mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
-    for offset in one_index_offset:
-      mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
-  if vision != 200.0:
-    index_offset = [95180, 95184]
-    one_index_offset = [95156, 95160]
-    value_cell_index = cell_index[str(int(vision))]
-    for offset in index_offset:
-      mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
-    for offset in one_index_offset:
-      mods.update_file_at_offset(NOISE_PATH, offset, value_cell_index)
 
-def merge_files(files: List[str], options: dict) -> None:
+  mods.update_file_at_offset(AERODYNAMICS_FILE, 192, 1.25)
+  mods.update_file_at_offset(AERODYNAMICS_FILE, 196, 0.3)
+  mods.update_file_at_offset(AERODYNAMICS_FILE, 200, 0.3)
+
+  if noise != 500.0:
+    mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B4", "C4"], int(noise))
+    if noise < 150:
+      mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B3", "C3"], int(noise))
+  if vision != 200.0:
+    mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B9", "C9"], int(vision))
+    if vision < 50:
+      mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B8", "C8"], int(noise))
+
+def merge_files(files: list[str], options: dict) -> None:
   for bundle_file in [RED_MERGE_PATH, SILVER_MERGE_PATH, JADE_MERGE_PATH]:
     bundle_lookup = mods.get_sarc_file_info(mods.APP_DIR_PATH / "org" / bundle_file)
     for file in files:
       if file != NOISE_PATH:
         mods.merge_into_archive(file, str(bundle_file), bundle_lookup)
-  

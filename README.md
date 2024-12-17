@@ -9,7 +9,7 @@ Release builds are available here on GitHub and on NexusMods: https://www.nexusm
 ![Screenshot](screenshot.png)
 
 ## How to Build
-> Note: This was built and tested with Python 3.9.6
+> Note: This was built and tested with Python 3.12.8
 
 1. Setup virtual environment:
 ```
@@ -19,15 +19,8 @@ venv\Scripts\activate
 2. Install dependencies:
 ```shell
 pip install -r requirements.txt
-python -m PySimpleGUI.PySimpleGUI upgrade
 ```
 3. Run the application:
 ```shell
 python -m modbuilder
 ```
-
-## PySimpleGUI Licensing
-
-PySimpleGUI [changed their license terms in early 2024](https://docs.pysimplegui.com/en/latest/documentation/installing_licensing/license_keys/) to require an account to use the software. A free "hobbyist" account can be used without restrictions for development, however a paid "commercial" account is needed in order to get distribution keys that can be included in compiled binaries. If a free account is used to compile an .exe then PySimpleGUI will launch first and demand the end-user signs up for an account or activates a 30-day trial of the software, after which they will need an account. With a distribution key, the license is invisible to the end-user and there is no prompt for an account or trial activation.
-
-For now, I am building release versions of this tool with a distribution license that I paid for. Once the 1-year license expires, I may drop that license and update this project to use [FreeSimpleGUI](https://github.com/spyoungtech/FreeSimpleGUI) instead.

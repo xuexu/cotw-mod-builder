@@ -1,5 +1,6 @@
-from modbuilder import PySimpleGUI_License
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
+
+AMMO_CLASS_BUTTONS_STATE = [True for i in range(9)]
 
 def create_option(mod_option: dict, key: str) -> list[list]:
     mod_details = []

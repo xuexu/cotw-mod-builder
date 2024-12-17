@@ -1,6 +1,6 @@
 from typing import List
 
-DEBUG = False
+DEBUG = True
 NAME = "Decrease Hunting Pressure"
 DESCRIPTION = "Hunting pressure reduces animal activity in the area after a kill. Each pressure zone is shown as a purple circle on the map. Overlapping circles will show as brighter purple and have an increased negative effect on animal activity in the area."
 FILE = "settings/hp_settings/global_simulation.bin"

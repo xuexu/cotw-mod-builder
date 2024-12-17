@@ -26,10 +26,10 @@ class DeployableValue:
     self.value = value
     self.offset = offset
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     return f"{self.value:} ({self.offset}))"
 
-def is_deployable_prop(value: str):
+def is_deployable_prop(value: str) -> bool:
   return Deployable.LAYOUTBLIND in value or \
     Deployable.TREESTAND in value or \
       Deployable.TENT in value or \

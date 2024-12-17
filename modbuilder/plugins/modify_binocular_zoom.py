@@ -1,16 +1,16 @@
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 
 DEBUG = False
 NAME = "Modify Binocular Zoom"
 DESCRIPTION = "Modify the zoom range for binoculars. Every zoomable binocular has five zoom levels. With this mod you get to control each level of the zoom."
 
 class Optics:
-  def __init__(self, file: Path, bundle_file: Path, name: str) -> None:
-    self.file = file
-    self.bundle_file = bundle_file
-    self.name = name
+  def __init__(self, file: Path, bundle_file: Path) -> None:
+    self.file = mods.get_relative_path(file)
+    self.bundle_file = mods.get_relative_path(bundle_file)
+    self._map_name()
     self.optics_level_1 = mods.read_file_at_offset(file, 100, "f32")
     self.optics_level_2 = mods.read_file_at_offset(file, 104, "f32")
     self.optics_level_3 = mods.read_file_at_offset(file, 108, "f32")
@@ -20,14 +20,19 @@ class Optics:
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
+  def _map_name(self) -> None:
+    filename = self.file.split("/")[-1].replace(".sighttunec","")
+    mapped_name = mods.map_equipment_name(filename, "optics")
+    self.name = mapped_name
+
 def load_binoculars() -> list[Optics]:
-  base_file_path = Path("editor/entities/hp_equipment/optics/tuning")
-  base_bundle_path = Path("editor/entities/hp_equipment/optics")
+  base_file_path = mods.APP_DIR_PATH / "org/editor/entities/hp_equipment/optics/tuning"
+  base_bundle_path = mods.APP_DIR_PATH / "org/editor/entities/hp_equipment/optics"
   binoculars = [
-    Optics(base_file_path / "equipment_optics_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_binoculars_01.ee", "Vantage 8x42 Binoculars"),
-    Optics(base_file_path / "equipment_optics_rangefinder_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_01.ee", "Venture 5x30 Rangefinder"),
-    Optics(base_file_path / "equipment_optics_rangefinder_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_binoculars_01.ee", "Apexview 7x42 Rangefinder Binoculars"),
-    Optics(base_file_path / "equipment_optics_night_vision_01.sighttunec", base_bundle_path / "equipment_optics_night_vision_01.ee", "GenZero 8x50 Night Vision"),
+    Optics(base_file_path / "equipment_optics_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_binoculars_01.ee"),
+    Optics(base_file_path / "equipment_optics_rangefinder_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_01.ee"),
+    Optics(base_file_path / "equipment_optics_rangefinder_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_binoculars_01.ee"),
+    Optics(base_file_path / "equipment_optics_night_vision_01.sighttunec", base_bundle_path / "equipment_optics_night_vision_01.ee"),
   ]
   return sorted(binoculars, key=lambda x: x.name)
 
@@ -69,12 +74,12 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   level_5 = values["optics_level_5"]
 
   return {
-    "key": f"modify_optics_{optics_name}",
+    "key": f"modify_optics_{selected_optics.file}",
     "invalid": None,
     "options": {
-      "name": f"Modify Optics: {optics_name}",
-      "file": str(selected_optics.file),
-      "bundle_file": str(selected_optics.bundle_file),
+      "name": optics_name,
+      "file": selected_optics.file,
+      "bundle_file": selected_optics.bundle_file,
       "level_1": level_1,
       "level_2": level_2,
       "level_3": level_3,
@@ -84,7 +89,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def format(options: dict) -> str:
-  return f"{options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
+  return f"Modify Optics: {options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_optics")
@@ -109,3 +114,21 @@ def process(options: dict) -> None:
   mods.update_file_at_offset(file, 108, level_3)
   mods.update_file_at_offset(file, 112, level_4)
   mods.update_file_at_offset(file, 116, level_5)
+
+UPDATE_VERSION = "2.2.0"
+def handle_update(mod_key: str, mod_options: dict, _version: str) -> tuple[str, dict]:
+  optics = load_binoculars()
+  selected_optics = next(
+    x for x in optics if (
+      x.file == mod_options["file"] or  # properly formatted path with single forward slash (/)
+      x.file == mod_options["file"].replace("\\", "/")  # old path with double backslash (\\)
+    )
+  )
+  if not selected_optics:
+    raise ValueError(f"Unable to match optics {mod_options['name']}")
+  updated_mod_key = f"modify_optics_{selected_optics.file}"
+  updated_mod_options = mod_options
+  updated_mod_options["name"] = selected_optics.name
+  updated_mod_options["file"] = selected_optics.file
+  updated_mod_options["bundle_file"] = selected_optics.bundle_file
+  return updated_mod_key, updated_mod_options

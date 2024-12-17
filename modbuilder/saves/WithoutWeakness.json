@@ -1,0 +1,97 @@
+{
+  "version": "2.2.0",
+  "mod_options": {
+    "remove_intro_logos": {},
+    "clean_scope_lenses": {},
+    "decrease_wobble": {
+      "decrease_wobble": "",
+      "reduce_stand_percent": 100.0,
+      "reduce_crouch_percent": 100.0,
+      "reduce_prone_percent": 100.0
+    },
+    "increase_cash_reward": {
+      "cash_reward_multiplier": 5.0
+    },
+    "increase_xp_reward": {
+      "xp_reward_multiplier": 2.0,
+      "weapon_score_multiplier": 2.0
+    },
+    "increase_deployables": {
+      "deployable_multiplier": 20.0
+    },
+    "increase_diamond_spawns": {
+      "increase_diamond_spawns": "Low",
+      "weight_bias": 0.025
+    },
+    "increase_level_progression": {
+      "grant_skill_and_perk_points_every_level": true
+    },
+    "increase_render_distance": {
+      "increase_render_distance": "Recommended",
+      "spawn_distance": 750.0,
+      "despawn_distance": 750.0,
+      "bird_spawn_distance": 750.0,
+      "bird_despawn_distance": 750.0
+    },
+    "increase_reserve_population": {
+      "population_multiplier": 2.0
+    },
+    "increase_speed": {
+      "stand_speed_multiplier": 1.5,
+      "stand_sprint_speed_multiplier": 1.5,
+      "crouch_speed_multiplier": 2.0,
+      "crouch_sprint_speed_multiplier": 1.0,
+      "prone_speed_multiplier": 1.5,
+      "prone_sprint_speed_multiplier": 1.0,
+      "jump_speed_multiplier": 1.0
+    },
+    "increase_weapon_fov": {
+      "first-person_weapon_fov": 50.0
+    },
+    "modify_atv": {
+      "top_speed": "120",
+      "acceleration": "medium",
+      "traction": "high",
+      "noise_distance": 0.0,
+      "vision_distance": 0.0
+    },
+    "modify_lures": {
+      "remote_caller_range": 500.0,
+      "handheld_caller_range": 500.0,
+      "scent_range": 500.0,
+      "decoy_range": 500.0
+    },
+    "modify_respec_cost": {
+      "modify_respec_cost": "Cheap",
+      "cost": 1.0
+    },
+    "modify_resting_cost": {
+      "modify_resting_cost": "Cheap",
+      "cost": 1.0,
+      "increase_and_decrease_multiplier": 1.0,
+      "max_increase_multiplier": 1.0,
+      "cooldown": 1.0
+    },
+    "modify_reticle_cost": {
+      "modify_reticle_cost": "Cheap",
+      "cost": 1.0
+    },
+    "modify_skills_impact_resistance": {
+      "fall_damage_reduction_percent": 100.0,
+      "name": "Impact Resistance",
+      "key": "impact_resistance"
+    },
+    "modify_skills_pack_mule": {
+      "weight": 99.9,
+      "name": "Pack Mule",
+      "key": "pack_mule"
+    },
+    "modify_skills_tag": {
+      "duration": 10.0,
+      "spottable": 3.0,
+      "extra_spots_at_level_1": true,
+      "name": "Tag",
+      "key": "tag"
+    }
+  }
+}

@@ -1,12 +1,15 @@
-import os, sys, imp, struct, shutil, json
-from typing import List
+import os, sys, struct, shutil, json, importlib.util
 from pathlib import Path
 from deca.file import ArchiveFile
 from deca.ff_adf import Adf
+from deca.ff_rtpc import rtpc_from_binary, RtpcNode
 from deca.ff_sarc import FileSarc, EntrySarc
 from modbuilder.adf_profile import *
-from modbuilder import mods2, PySimpleGUI_License
-import PySimpleGUI as sg
+from modbuilder import mods2, __version__
+import FreeSimpleGUI as sg
+from types import ModuleType
+import semver
+import yaml
 
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 MOD_PATH = APP_DIR_PATH / "mod" / "dropzone"
@@ -22,50 +25,74 @@ GLOBAL_ANIMALS_SRC_PATH = "global/global_animal_types.bl"
 GLOBAL_ANIMALS_PATH = APP_DIR_PATH / "org" / GLOBAL_ANIMALS_SRC_PATH
 GAME_PATH_FILE = APP_DIR_PATH / "game_path.txt"
 
-def _load_mod(filename: str):
-  py_mod = imp.load_source(filename.split(".")[0], str(APP_DIR_PATH / PLUGINS_FOLDER / filename))
+with open(LOOKUP_PATH / "name_map.yaml", "r") as file:
+    NAME_MAP = yaml.safe_load(file)
+
+
+def _load_mod(filename: str) -> ModuleType:
+  spec = importlib.util.spec_from_file_location(filename, str(APP_DIR_PATH / PLUGINS_FOLDER / f"{filename}.py"))
+  py_mod = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(py_mod)
   return py_mod
 
-def _get_mod_filenames() -> List[str]:
+def _get_mod_filenames() -> list[str]:
   mod_filenames = []
   for mod_filename in os.listdir(APP_DIR_PATH / PLUGINS_FOLDER):
-    _, file_ext = os.path.splitext(os.path.split(mod_filename)[-1])
+    file_name, file_ext = os.path.splitext(os.path.split(mod_filename)[-1])
     if file_ext.lower() == '.py':
-      mod_filenames.append(mod_filename)
-  return mod_filenames  
+      mod_filenames.append(file_name)
+  return mod_filenames
 
-def get_mods() -> List:
+def get_mods(force_all: bool=False) -> dict:
   mod_filenames = _get_mod_filenames()
-  mods = []
+  mods = {}
   for mod_filename in mod_filenames:
     loaded_mod = _load_mod(mod_filename)
-    if hasattr(loaded_mod, "DEBUG") and loaded_mod.DEBUG:
-      continue
-    mods.append(loaded_mod)
+    if not force_all:
+      if hasattr(loaded_mod, "DEBUG") and loaded_mod.DEBUG:
+        continue
+    mods[mod_filename] = loaded_mod
   return mods
 
-def get_mod_keys() -> List[str]:
-  return [x.split(".")[0] for x in _get_mod_filenames()]
+def get_mod_keys() -> list[str]:
+  return _get_mod_filenames()
+  #return [x.split(".")[0] for x in _get_mod_filenames()]
 
-def get_mod(mod_key: str):
+def get_mod(mod_key: str) -> ModuleType:
   if mod_key in get_mod_keys():
-    return _load_mod(f"{mod_key}.py")
+    return _load_mod(mod_key)
   else:
-    mods = get_mods()
-    for mod in mods:
+    mods = get_mods(force_all=True)
+    for mod in mods.values():
       if hasattr(mod, "handle_key"):
         if mod.handle_key(mod_key):
           return mod
     return None
 
-def delegate_event(event: str, window: sg.Window, values: dict):
+def format_mod_display_name(mod_key:str, mod_options) -> str:
+  mod = get_mod(mod_key)
+  if mod is None:
+    formatted_name = get_mod_name_from_key(mod_key)
+  elif hasattr(mod, "format"):
+    formatted_name = mod.format(mod_options)
+  else:
+    formatted_name = get_mod_full_name_from_key(mod_key)
+  return formatted_name
+
+def delegate_event(event: str, window: sg.Window, values: dict) -> None:
   mods = get_mods()
-  for mod in mods:
+  for mod in mods.values():
     if hasattr(mod, "handle_event"):
       mod.handle_event(event, window, values)
-        
+
 def get_mod_name_from_key(mod_key: str) -> str:
   return " ".join(mod_key.lower().split("_"))
+
+def get_mod_full_name_from_key(mod_name: str) -> str:
+  mod = get_mod(mod_name)
+  if mod:
+    return mod.NAME
+  return mod_name
 
 def get_mod_key_from_name(mod_name: str) -> str:
   return "_".join(mod_name.lower().split(" "))
@@ -78,28 +105,31 @@ def get_mod_option(mod_key: str, option_key: str) -> dict:
       return option
   return None
 
-def list_mod_files() -> List[str]:
+def list_mod_files() -> list[str]:
   return _get_mod_filenames()
 
-def list_mods() -> List[str]:
-  return [m.NAME for m in get_mods()]
+def list_mods() -> list[str]:
+  return [m.NAME for m in get_mods().values()]
 
 def clear_mod() -> None:
   path = APP_DIR_PATH / "mod"
   if path.exists():
     shutil.rmtree(path)
 
+def get_relative_path(path: str) -> str:
+  return os.path.relpath(path, APP_DIR_PATH / "org").replace("\\", "/")
+
 def copy_file(src_path: Path, dest_path: Path) -> None:
   if not dest_path.exists():
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(src_path, dest_path)   
+    shutil.copy(src_path, dest_path)
 
 def copy_file_to_mod(src_filename: str) -> None:
   dest_path = APP_DIR_PATH / "mod/dropzone" / src_filename
   src_path = APP_DIR_PATH / "org" / src_filename
-  copy_file(src_path, dest_path)  
+  copy_file(src_path, dest_path)
 
-def copy_glob_to_mod(src_filename: str) -> List[str]:
+def copy_glob_to_mod(src_filename: str) -> list[str]:
   org_basepath = APP_DIR_PATH / "org"
   files = []
   for file in list(org_basepath.glob(src_filename)):
@@ -108,23 +138,23 @@ def copy_glob_to_mod(src_filename: str) -> List[str]:
     files.append(file.replace("\\", "/"))
   return files
 
-def copy_files_to_mod(src_filename: str) -> List[str]:
+def copy_files_to_mod(src_filename: str) -> list[str]:
   if "*" in src_filename:
     return copy_glob_to_mod(src_filename)
   else:
     copy_file_to_mod(src_filename)
     return [src_filename]
 
-def copy_all_files_to_mod(filenames: List[str]) -> List[str]:
+def copy_all_files_to_mod(filenames: list[str]) -> list[str]:
   for filename in filenames:
     copy_file_to_mod(filename)
   return filenames
 
 def get_org_file(src_filename: str) -> Path:
-  return APP_DIR_PATH / "org" / src_filename  
+  return APP_DIR_PATH / "org" / src_filename
 
 def get_modded_file(src_filename: str) -> Path:
-  return APP_DIR_PATH / "mod/dropzone" / src_filename  
+  return APP_DIR_PATH / "mod/dropzone" / src_filename
 
 def read_file_at_offset(src_filename: str, offset: int, format: str) -> any:
   src_path = get_org_file(src_filename)
@@ -135,8 +165,8 @@ def read_file_at_offset(src_filename: str, offset: int, format: str) -> any:
       value_at_offset = struct.unpack("f", fp.read(4))[0]
   return value_at_offset
 
-def update_file_at_offsets(src_filename: str, offsets: List[int], value: any, transform: str = None, format: str = None) -> None:
-  dest_path = get_modded_file(src_filename) 
+def update_file_at_offsets(src_filename: str, offsets: list[int], value: any, transform: str = None, format: str = None) -> None:
+  dest_path = get_modded_file(src_filename)
   with open(dest_path, "r+b") as fp:
     for offset in offsets:
       # print("updating", value, "at offset", offset)
@@ -146,7 +176,7 @@ def update_file_at_offsets(src_filename: str, offsets: List[int], value: any, tr
           fp.write(struct.pack("h", value))
       else:
         if isinstance(value, str):
-          fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))      
+          fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
         elif isinstance(value, float):
           new_value = value
           if transform == "multiply":
@@ -162,12 +192,12 @@ def update_file_at_offsets(src_filename: str, offsets: List[int], value: any, tr
           elif transform == "multiply":
             existing_value = struct.unpack("i", fp.read(4))[0]
             new_value = round(value * existing_value)
-          fp.seek(offset)            
+          fp.seek(offset)
           fp.write(struct.pack("i", new_value))
-      fp.flush()  
+      fp.flush()
 
 def update_file_at_offsets_with_values(src_filename: str, values: list[(int, any)]) -> None:
-  dest_path = get_modded_file(src_filename) 
+  dest_path = get_modded_file(src_filename)
   with open(dest_path, "r+b") as fp:
     for offset, value in values:
       fp.seek(offset)
@@ -177,7 +207,7 @@ def update_file_at_offsets_with_values(src_filename: str, values: list[(int, any
         fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
       elif isinstance(value, float):
         fp.write(struct.pack("f", value))
-    fp.flush()  
+    fp.flush()
 
 def update_file_at_offset(src_filename: str, offset: int, value: any, transform: str = None, format: str = None) -> None:
   update_file_at_offsets(src_filename, [offset], value, transform, format)
@@ -194,6 +224,12 @@ def apply_mod(mod: any, options: dict) -> None:
   else:
     mod.process(options)
 
+def open_rtpc(filename: Path) -> RtpcNode:
+  with filename.open("rb") as f:
+    data = rtpc_from_binary(f)
+  root = data.root_node
+  return root
+
 def get_global_file_info() -> dict:
   global_files = {}
   return global_files
@@ -205,7 +241,7 @@ def get_sarc_file_info(filename: Path, include_details: bool = False) -> dict:
     sarc.header_deserialize(fp)
     for sarc_file in sarc.entries:
       bundle_files[sarc_file.v_path.decode("utf-8")] = sarc_file if include_details else sarc_file.offset
-  return bundle_files  
+  return bundle_files
 
 def get_sarc_file_info_details(bundle_file: Path, filename: str) -> EntrySarc:
   sarc_info = get_sarc_file_info(bundle_file, True)
@@ -238,13 +274,13 @@ def merge_into_archive(filename: str, merge_path: str, merge_lookup: dict, delet
   if delete_src:
     src_path.unlink()
 
-def recreate_archive(changed_filenames: List[str], archive_path: str) -> None:
+def recreate_archive(changed_filenames: list[str], archive_path: str) -> None:
   org_archive_path = APP_DIR_PATH / "org" / archive_path
   new_archive_path = APP_DIR_PATH / "mod/dropzone" / archive_path
-  
-  sarc_file = FileSarc()  
+
+  sarc_file = FileSarc()
   sarc_file.header_deserialize(org_archive_path.open("rb"))
-  
+
   org_entries = {}
   for entry in sarc_file.entries:
     file = entry.v_path.decode("utf-8")
@@ -252,13 +288,13 @@ def recreate_archive(changed_filenames: List[str], archive_path: str) -> None:
       entry.length = (APP_DIR_PATH / "mod/dropzone" / file).stat().st_size
     else:
       org_entries[file] = entry.offset
-    
+
   new_archive_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
   with ArchiveFile(new_archive_path.open("wb")) as new_archive:
     with org_archive_path.open("rb") as org_archive:
       sarc_file.header_serialize(new_archive)
-      
+
       for entry in sarc_file.entries:
         data = None
         file = entry.v_path.decode("utf-8")
@@ -269,13 +305,13 @@ def recreate_archive(changed_filenames: List[str], archive_path: str) -> None:
         else:
           org_archive.seek(org_entries[file])
           data = org_archive.read(entry.length)
-          
+
         new_archive.seek(entry.offset)
         new_archive.write(data)
-  
+
 def expand_into_archive(filename: str, merge_path: str) -> None:
   src_path = APP_DIR_PATH / "mod/dropzone" / filename
-  mod_merge_path = APP_DIR_PATH / "mod/dropzone" / merge_path  
+  mod_merge_path = APP_DIR_PATH / "mod/dropzone" / merge_path
   copy_files_to_mod(merge_path)
   archive_info = get_sarc_file_info(mod_merge_path, True)
   offsets_to_update = []
@@ -293,18 +329,18 @@ def expand_into_archive(filename: str, merge_path: str) -> None:
     if file_offset and sarc_entry.offset > file_offset:
       offsets_to_update.append((file, sarc_entry.META_entry_offset_ptr, sarc_entry.offset + (new_file_size - old_file_size)))
     prev_offset = sarc_entry.offset
-    
-  merge_bytes = bytearray(mod_merge_path.read_bytes())  
+
+  merge_bytes = bytearray(mod_merge_path.read_bytes())
   for file_to_update in offsets_to_update:
     merge_bytes[file_to_update[1]:file_to_update[1]+4] = create_u32(file_to_update[2])
- 
+
   filename_bytes = bytearray(src_path.read_bytes())
   merge_bytes[file_length_offset:file_length_offset+4] = create_u32(new_file_size)
   del merge_bytes[file_offset:file_offset+old_file_size]
   merge_bytes[file_offset:file_offset] = filename_bytes
   mod_merge_path.write_bytes(merge_bytes)
 
-def merge_files(filenames: List[str]) -> None:
+def merge_files(filenames: list[str]) -> None:
   filenames = [*set(filenames)]
   for filename in filenames:
     if is_file_in_global(filename):
@@ -319,26 +355,65 @@ def merge_files(filenames: List[str]) -> None:
 def package_mod() -> None:
   for p in list(Path(APP_DIR_PATH / "mod").glob("**/*")):
     if p.is_dir() and len(list(p.iterdir())) == 0:
-      os.removedirs(p)  
+      os.removedirs(p)
 
-def save_mods(selected_options: dict, save_name: str) -> None:
+def save_mod_list(selected_mods: dict, save_name: str) -> None:
   save_path = APP_DIR_PATH / "saves"
   save_path.mkdir(parents=True, exist_ok=True)
   save_path = save_path / f"{save_name}.json"
-  save_path.write_text(json.dumps(selected_options, indent=2))
+  save_data = {
+    "version": __version__,
+    "mod_options": selected_mods
+  }
+  save_path.write_text(json.dumps(save_data, indent=2))
 
-def load_saved_mods() -> List[str]:
+def load_saved_mod_lists() -> list[str]:
   mod_names = []
   for save in os.listdir(APP_DIR_PATH / "saves"):
     name, ext = os.path.splitext(save)
     mod_names.append(name)
   return mod_names
 
-def delete_saved_mod(name: str) -> None:
+def delete_saved_mod_list(name: str) -> None:
   Path(APP_DIR_PATH / "saves"/ f"{name}.json").unlink()
 
-def load_saved_mod(name: str) -> None:
+def load_saved_mod_list(name: str) -> dict:
   return json.load(Path(APP_DIR_PATH / "saves"/ f"{name}.json").open())
+
+def validate_saved_mod_list(loaded_mods_json: dict, version: str) -> dict[str, dict]:
+  mods_to_keep = {}
+  mods_to_update = {}
+  mods_to_remove = {}
+  loaded_saved_mods = loaded_mods_json["mod_options"] if version != "0.0.0" else loaded_mods_json
+  for mod_key, mod_options in loaded_saved_mods.items():
+    mod = get_mod(mod_key)
+    if not _is_mod_valid(mod):
+      mods_to_remove[mod_key] = mod_options
+    elif _mod_requires_update(mod, version):
+      mods_to_update[mod_key] = mod_options
+    else:
+      mods_to_keep[mod_key] = mod_options
+  return {"load": mods_to_keep, "update": mods_to_update, "remove": mods_to_remove}
+
+def _is_mod_valid(mod: ModuleType) -> bool:
+  if mod is None or (hasattr(mod, "DEBUG") and mod.DEBUG):
+    # mod doesn't exist or is disabled
+    return False
+  return True
+
+def _mod_requires_update(mod: ModuleType, version: str) -> bool:
+  if hasattr(mod, "UPDATE_VERSION") and hasattr(mod, "handle_update"):
+     # saved version is lower than the mod's latest format update
+    return semver.compare(version, mod.UPDATE_VERSION) == -1
+  return False
+
+def update_saved_mod_configuration(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
+  selected_mod = get_mod(mod_key)
+  try:
+      updated_key, updated_options = selected_mod.handle_update(mod_key, mod_options, version)
+      return updated_key, updated_options
+  except Exception as e:
+    raise ValueError(e)
 
 def read_dropzone() -> Path:
   return Path(GAME_PATH_FILE.read_text())
@@ -416,10 +491,10 @@ def find_closest_lookup2(desired_value: float, numbers: dict) -> int:
     return closest_match
 
 def lookup_column(
-  filename: str, 
-  sheet: str, 
-  col_label: str, 
-  start_row: int, 
+  filename: str,
+  sheet: str,
+  col_label: str,
+  start_row: int,
   end_row: int,
   multiplier: float
 ) -> tuple[list[int], list[int]]:
@@ -464,6 +539,37 @@ def insert_array_data(file: Path, new_data: bytearray, header_offset: int, data_
     del data[data_offset:data_offset+old_array_length]
   data[data_offset:data_offset] = new_data
   modded_file.write_bytes(data)
+
+def map_equipment_name(name: str, equipment_type: str) -> str:
+    display_name = None
+    if equipment_type == "ammo":
+        mapped_equipment = NAME_MAP["ammo"].get(name.removeprefix("equipment_").removeprefix("ammo_"))
+        display_name = mapped_equipment
+    if equipment_type == "optics":
+        mapped_equipment = NAME_MAP["optics"].get(name.removeprefix("equipment_").removeprefix("optics_"))
+        display_name = mapped_equipment
+    if equipment_type == "sights":
+        mapped_equipment = NAME_MAP["sights"].get(name.removeprefix("equipment_").removeprefix("sight_").removeprefix("scope_"))
+        display_name = mapped_equipment["name"] if mapped_equipment else None
+    if equipment_type == "weapons":
+        pattern = r'^(equipment_)?(weapon_)?(.*?)_\d+$'
+        weapon_name = re.match(pattern, name).group(3)
+        mapped_equipment = NAME_MAP["weapons"].get(weapon_name)
+        display_name = mapped_equipment["name"] if mapped_equipment else None
+    return display_name if display_name else name
+
+# def map_equipment_hash(hash: str, equipment_type: str) -> str:
+#     equipment_hash_map = json.load((LOOKUP_PATH / "settings/hp_settings/equipment_data.json").open())
+#     equipment_name = equipment_hash_map[equipment_type].get(str(hash), "")
+#     return equipment_name if equipment_name else ""
+
+def map_weapon_name_and_type(name: str) -> tuple[str, str]:
+    pattern = r'^equipment_weapon_(.*?)_\d+$'
+    weapon_name = re.match(pattern, name).group(1)
+    weapon_data = NAME_MAP["weapons"].get(weapon_name)
+    if weapon_data:
+        return weapon_data["name"], weapon_data["type"]
+    return name, ""
 
 # TODO: more flexible way to handle packaged files
 GLOBAL_FILES = get_global_file_info()

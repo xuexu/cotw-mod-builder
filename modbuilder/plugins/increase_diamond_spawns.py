@@ -30,12 +30,6 @@ PRESETS = [
 def format(options: dict) -> str:
   return f"Increase Diamond Spawns ({options['weight_bias']} weight bias)"
 
-def open_rtpc(filename: Path) -> list[RtpcNode]:
-  with filename.open("rb") as f:
-    data = rtpc_from_binary(f)
-  root = data.root_node
-  return root.child_table[0].child_table
-
 def get_animal_scoring_table_index(animal: RtpcNode) -> int:
   for i in range(len(animal.child_table)):
     table_type = animal.child_table[i].prop_table[0].data
@@ -47,7 +41,8 @@ def process(options: dict) -> None:
   weight_bias = options['weight_bias']
   offsets_and_values = []
 
-  animals = open_rtpc(mods.APP_DIR_PATH / "mod/dropzone" / FILE)
+  global_animal_types_rtpc = mods.open_rtpc(mods.APP_DIR_PATH / "mod/dropzone" / FILE)
+  animals = global_animal_types_rtpc.child_table[0].child_table
   for animal in animals:
     scoring_table_index = get_animal_scoring_table_index(animal)
     if scoring_table_index is None:

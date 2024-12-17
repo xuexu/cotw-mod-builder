@@ -1,8 +1,8 @@
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
 from deca.file import ArchiveFile
 from deca.ff_adf import Adf
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 import re, os
 
 DEBUG = False
@@ -21,9 +21,6 @@ RECOIL_OFFSETS = [264, 268, 272, 276]
 def format_name(name: str) -> str:
   return " ".join([x.capitalize() for x in name.split("_")])
 
-def get_relative_path(path: str) -> str:
-  return os.path.relpath(path, mods.APP_DIR_PATH / "org").replace("\\", "/")
-
 def load_weapon_type(root: Path) -> list[dict]:
   name_pattern = re.compile(r'^(equipment_)?weapon_([\w\d\-]+).wtunec$')
   weapons = []
@@ -34,7 +31,7 @@ def load_weapon_type(root: Path) -> list[dict]:
     if name_match:
       matched_name = name_match[2]
       matched_name = map_weapon(matched_name)
-      file = get_relative_path(file)
+      file = mods.get_relative_path(file)
       weapons.append({ "name": matched_name, "file": file })
   weapons.sort(key=lambda weapon: weapon["name"])
   return weapons
@@ -469,7 +466,7 @@ def handle_key(mod_key: str) -> bool:
 def get_files(options: dict) -> list[str]:
   return [options["file"]]
 
-def load_archive_files(base_path: Path):
+def load_archive_files(base_path: Path) -> list[str]:
   archives = {}
   for file in base_path.glob("*.ee"):
     archive_files = list(mods.get_sarc_file_info(file).keys())
@@ -480,7 +477,7 @@ def find_archive_files(archive_files: dict, file: str) -> str:
   found_archives = []
   for archive, files in archive_files.items():
     if file in files:
-      found_archives.append(os.path.relpath(archive, mods.APP_DIR_PATH / "org"))
+      found_archives.append(mods.get_relative_path(archive))
   return found_archives
 
 def merge_files(files: list[str], options: dict) -> None:

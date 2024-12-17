@@ -1,8 +1,8 @@
 from typing import List, Tuple
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
 from deca.ff_rtpc import rtpc_from_binary, RtpcNode
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 import re
 
 DEBUG = False
@@ -22,13 +22,7 @@ class StoreItem:
   def __repr__(self) -> str:
     return f"{self.type}, {self.name} ({self.price}, {self.price_offset}, {self.quantity}, {self.quantity_offset})"
 
-def open_rtpc(filename: Path) -> RtpcNode:
-  with filename.open("rb") as f:
-    data = rtpc_from_binary(f) 
-  root = data.root_node
-  return root
-
-def load_price_node(items: List[RtpcNode], type: str, name_offset: int = 4, price_offset: int = 7, quantity_offset = 13, name_handle: callable = None, price_handle: callable = None):
+def load_price_node(items: List[RtpcNode], type: str, name_offset: int = 4, price_offset: int = 7, quantity_offset = 13, name_handle: callable = None, price_handle: callable = None) -> list[StoreItem]:
   prices = []
   for item in items:
     if name_handle:
@@ -102,7 +96,7 @@ def handle_misc_name(item: RtpcNode) -> str:
     return name
 
 def load_equipement_prices() -> dict:
-  equipment = open_rtpc(mods.APP_DIR_PATH / "org" / EQUIPMENT_FILE)
+  equipment = mods.open_rtpc(mods.APP_DIR_PATH / "org" / EQUIPMENT_FILE)
   ammo_items = equipment.child_table[0].child_table
   misc_items = equipment.child_table[1].child_table
   sights_items = equipment.child_table[2].child_table

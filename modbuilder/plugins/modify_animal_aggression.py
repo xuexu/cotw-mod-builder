@@ -1,6 +1,6 @@
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 
 DEBUG = True
 NAME = "Modify Animal Aggression"

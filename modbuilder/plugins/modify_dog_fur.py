@@ -1,7 +1,7 @@
 from typing import List
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 
 DEBUG = False
 NAME = "Modify Dog Fur"

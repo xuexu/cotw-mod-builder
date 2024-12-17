@@ -52,19 +52,13 @@ def get_animal_props(animal_list: RtpcNode) -> RtpcNode:
     animal_props.append(animal.prop_table)
   return animal_props
 
-def open_rtpc(filename: Path) -> RtpcNode:
-  with filename.open("rb") as f:
-    data = rtpc_from_binary(f) 
-  root = data.root_node
-  return root.child_table[0]  
-
 def process(options: dict) -> None:
   spawn_distance = options['spawn_distance']
   bird_spawn_distance = options['bird_spawn_distance']
   despawn_distance = options['despawn_distance']
   bird_despawn_distance = options['bird_despawn_distance']
-  src = mods.APP_DIR_PATH / "mod/dropzone" / FILE
-  animal_list = open_rtpc(src)
+  global_animal_types_rtpc = mods.open_rtpc(mods.APP_DIR_PATH / "mod/dropzone" / FILE)
+  animal_list = global_animal_types_rtpc.child_table[0]
   animal_props = get_animal_props(animal_list)
   spawn_offsets = []
   bird_spawn_offsets = []

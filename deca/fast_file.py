@@ -1,4 +1,7 @@
+from typing import List
 import numpy as np
+from numba import njit, jit
+
 
 class FFError(Exception):
     pass
@@ -9,11 +12,13 @@ params = {
     'nogil': True,
 }
 
+@njit
 def raise_error():
     raise FFError('ff_read: not enough data')
     return b''
 
 
+@njit(**params)
 def ff_read(buffer, n_buffer, pos, n):
     # buffer = ff
     # n_buffer = len(buffer)
@@ -29,6 +34,7 @@ def make_read_one(data_type):
     dt = np.dtype(data_type)
     ele_size = dt.itemsize
 
+    @njit(**params)
     def f(buffer, n_buffer, pos):
         new_pos = pos + ele_size
         if new_pos > n_buffer:
@@ -43,6 +49,7 @@ def make_read_many(data_type):
     dt = np.dtype(data_type)
     ele_size = dt.itemsize
 
+    @njit(**params)
     def f(buffer, n_buffer, pos, count):
         new_pos = pos + ele_size * count
         if new_pos > n_buffer:
@@ -76,6 +83,7 @@ ff_read_f32s = make_read_many(np.float32)
 ff_read_f64s = make_read_many(np.float64)
 
 
+@njit(**params)
 def ff_read_strz(buffer, n_buffer, pos):
     pos0 = pos
     while buffer[pos] != 0 and pos < n_buffer:

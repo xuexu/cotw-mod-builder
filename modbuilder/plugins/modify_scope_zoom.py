@@ -1,6 +1,6 @@
-from modbuilder import mods, PySimpleGUI_License
+from modbuilder import mods
 from pathlib import Path
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 import re, os
 
 DEBUG = False
@@ -8,10 +8,10 @@ NAME = "Modify Scope Zoom"
 DESCRIPTION = "Modify the magnification for all five zoom levels of each scope. Use advanced controls to customize the sensitivity and maximum horizontal/vertical angular speed while zoomed in."
 
 class Scope:
-  def __init__(self, file: Path, bundle_file: Path, name: str) -> None:
-    self.file = file
-    self.bundle_file = bundle_file
-    self.name = name
+  def __init__(self, file: Path, bundle_file: Path) -> None:
+    self.file = mods.get_relative_path(file)
+    self.bundle_file = mods.get_relative_path(bundle_file)
+    self._map_name()
     self.scope_level_1 = mods.read_file_at_offset(file, 100, "f32")
     self.scope_level_2 = mods.read_file_at_offset(file, 104, "f32")
     self.scope_level_3 = mods.read_file_at_offset(file, 108, "f32")
@@ -36,38 +36,10 @@ class Scope:
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
-def map_scope_name(folder: str) -> str:
-  if folder == "rifle_scope_night_vision_4-8x_100mm_01":
-    return "Angler 4-8x100 Night Vision Rifle"
-  if folder == "rifle_scope_8-16x_50mm_01":
-    return "Argus 8-16x50 Rifle"
-  if folder == "rifle_scope_1-4x_24mm_01":
-    return "Ascent 1-4x24 Rifle"
-  if folder == "scope_muzzleloader_4-8x32_01":
-    return "Galileo 4-8x32 Muzzleloader"
-  if folder == "rifle_scope_night_vision_1-4x_24mm_01":
-    return "GenZero 1-4x24 Night Vision Rifle"
-  if folder == "crossbow_scope_1-4x_24mm_01":
-    return "Hawken 1-4x24 Crossbow"
-  if folder == "rifle_scope_4-8x_32mm_01":
-    return "Helios 4-8x32 Rifle"
-  if folder == "scope_3-7x_33mm_01":
-    return "Hermes 3-7x33 Handgun-Shotgun"
-  if folder == "rifle_scope_4-8x_42mm_01":
-    return "Hyperion 4-8x42 Rifle"
-  if folder == "handgun_scope_2-4x_20mm_01":
-    return "Goshawk Redeye 2-4x20 Handgun"
-  if folder == "rifle_scope_3_9x44mm_01":
-    return "Falcon 3-9x44 Drilling Shotgun"
-  if folder == "shotgun_scope_1-4x_20mm_01":
-    return "Meridian 1-4x20 Shotgun"
-  if folder == "rifle_scope_4-12x_33mm_01":
-    return "Odin 4-12x33 Rifle"
-  if folder == "rifle_red_dot_01":
-    return "Red Raptor Reflex"
-  if folder == "rifle_scope_6-10x_20mm_01":
-    return "_PLACEHOLDER 6-10x20 Rifle"
-  return folder
+  def _map_name(self) -> None:
+    filename = self.file.split("/")[-1].replace(".sighttunec","")
+    mapped_name = mods.map_equipment_name(filename, "sights")
+    self.name = mapped_name
 
 def load_scopes() -> list[Scope]:
   scopes = []
@@ -78,9 +50,7 @@ def load_scopes() -> list[Scope]:
     if zoomable_scope.match(folder) or folder in extra_scopes:
       sight_file = list((base_path / folder).glob("*.sighttunec"))[0]
       ee_file = list((base_path / folder).glob("*.ee"))[0]
-      scope_file = os.path.relpath(sight_file, mods.APP_DIR_PATH / "org")
-      bundle_file = os.path.relpath(ee_file, mods.APP_DIR_PATH / "org")
-      scopes.append(Scope(scope_file, bundle_file, map_scope_name(folder)))
+      scopes.append(Scope(sight_file, ee_file))
   return sorted(scopes, key=lambda x: x.name)
 
 def get_option_elements() -> sg.Column:
@@ -133,12 +103,12 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   selected_scope = next(x for x in scopes if x.name == scope_name)
 
   mod_settings = {
-    "key": f"modify_scope_{scope_name}",
+    "key": f"modify_scope_{selected_scope.file}",
     "invalid": None,
     "options": {
-      "name": f"Modify Scope Zoom: {scope_name}",
-      "file": str(selected_scope.file),
-      "bundle_file": str(selected_scope.bundle_file),
+      "name": scope_name,
+      "file": selected_scope.file,
+      "bundle_file": selected_scope.bundle_file,
     }
   }
   advanced_settings = {"advanced_sensitivity": values["scope_advanced_sensitivity"]}
@@ -153,7 +123,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   return mod_settings
 
 def format(options: dict) -> str:
-  return f"{options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']}, Advanced Settings: {options.get('advanced_sensitivity')})"
+  return f"Modify Scope Zoom: {options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']}, Advanced Settings: {options.get('advanced_sensitivity')})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_scope")
@@ -189,3 +159,21 @@ def process(options: dict) -> None:
     mods.update_file_at_offset(file, 168, options["level_4_v_speed"])
     mods.update_file_at_offset(file, 172, options["level_5_h_speed"])
     mods.update_file_at_offset(file, 176, options["level_5_v_speed"])
+
+UPDATE_VERSION = "2.2.0"
+def handle_update(mod_key: str, mod_options: dict, _version: str) -> tuple[str, dict]:
+  scopes = load_scopes()
+  selected_scope = next(
+    x for x in scopes if (
+      x.file == mod_options["file"] or  # properly formatted path with single forward slash (/)
+      x.file == mod_options["file"].replace("\\", "/")  # old path with double backslash (\\)
+    )
+  )
+  if not selected_scope:
+    raise ValueError(f"Unable to match scope {mod_options['name']}")
+  updated_mod_key = f"modify_scope_{selected_scope.file}"
+  updated_mod_options = mod_options
+  updated_mod_options["name"] = selected_scope.name
+  updated_mod_options["file"] = selected_scope.file
+  updated_mod_options["bundle_file"] = selected_scope.bundle_file
+  return updated_mod_key, updated_mod_options

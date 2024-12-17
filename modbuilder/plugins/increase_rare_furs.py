@@ -29,12 +29,6 @@ PRESETS = [
 def format(options: dict) -> str:
   return f"Increase Rare Furs ({options['rare_fur_percentage']}%)"
 
-def open_rtpc(filename: Path) -> RtpcNode:
-  with filename.open("rb") as f:
-    data = rtpc_from_binary(f)
-  root = data.root_node
-  return root.child_table[0].child_table
-
 def get_name(animal: RtpcNode) -> str:
   if type(animal.prop_table[-11].data) == bytes:
     return animal.prop_table[-11].data.decode('utf-8')
@@ -114,7 +108,8 @@ def process(options: dict) -> None:
     return
 
   offsets_and_values = []
-  animals = open_rtpc(mods.APP_DIR_PATH / "mod/dropzone" / FILE)
+  global_animal_types_rtpc = mods.open_rtpc(mods.APP_DIR_PATH / "mod/dropzone" / FILE)
+  animals = global_animal_types_rtpc.child_table[0].child_table
   for animal in animals:
     variations_table_index = get_varitions_table_index(animal)
     if variations_table_index is None:

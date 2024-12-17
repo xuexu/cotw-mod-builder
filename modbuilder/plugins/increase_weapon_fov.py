@@ -3,7 +3,7 @@ from modbuilder import mods
 DEBUG = False
 NAME = "Increase Weapon FOV"
 DESCRIPTION = 'Increase the first-person field of view when holding a weapon, effectively "zooming out" the camera so you can see more of your weapon skin. This is separate from the FOV setting in-game.'
-WARNING = "The first-person camera only renders the player's arms and weapon. This is mostly noticeable at FOV settings higher than ~60."
+WARNING = "The first-person camera only renders the player's arms and weapon. Settings higher than ~60 may show \"floating\" arms with no body when holding some weapons."
 OPTIONS = [
   {
     "name": "First-Person Weapon FOV",

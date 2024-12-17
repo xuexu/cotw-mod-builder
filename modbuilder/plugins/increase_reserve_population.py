@@ -1,4 +1,3 @@
-from typing import Tuple, List
 from deca.ff_rtpc import rtpc_from_binary, RtpcProperty, RtpcNode
 from pathlib import Path
 from modbuilder import mods
@@ -6,13 +5,13 @@ from functools import reduce
 
 DEBUG = False
 NAME = "Increase Reserve Population"
-DESCRIPTION = "Increases the number of animals that get populated when loading a reserve for the first time. If you have already played a reserve, you need to delete the old pouplation file first before you will see an increase in animals."
+DESCRIPTION = "Increases the number of animals that get populated when loading a reserve for the first time. If you have already played a reserve, you need to delete the old population file first before you will see an increase in animals."
 FILE = "settings/hp_settings/reserve_*.bin"
-WARNING = "Increasing the population too much can cause the game to crash or behave strangely. I personally do not go beyond a 3.0 multiplier."
+WARNING = "Increasing the population too much can cause the game to crash, especially when used in combination with Increase Render Distance. I personally do not go beyond a 3.0 multiplier."
 OPTIONS = [
   { "name": "Population Multiplier", "min": 1.1, "max": 8, "default": 1, "increment": 0.1 }
 ]
-  
+
 def format(options: dict) -> str:
   multiply = options["population_multiplier"]
   return f"Increase Reserve Population ({multiply}x)"
@@ -21,23 +20,23 @@ class ReserveValue:
   def __init__(self, value: int, offset: int) -> None:
     self.value = value
     self.offset = offset
-    
-  def __repr__(self):
+
+  def __repr__(self) -> str:
     return f"{self.value:} ({self.offset})"
-  
+
 def _save_file(filename: str, data: bytearray) -> None:
     base_path = mods.APP_DIR_PATH / "mod/dropzone/settings/hp_settings"
     base_path.mkdir(exist_ok=True, parents=True)
-    (base_path / filename).write_bytes(data) 
+    (base_path / filename).write_bytes(data)
 
-def _all_non_zero_props(props: List[RtpcProperty]) -> List[ReserveValue]:
+def _all_non_zero_props(props: list[RtpcProperty]) -> list[ReserveValue]:
   offsets = []
   for prop in props:
     if prop.data != 0:
       offsets.append(ReserveValue(prop.data, prop.data_pos))
   return offsets
 
-def _big_props(props: List[RtpcProperty]) -> List[ReserveValue]:
+def _big_props(props: list[RtpcProperty]) -> list[ReserveValue]:
   offsets = []
   first = props[-4]
   second = props[-1]
@@ -60,7 +59,7 @@ def update_reserve_population(root: RtpcNode, f_bytes: bytearray, multiply: floa
     second_child = child.child_table[1]
 
     pattern_one = first_child.prop_count == 4
-    pattern_two = first_child.prop_count == 0 
+    pattern_two = first_child.prop_count == 0
     if pattern_one:
       pattern_one_one = second_child.prop_count == 0
       if pattern_one_one:
@@ -68,16 +67,16 @@ def update_reserve_population(root: RtpcNode, f_bytes: bytearray, multiply: floa
           result = _all_non_zero_props(first_child.prop_table)
           offsets_to_change.append(result)
         second_child_children = second_child.child_table
-        for child in second_child_children:     
+        for child in second_child_children:
           result = _big_props(child.prop_table)
-          offsets_to_change.append(result)    
-      else:                    
+          offsets_to_change.append(result)
+      else:
         result = _all_non_zero_props(first_child.prop_table)
         offsets_to_change.append(result)
     elif pattern_two:
       first_child_children = first_child.child_table
       for child in first_child_children:
-        result = _big_props(child.prop_table)          
+        result = _big_props(child.prop_table)
         offsets_to_change.append(_big_props(child.prop_table))
 
   reserve_values = []
@@ -88,11 +87,11 @@ def update_reserve_population(root: RtpcNode, f_bytes: bytearray, multiply: floa
       new_value = round(reserve_value.value * multiply)
       _update_uint(f_bytes, reserve_value.offset, new_value)
   except Exception as ex:
-     print(f"received error: {ex}")       
+     print(f"received error: {ex}")
 
-def _open_reserve(filename: Path) -> Tuple[RtpcNode, bytearray]:
+def _open_reserve(filename: Path) -> tuple[RtpcNode, bytearray]:
   with(filename.open("rb") as f):
-    data = rtpc_from_binary(f) 
+    data = rtpc_from_binary(f)
   f_bytes = bytearray(filename.read_bytes())
   return (data.root_node, f_bytes)
 
