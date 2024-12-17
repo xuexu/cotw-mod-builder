@@ -68,6 +68,7 @@ def _valid_option_value(mod_option: dict, mod_value: any) -> str:
 
 def _enable_mod_button(window: sg.Window) -> None:
   selected_mod_size = len(window["selected_mods"].get_list_values())
+  window["build_tab"].update(title=f"Build Modifications ({selected_mod_size})")
   window["build_mod"].update(disabled=(selected_mod_size == 0))
   window["save"].update(disabled=(selected_mod_size == 0))
   window["move_up"].update(disabled=(selected_mod_size == 0))
@@ -346,7 +347,6 @@ def main() -> None:
         window["selected_mods"].update(formatted_mods_list)
         _enable_mod_button(window)
         sg.PopupQuickMessage("Mod Added", font="_ 28", background_color="brown")
-        window["build_tab"].update(title=f"Build Modifications ({len(formatted_mods_list)})")
       else:
         sg.PopupOK(is_invalid, icon=logo.value, title="Error", font=DEFAULT_FONT)
     elif event == "selected_mods":
@@ -359,7 +359,6 @@ def main() -> None:
       selected_mods = _move_mods(selected_mods, window["selected_mods"], 1)
     elif event == "remove_mod":
       selected_mods = _delete_mods(selected_mods, window["selected_mods"])
-      window["build_tab"].update(title=f"Build Modifications ({len(selected_mods.keys())})")
       window["remove_mod"].update(disabled=True)
       _enable_mod_button(window)
     elif event == "build_mod":
@@ -396,7 +395,6 @@ def main() -> None:
       window["build_progress"].update(100)
       _create_party()
       window["build_progress"].update(0)
-      window["build_tab"].update(title=f"Build Modifications (0)")
     elif event == "save":
       save_name = sg.PopupGetText("What name would you like use to save modifications?", title="Save Mods", default_text=loaded_mod_list_name, font=DEFAULT_FONT, icon=logo.value)
       if save_name:
@@ -410,7 +408,6 @@ def main() -> None:
         window["selected_mods"].update(formatted_mods_list)
         _enable_mod_button(window)
         sg.PopupQuickMessage("Modifications Loaded", font="_ 28", background_color="brown")
-        window["build_tab"].update(title=f"Build Modifications ({len(formatted_mods_list)})")
     elif event == "change_path":
       game_path = sg.PopupGetFolder("Select the game folder (folder with file theHunterCotW_F.exe)", "Game Path", icon=logo.value, font=DEFAULT_FONT)
       if game_path:

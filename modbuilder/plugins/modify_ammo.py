@@ -25,20 +25,24 @@ class Ammo:
   offsets: dict
   classes: list[int]
 
-  def __init__(self, filepath: Path) -> None:
-    self.file = mods.get_relative_path(filepath)
-    self._parse_name_and_type(filepath)
+  def __init__(self, file: str) -> None:
+    self.file = file
+    self._parse_name_and_type(file)
     adf = Adf()
-    with ArchiveFile(open(filepath, 'rb')) as f:
+    with ArchiveFile(open(mods.APP_DIR_PATH / "org" / file, 'rb')) as f:
       adf.deserialize(f)
     ammo_data = adf.table_instance_full_values[0].value
     self.offsets = self._get_offsets(ammo_data)
     self.classes = self._get_classes(ammo_data)
 
-  def _parse_name_and_type(self, filepath: Path) -> None:
-    # split_path = self.file.split("/")
-    self.type = filepath.parts[-2]
-    self.name = filepath.stem  #filename without extension
+  def __repr__(self) -> str:
+    return f"Name: {self.name}   Display Name: {self.display_name}   Type: {self.type}   Classes: {self.classes}   Offsets: {self.offsets}   File: {self.file}"
+
+  def _parse_name_and_type(self, file: str) -> None:
+    # example file: editor/entities/hp_weapons/ammunition/bows/equipment_ammo_jp_crossbow_arrow_300gr_01.ammotunec
+    split_file = file.split("/")
+    self.type = split_file[-2].removesuffix("s")  # "bow" instead of "bows"
+    self.name = split_file[-1].removesuffix(".ammotunec")  # filename without "".ammotunec" extension
     self.display_name = mods.map_equipment_name(self.name, "ammo")
 
   def _get_offsets(self, ammo_data) -> dict:
@@ -63,9 +67,6 @@ class Ammo:
     # This will return a blank list for "placeholder" ammos. We will skip them in load_ammo()
     return [ammo_class.value["level"].value for ammo_class in ammo_data["ammunition_class"].value]
 
-def format_name(name: str) -> str:
-  return " ".join([x.capitalize() for x in name.split("_")])
-
 def load_ammo(root_path: Path, ammo_type: str, name_pattern: re.Pattern) -> list[Ammo]:
   ammo_list = []
   count = 0
@@ -73,7 +74,8 @@ def load_ammo(root_path: Path, ammo_type: str, name_pattern: re.Pattern) -> list
     count += 1
     name_match = name_pattern.match(file.name)
     if name_match:
-      ammo = Ammo(file)
+      relative_file = mods.get_relative_path(file)
+      ammo = Ammo(relative_file)
       if ammo.classes:  # skip "placeholder" ammos that do not have Class data
         ammo_list.append(ammo)
   ammo_list.sort(key=lambda x: x.display_name)
@@ -101,15 +103,15 @@ def build_tab(ammo_type: str, ammo_list: list[Ammo]) -> sg.Tab:
   ], key=f"ammo_tab_{ammo_type}")
 
 def get_option_elements() -> sg.Column:
-  ammo = get_ammo()
+  all_ammo = get_ammo()
   buttons_row = [sg.Button(str(i), k=f"modify_ammo_class_button_{i}", enable_events=True,) for i in range(1, 10)]
 
   layout = [[
       sg.TabGroup([[
-          build_tab("bow", ammo["bow"]),
-          build_tab("handgun", ammo["handgun"]),
-          build_tab("rifle", ammo["rifle"]),
-          build_tab("shotgun", ammo["shotgun"])
+          build_tab("bow", all_ammo["bow"]),
+          build_tab("handgun", all_ammo["handgun"]),
+          build_tab("rifle", all_ammo["rifle"]),
+          build_tab("shotgun", all_ammo["shotgun"])
         ]], key="ammo_tab_group", enable_events=True),
       sg.Column([[
           sg.Text("Classes", justification="left"),
@@ -149,8 +151,8 @@ def handle_event(event: str, window: sg.Window, values: dict) -> None:
       if not ammo_name:  # no ammo selected = reset class buttons
         reset_ammo_class_buttons()
       else:  # ammo selected = update class buttons to match ammo's default
-        ammo = get_ammo()
-        selected_ammo = next((a for a in ammo[ammo_type] if a.display_name == ammo_name))
+        all_ammo = get_ammo()
+        selected_ammo = next((a for a in all_ammo[ammo_type] if a.display_name == ammo_name))
         for i in range(1,10):  # class buttons match ammo's default classes
           if i in selected_ammo.classes:
             AMMO_CLASS_BUTTONS_STATE[i - 1] = True
@@ -164,7 +166,6 @@ def handle_event(event: str, window: sg.Window, values: dict) -> None:
   if event.startswith("modify_ammo_class_button_"):
     selected_class = int(event[-1])
     AMMO_CLASS_BUTTONS_STATE[selected_class - 1] = not AMMO_CLASS_BUTTONS_STATE[selected_class - 1]
-    #print(AMMO_CLASS_BUTTONS_STATE)
   update_ammo_class_buttons(window)
 
 def reset_ammo_class_buttons() -> None:
@@ -191,10 +192,8 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "invalid": "Please select an ammo first"
     }
 
-  ammo = get_ammo()
-  selected_ammo = next((a for a in ammo[ammo_type] if a.display_name == ammo_name))
-  file = selected_ammo.file
-  ammo_name = selected_ammo.display_name
+  all_ammo = get_ammo()
+  selected_ammo = next((a for a in all_ammo[ammo_type] if a.display_name == ammo_name))
   kinetic_energy = values["ammo_kinetic_energy"]
   penetration = values["ammo_penetration"]
   expansion = values["ammo_expansion"]
@@ -204,10 +203,12 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   classes = format_class_selection()
 
   return {
-    "key": f"modify_ammo_{file}",
+    "key": f"modify_ammo_{selected_ammo.file}",
     "invalid": None,
     "options": {
-      "name": ammo_name,
+      "name": selected_ammo.display_name,
+      "type": selected_ammo.type,
+      "file": selected_ammo.file,
       "kinetic_energy": kinetic_energy,
       "penetration": penetration,
       "expansion": expansion,
@@ -215,16 +216,11 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "mass": mass,
       "projectiles": projectiles,
       "classes": classes,
-      "file": file
     }
   }
 
 def format(options: dict) -> str:
-  # editor/entities/hp_weapons/ammunition/bows/equipment_ammo_jp_crossbow_arrow_300gr_01.ammotunec
-  # splt file from path and then split filename from extension
-  # easier to just ingest the file into an Ammo object?
-  name = options["file"].split("/")[-1].split(".")[0]
-  ammo_name = mods.map_equipment_name(name, "ammo")
+  ammo_name = options["name"]
   kinetic_energy = int(options["kinetic_energy"])
   penetration = int(options["penetration"])
   expansion = int(options["expansion"])
@@ -254,12 +250,7 @@ def create_classes(classes: list[int]) -> bytearray:
 
 def process(options: dict) -> None:
   file = options["file"]
-  # editor/entities/hp_weapons/ammunition/bows/equipment_ammo_jp_crossbow_arrow_300gr_01.ammotunec
-  # parse type from the path and remove "s"
-  # easier to just ingest the file into an Ammo object?
-  ammo_type = file.split("/")[-2][:-1]
-  ammo = get_ammo()
-  selected_ammo = next((a for a in ammo[ammo_type] if a.file == file))
+  selected_ammo = Ammo(file)
   kinetic_energy = 1 + options["kinetic_energy"] / 100
   penetration = 1 - options["penetration"] / 100
   if penetration == 0:
@@ -287,3 +278,23 @@ def process(options: dict) -> None:
     old_array_length = read_u32(file_data[header_offset+8:header_offset+12])
     new_array_length = len(classes)
     mods.insert_array_data(file, create_classes(classes), header_offset, data_offset, array_length=new_array_length, old_array_length=old_array_length)
+
+UPDATE_VERSION = "2.2.1"
+def handle_update(mod_key: str, mod_options: dict, _version: str) -> dict:
+  # 2.2.0 and prior saved the name with an old format (not from `name_map.yaml`)
+  # Update the config to use the display name and add ammo type
+  ammo = Ammo(mod_options["file"])
+  updated_mod_key = mod_key
+  updated_mod_options = {
+    "name": ammo.display_name,
+    "type": ammo.type,
+    "file": ammo.file,
+    "classes": mod_options["classes"],
+    "kinetic_energy": mod_options["kinetic_energy"],
+    "penetration": mod_options["penetration"],
+    "expansion": mod_options["expansion"],
+    "damage": mod_options["damage"],
+    "mass": mod_options["mass"],
+    "projectiles": mod_options["projectiles"],
+  }
+  return updated_mod_key, updated_mod_options

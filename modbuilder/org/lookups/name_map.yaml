@@ -25,8 +25,11 @@ ammo:
   # Handguns
   10mm_fn_01: 10mm Hard Cast Flat Nose
   10mm_jhp_01: 10mm Jacketed Hollow-Point
+  22_hp_01: _PLACEHOLDER .22 Hollow-Point  # Not available in-game. Anderssen .22LR uses Rifle rounds
   357m_fnhc_01: .357 Flat Nose Hard-Cast
   357m_jhp_01: .357 Jacketed Hollow-Point
+  38s_fnhc_01: _PLACEHOLDER .38 Special Flat Nose Hard-Cast  # Not available in-game
+  410_slug_01: _PLACEHOLDER .410 Slug  # Not available in-game
   44m_fnhc_01: .44 Magnum Flat Nose Hard-Cast
   44m_jhp_01: .44 Magnum Jacketed Hollow-Point
   45c_01: .45 Colt Flat Nose Hard-Cast
@@ -102,6 +105,9 @@ ammo:
   20ga_buck_01: 20 GA Buckshot
   20ga_slug_01: 20 GA Slug
   20ga_steelbird_01: 20 GA Steel Birdshot
+  28ga_bird_01: _PLACEHOLDER 28 GA Birdshot
+  28ga_buck_01: _PLACEHOLDER 28 GA Buckshot
+  28ga_slug_01: _PLACEHOLDER 28 GA Slug
   410ga_bird_01: .410 Birdshot
   # Misc
   # clay_pigeon_01:

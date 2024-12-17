@@ -142,7 +142,7 @@ def handle_key(mod_key: str) -> bool:
 
 def process(options: dict) -> None:
   weapons = load_weapons()
-  selected_weapon = next(w for w in weapons if w.name == options["name"])
+  selected_weapon = next(w for w in weapons if w.display_name == options["weapon_display_name"])
   if selected_weapon:
     mods.update_file_at_offsets(Path(FILE), selected_weapon.magazine_data_offsets, options["weapon_mag_size"])
 
@@ -165,4 +165,3 @@ def handle_update(mod_key: str, mod_options: dict, _version: str) -> dict:
   updated_mod_options["weapon_display_name"] = selected_weapon.display_name
   updated_mod_options["weapon_mag_size"] = mod_options["weapon_mag_size"]
   return updated_mod_key, updated_mod_options
-
