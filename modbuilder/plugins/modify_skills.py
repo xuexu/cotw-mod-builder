@@ -62,7 +62,7 @@ def get_skill_option_keys(skill: str) -> list[str]:
 
 def render_pack_mule() -> list[dict]:
     return [
-        { "name": "Weight", "min": 24.0, "max": 999.9, "default": 23.0, "initial": 99.9, "increment": 0.1 }
+        { "name": "Weight", "min": 24.0, "max": 999.9, "default": 23.0, "initial": 999.9, "increment": 0.1 }
     ]
 def format_pack_mule(options: dict) -> str:
     return f"Enhanced Pack Mule ({options['weight']}kg)"

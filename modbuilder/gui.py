@@ -5,7 +5,7 @@ import FreeSimpleGUI as sg
 
 DEFAULT_FONT = "_ 14"
 TEXT_WRAP = 142
-MOD_LIST = mods.list_mods()
+MOD_NAMES = [m.NAME for m in mods.MODS_LIST.values()]
 
 def _mod_name_to_key(name: str) -> str:
   if name is None:
@@ -13,7 +13,7 @@ def _mod_name_to_key(name: str) -> str:
   return mods.get_mod_key_from_name(name)
 
 def _get_mod_options() -> list[dict]:
-  possible_mods = mods.get_mods()
+  possible_mods = mods.MODS_LIST
   options = []
   for mod_key, mod in possible_mods.items():
     mod_details = []
@@ -46,7 +46,7 @@ def _get_mod_options() -> list[dict]:
   return options
 
 def _show_mod_options(mod_name: str, window: sg.Window) -> None:
-  for mod in MOD_LIST:
+  for mod in MOD_NAMES:
     if mod == mod_name:
       window[_mod_name_to_key(mod)].update(visible=True)
     else:
@@ -107,9 +107,8 @@ def _create_party() -> None:
         sg.Popup(ex, title="Error", icon=logo.value, font=DEFAULT_FONT)
   window.close()
 
-def _show_load_mod_list() -> None:
+def _show_load_mod_list() -> tuple[bool, list[dict], str]:
   saved_mod_lists = mods.load_saved_mod_lists()
-  selected_mods_list = []
   layout = [
     [sg.T("Saved Mod Lists", font="_ 18")],
     [sg.Listbox(saved_mod_lists, expand_x=True, expand_y=True, k="saved_mod_lists", enable_events=True)],
@@ -117,15 +116,16 @@ def _show_load_mod_list() -> None:
     [sg.ProgressBar(100, orientation="h", k="load_progress", expand_x=True, s=(10,20))]
   ]
   window = sg.Window("Load Saved Mod List", layout, modal=True, size=(600, 300), icon=logo.value, font=DEFAULT_FONT)
-  loaded_saved_mods = None
   merge = False
+  loaded_mods = []
+  selected_save_file = None
 
   while True:
     event, values = window.read()
     if event == sg.WIN_CLOSED or event == "cancel":
       break
     if event == "delete":
-      delete_confirm = sg.PopupOKCancel("Are you sure you want to delete these saved modifications?", title="Delete Confirm", icon=logo.value, font=DEFAULT_FONT)
+      delete_confirm = sg.PopupOKCancel("Are you sure you want to delete the saved mod list?", title="Delete Confirm", icon=logo.value, font=DEFAULT_FONT)
       if delete_confirm == "OK":
         mods.delete_saved_mod_list(values["saved_mod_lists"][0])
         window["saved_mod_lists"].update(mods.load_saved_mod_lists())
@@ -139,69 +139,77 @@ def _show_load_mod_list() -> None:
       window["load"].update(disabled=False)
       window["merge"].update(disabled=False)
     elif event == "load" or event == "merge":
-      selected_mods_list = values["saved_mod_lists"][0]
-      loaded_saved_mods = _load_and_validate_saved_mods(selected_mods_list, window)
+      selected_save_file = values["saved_mod_lists"][0]
+      loaded_mods = _load_and_validate_saved_mods(selected_save_file, window, event)
       merge = event == "merge"
       break
   window.close()
-  return (merge, loaded_saved_mods, selected_mods_list)
+  return (merge, loaded_mods, selected_save_file)
 
-def _load_and_validate_saved_mods(mod_list_name: str, window: sg.Window) -> dict:
+def _load_and_validate_saved_mods(mod_list_name: str, window: sg.Window, event: str) -> dict:
   loaded_mods_json = mods.load_saved_mod_list(mod_list_name)
   version = loaded_mods_json.get("version", "0.0.0")
-  imported_mods = mods.validate_saved_mod_list(loaded_mods_json, version)
+  imported_mods = _validate_saved_mod_list(loaded_mods_json, version, window)
   loaded_mods_list = imported_mods["load"]
   if imported_mods["remove"]:
     imported_mods["remove"] = _handle_unsupported_mods(imported_mods, mod_list_name)
+  if imported_mods["error"]:
+    _show_update_errors(imported_mods["error"])
   if imported_mods["update"]:
-    updated_mods = _handle_updating_mods(imported_mods, mod_list_name, version, window)
-    loaded_mods_list.update(updated_mods)
+    _show_updated_mods(imported_mods, mod_list_name, event)
+    loaded_mods_list |= (imported_mods["update"])
   return loaded_mods_list
+
+def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Window) -> dict[str, any]:
+  mods_to_keep = {}
+  updated_mods = {}
+  update_errors = {}
+  mods_to_remove = {}
+  loaded_saved_mods = loaded_mods_json["mod_options"] if version != "0.0.0" else loaded_mods_json
+  window["load_progress"].update(0)
+  step = 1
+  progress_step = 100 / len(loaded_saved_mods)
+  for mod_key, mod_options in loaded_saved_mods.items():
+    result, output = mods.validate_and_update_mod(mod_key, mod_options)
+    if result == "invalid":
+      mods_to_remove[mod_key] = mod_options
+    elif result == "update":
+      updated_mods |= output
+    elif result == "error":
+      update_errors[mods.format_mod_display_name(mod_key, mod_options)] = output
+    elif result == "valid":
+      mods_to_keep[mod_key] = mod_options
+    else:
+      raise ValueError(f"Error validating/updating mod: {mods.format_mod_display_name(mod_key, mod_options)}")
+    load_progress = math.floor(step * progress_step)
+    window["load_progress"].update(load_progress)
+    step += 1
+  return {"load": mods_to_keep, "update": updated_mods, "error": update_errors, "remove": mods_to_remove}
 
 def _handle_unsupported_mods(imported_mods: dict, mod_list_name: str) -> dict:
   formatted_mods_list = "".join(f"\n - {mods.format_mod_display_name(mod_key, mod_options)}" for mod_key, mod_options in imported_mods["remove"].items())
-  remove_confirm = sg.popup_scrolled(f"The following mods are disabled and cannot be loaded. Do you want to remove them from the save file?\n{formatted_mods_list}", title=f"Unsupported mod configuration", icon=logo.value, yes_no=True, font=DEFAULT_FONT)
+  remove_confirm = sg.popup_scrolled(f"The following mods are unsupported and cannot be loaded. Do you want to remove them from the save file?\n{formatted_mods_list}", title=f"Unsupported mod configuration", icon=logo.value, yes_no=True, font=DEFAULT_FONT)
   if remove_confirm == "Yes":
     mods_to_keep = imported_mods["load"] | imported_mods["update"]
     mods.save_mod_list(mods_to_keep, mod_list_name)
     return {}
   return imported_mods["remove"]
 
-def _handle_updating_mods(imported_mods: dict, mod_list_name: str, version: str, window: sg.Window) -> dict:
-  updated_mods = {}
-  update_errors = {}
-  mods_count = len(imported_mods["update"])
-  plural_s = "s" if mods_count > 1 else ""
-  formatted_mods_list = "".join(f"\n - {mods.format_mod_display_name(mod_key, mod_options)}" for mod_key, mod_options in imported_mods["update"].items())
-  update_confirm = sg.popup_scrolled(f"Outdated configuration found for {mods_count} mod{plural_s}. Press OK to update the configuration{plural_s} automatically:\n{formatted_mods_list}", title=f"Outdated mod configuration", icon=logo.value, font=DEFAULT_FONT)
-  if update_confirm == "OK":
-    step = 1
-    progress_step = 100 / mods_count
-    for mod_key, mod_options in imported_mods["update"].items():
-      try:
-        updated_key, updated_options = mods.update_saved_mod_configuration(mod_key, mod_options, version)
-        updated_mods[updated_key] = updated_options
-      except ValueError as e:
-        update_errors.update({mods.format_mod_display_name(mod_key, mod_options): e})
-      load_progress = math.floor(step * progress_step)
-      window["load_progress"].update(load_progress)
-      step += 1
-    if update_errors:
-      _show_update_errors(update_errors, updated_mods)
-    elif updated_mods:
-      update_confirm = sg.popup_yes_no(f"Updated all mods successfully!\n\nDo you want to update the save file?", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
-      if update_confirm == "Yes":
-        mods_to_keep = imported_mods["load"] | updated_mods | imported_mods["remove"]
-        mods.save_mod_list(mods_to_keep, mod_list_name)
-        sg.popup_quick_message("Modifications Saved", font="_ 28", background_color="brown")
-  return updated_mods
+def _show_updated_mods(imported_mods: dict, mod_list_name: str, event: str) -> None:
+  formatted_updates = [mods.format_mod_display_name(new_key, new_options) for new_key, new_options in imported_mods["update"].items()]
+  if imported_mods["error"] or event == "merge":
+    formatted_mods_list = "".join(f"\n - {line}" for line in formatted_updates)
+    sg.popup_scrolled(f"The following mods were updated successfully and will be loaded.\n\nThe save file has NOT been modified.\n{formatted_mods_list}", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
+  else:
+    update_confirm = sg.popup_yes_no(f"Updated configuration for {len(imported_mods["update"])} mods. Do you want to update the save file?", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
+    if update_confirm == "Yes":
+      mods_to_keep = imported_mods["load"] | imported_mods["update"] | imported_mods["remove"]
+      mods.save_mod_list(mods_to_keep, mod_list_name)
+      sg.popup_quick_message("Modifications Saved", font="_ 28", background_color="brown")
 
-def _show_update_errors(update_errors: dict, updated_mods: dict):
+def _show_update_errors(update_errors: list[dict]) -> None:
   formatted_errors = "".join(f"\n - {key}: {value}" for key, value in update_errors.items())
   sg.popup_scrolled(f"Update failed!\nThe following mods could not be loaded. Please recreate them with updated settings.\n\nThe save file has NOT been modified.\n{formatted_errors}", title=f"ERROR: Update failed!", icon=logo.value, font=DEFAULT_FONT)
-  if updated_mods:
-    formatted_mods_list = "".join(f"\n - {mods.format_mod_display_name(mod_key, mod_options)}" for mod_key, mod_options in updated_mods.items())
-    sg.popup_scrolled(f"The following mods were updated successfully and will be loaded.\n\nThe save file has NOT been modified.\n{formatted_mods_list}", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
 
 def _move_mods(selected_mods: dict, listbox: sg.Listbox, direction: int) -> dict:
   selected_mod_indices = sorted(list(listbox.get_indexes()), reverse=(direction == 1))  # reverse if moving down the list
@@ -276,7 +284,7 @@ def main() -> None:
         sg.Tab("Add Modification", [
           [
             sg.Column([
-              [sg.T("Mod:", p=((18, 10), (10,0)), font="_ 14 underline", text_color="orange"), sg.Combo(MOD_LIST, k="modification", metadata=mods.list_mod_files(), enable_events=True, p=((0, 0), (10, 0)))],
+              [sg.T("Mod:", p=((18, 10), (10,0)), font="_ 14 underline", text_color="orange"), sg.Combo(MOD_NAMES, k="modification", metadata=mods.list_mod_files(), enable_events=True, p=((0, 0), (10, 0)))],
               [sg.Column(mod_options, p=(0,0), k="options", expand_y=True, expand_x=True, scrollable=True, vertical_scroll_only=True)],
               [sg.Button("Add Modification", k="add_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True, expand_x=True)]
             ], k="mod_col", expand_y=True, expand_x=True, p=((0,0), (10,0))),
@@ -320,12 +328,20 @@ def main() -> None:
       window["add_mod"].update(disabled=False)
       window.visibility_changed()
       window["options"].contents_changed()
-    elif event == "add_mod":
+    elif event.startswith("add_mod"):
+      mod_name = values["modification"]
+      mod_key = _mod_name_to_key(mod_name)
+      mod = mods.get_mod(mod_key)
       mod_options = {}
       is_invalid = None
-
-      if hasattr(mod, "add_mod"):
+      if event == "add_mod" and hasattr(mod, "add_mod"):
         result = mod.add_mod(window, values)
+        is_invalid = result["invalid"]
+        if not is_invalid:
+          mod_options = result["options"]
+          mod_key = result["key"]
+      elif event.startswith("add_mod_group") and hasattr(mod, "add_mod_group"):
+        result = mod.add_mod_group(window, values)
         is_invalid = result["invalid"]
         if not is_invalid:
           mod_options = result["options"]
@@ -333,14 +349,13 @@ def main() -> None:
       else:
         for key, value in values.items():
           if isinstance(key, str) and mod_key in key:
-            option_key = key.split("__")[1]
+            option_key = key.split("__")[1]  # Modify Skills
             invalid_result = _valid_option_value(mods.get_mod_option(mod_key, option_key), value)
             if invalid_result is None:
               mod_options[option_key] = value
             else:
               is_invalid = invalid_result
               break
-
       if is_invalid is None:
         selected_mods[mod_key] = mod_options
         formatted_mods_list = _format_selected_mods(selected_mods)
@@ -401,9 +416,9 @@ def main() -> None:
         mods.save_mod_list(selected_mods, save_name)
         sg.PopupQuickMessage("Modifications Saved", font="_ 28", background_color="brown")
     elif event == "load":
-      merge, saved_mod_list, loaded_mod_list_name = _show_load_mod_list()
-      if saved_mod_list:
-        selected_mods = selected_mods | saved_mod_list if merge else saved_mod_list
+      merge, loaded_mods, loaded_mod_list_name = _show_load_mod_list()
+      if loaded_mods:
+        selected_mods = selected_mods | loaded_mods if merge else loaded_mods
         formatted_mods_list = _format_selected_mods(selected_mods)
         window["selected_mods"].update(formatted_mods_list)
         _enable_mod_button(window)

@@ -49,7 +49,6 @@ def merge_files(files: List[str], options: dict) -> None:
       dest_filename = org_files[i]
       dest_path =  f"{base_path}/{dest_filename}"
       src_filename = f"{choice.lower().replace(' ', '_')}.ddsc"
-      print(src_filename, "to", dest_filename)
       mods.copy_file(mods.APP_DIR_PATH / "org" / mod_base_path / src_filename, mods.APP_DIR_PATH / "mod/dropzone" / dest_path)
       files_to_merge.append(dest_path)
       

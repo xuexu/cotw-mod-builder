@@ -8,7 +8,6 @@ from modbuilder.adf_profile import *
 from modbuilder import mods2, __version__
 import FreeSimpleGUI as sg
 from types import ModuleType
-import semver
 import yaml
 
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
@@ -25,9 +24,8 @@ GLOBAL_ANIMALS_SRC_PATH = "global/global_animal_types.bl"
 GLOBAL_ANIMALS_PATH = APP_DIR_PATH / "org" / GLOBAL_ANIMALS_SRC_PATH
 GAME_PATH_FILE = APP_DIR_PATH / "game_path.txt"
 
-with open(LOOKUP_PATH / "name_map.yaml", "r") as file:
+with open(APP_DIR_PATH / "name_map.yaml", "r") as file:
     NAME_MAP = yaml.safe_load(file)
-
 
 def _load_mod(filename: str) -> ModuleType:
   spec = importlib.util.spec_from_file_location(filename, str(APP_DIR_PATH / PLUGINS_FOLDER / f"{filename}.py"))
@@ -43,27 +41,26 @@ def _get_mod_filenames() -> list[str]:
       mod_filenames.append(file_name)
   return mod_filenames
 
-def get_mods(force_all: bool=False) -> dict:
+def get_mods() -> tuple[dict[str, ModuleType], dict[str, ModuleType]]:
   mod_filenames = _get_mod_filenames()
-  mods = {}
+  active_mods = {}
+  disabled_mods = {}
   for mod_filename in mod_filenames:
     loaded_mod = _load_mod(mod_filename)
-    if not force_all:
-      if hasattr(loaded_mod, "DEBUG") and loaded_mod.DEBUG:
-        continue
-    mods[mod_filename] = loaded_mod
-  return mods
+    if getattr(loaded_mod, "DEBUG", True):  # DEBUG == True or mod doesn't have DEBUG
+      disabled_mods[mod_filename] = loaded_mod
+    else:
+      active_mods[mod_filename] = loaded_mod
+  return active_mods, disabled_mods
 
 def get_mod_keys() -> list[str]:
   return _get_mod_filenames()
-  #return [x.split(".")[0] for x in _get_mod_filenames()]
 
 def get_mod(mod_key: str) -> ModuleType:
-  if mod_key in get_mod_keys():
-    return _load_mod(mod_key)
+  if mod_key in MODS_LIST:
+    return MODS_LIST[mod_key]
   else:
-    mods = get_mods(force_all=True)
-    for mod in mods.values():
+    for mod in list(MODS_LIST.values()) + list(DEBUG_MODS_LIST.values()):
       if hasattr(mod, "handle_key"):
         if mod.handle_key(mod_key):
           return mod
@@ -80,8 +77,7 @@ def format_mod_display_name(mod_key:str, mod_options) -> str:
   return formatted_name
 
 def delegate_event(event: str, window: sg.Window, values: dict) -> None:
-  mods = get_mods()
-  for mod in mods.values():
+  for mod in MODS_LIST.values():
     if hasattr(mod, "handle_event"):
       mod.handle_event(event, window, values)
 
@@ -107,9 +103,6 @@ def get_mod_option(mod_key: str, option_key: str) -> dict:
 
 def list_mod_files() -> list[str]:
   return _get_mod_filenames()
-
-def list_mods() -> list[str]:
-  return [m.NAME for m in get_mods().values()]
 
 def clear_mod() -> None:
   path = APP_DIR_PATH / "mod"
@@ -169,7 +162,7 @@ def update_file_at_offsets(src_filename: str, offsets: list[int], value: any, tr
   dest_path = get_modded_file(src_filename)
   with open(dest_path, "r+b") as fp:
     for offset in offsets:
-      # print("updating", value, "at offset", offset)
+      # print(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
       fp.seek(offset)
       if format:
         if format == "sint08":
@@ -205,22 +198,59 @@ def update_file_at_offsets_with_values(src_filename: str, values: list[(int, any
         fp.write(struct.pack("i", value))
       elif isinstance(value, str):
         fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
+      elif isinstance(value, bytes):
+        fp.write(struct.pack(f"{len(value)}s", value))
       elif isinstance(value, float):
         fp.write(struct.pack("f", value))
-    fp.flush()
+      fp.flush()
 
 def update_file_at_offset(src_filename: str, offset: int, value: any, transform: str = None, format: str = None) -> None:
   update_file_at_offsets(src_filename, [offset], value, transform, format)
 
+def apply_updates_to_file(src_filename: str, updates: list[dict]):
+  dest_path = get_modded_file(src_filename)
+  with open(dest_path, "r+b") as fp:
+    for update in updates:
+      value = update["value"]
+      offset = update["offset"]
+      transform = update.get("transform")
+      format = update.get("format")
+      # print(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
+      fp.seek(offset)
+      if format:
+        if format == "sint08":
+          fp.write(struct.pack("h", value))
+      else:
+        if isinstance(value, str):
+          fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
+        elif isinstance(value, float):
+          new_value = value
+          if transform == "multiply":
+            existing_value = struct.unpack('f', fp.read(4))[0]
+            new_value = value * existing_value
+            fp.seek(offset)
+          fp.write(struct.pack("f", new_value))
+        elif isinstance(value, int):
+          new_value = value
+          if transform == "add":
+            existing_value = struct.unpack("i", fp.read(4))[0]
+            new_value = value + existing_value
+          elif transform == "multiply":
+            existing_value = struct.unpack("i", fp.read(4))[0]
+            new_value = round(value * existing_value)
+          fp.seek(offset)
+          fp.write(struct.pack("i", new_value))
+      fp.flush()
+
 def apply_mod(mod: any, options: dict) -> None:
   if hasattr(mod, "update_values_at_offset"):
     updates = mod.update_values_at_offset(options)
-    for update in updates:
-      update_file_at_offset(Path(mod.FILE), update["offset"], update["value"], update["transform"] if "transform" in update else None)
+    if updates:
+      apply_updates_to_file(Path(mod.FILE), updates)
   elif hasattr(mod, "update_values_at_coordinates"):
     updates = mod.update_values_at_coordinates(options)
-    for update in updates:
-      mods2.update_file_at_coordinates(Path(mod.FILE), update["sheet"], update["coordinates"], update["value"], update["transform"] if "transform" in update else None)
+    if updates:
+      mods2.apply_coordinate_updates_to_file(Path(mod.FILE), updates)
   else:
     mod.process(options)
 
@@ -370,7 +400,7 @@ def save_mod_list(selected_mods: dict, save_name: str) -> None:
 def load_saved_mod_lists() -> list[str]:
   mod_names = []
   for save in os.listdir(APP_DIR_PATH / "saves"):
-    name, ext = os.path.splitext(save)
+    name, _ext = os.path.splitext(save)
     mod_names.append(name)
   return mod_names
 
@@ -380,37 +410,27 @@ def delete_saved_mod_list(name: str) -> None:
 def load_saved_mod_list(name: str) -> dict:
   return json.load(Path(APP_DIR_PATH / "saves"/ f"{name}.json").open())
 
-def validate_saved_mod_list(loaded_mods_json: dict, version: str) -> dict[str, dict]:
-  mods_to_keep = {}
-  mods_to_update = {}
-  mods_to_remove = {}
-  loaded_saved_mods = loaded_mods_json["mod_options"] if version != "0.0.0" else loaded_mods_json
-  for mod_key, mod_options in loaded_saved_mods.items():
-    mod = get_mod(mod_key)
-    if not _is_mod_valid(mod):
-      mods_to_remove[mod_key] = mod_options
-    elif _mod_requires_update(mod, version):
-      mods_to_update[mod_key] = mod_options
-    else:
-      mods_to_keep[mod_key] = mod_options
-  return {"load": mods_to_keep, "update": mods_to_update, "remove": mods_to_remove}
+def validate_and_update_mod(mod_key: str, mod_options: dict) -> dict[str, any]:
+  mod = get_mod(mod_key)
+  if not _is_mod_valid(mod):
+    return ("invalid", None)
+  elif hasattr(mod, "handle_update"):
+    try:
+      new_key, new_options = mod.handle_update(mod_key, mod_options)
+      if new_key != mod_key or new_options != mod_options:
+        return ("update", {new_key: new_options})
+    except ValueError as update_error:
+      return ("error", update_error)
+  return ("valid", None)
 
 def _is_mod_valid(mod: ModuleType) -> bool:
-  if mod is None or (hasattr(mod, "DEBUG") and mod.DEBUG):
-    # mod doesn't exist or is disabled
-    return False
-  return True
-
-def _mod_requires_update(mod: ModuleType, version: str) -> bool:
-  if hasattr(mod, "UPDATE_VERSION") and hasattr(mod, "handle_update"):
-     # saved version is lower than the mod's latest format update
-    return semver.compare(version, mod.UPDATE_VERSION) == -1
-  return False
+  # make sure mod exists and is not set to DEBUG mode (default to True if mod.DEBUG doesn't exist)
+  return mod is not None and not getattr(mod, "DEBUG", True)
 
 def update_saved_mod_configuration(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   selected_mod = get_mod(mod_key)
   try:
-      updated_key, updated_options = selected_mod.handle_update(mod_key, mod_options, version)
+      updated_key, updated_options = selected_mod.handle_update(mod_key, mod_options)
       return updated_key, updated_options
   except Exception as e:
     raise ValueError(e)
@@ -540,39 +560,76 @@ def insert_array_data(file: Path, new_data: bytearray, header_offset: int, data_
   data[data_offset:data_offset] = new_data
   modded_file.write_bytes(data)
 
-def map_equipment_name(name: str, equipment_type: str) -> str:
-    display_name = None
-    if equipment_type == "ammo":
-        mapped_equipment = NAME_MAP["ammo"].get(name.removeprefix("equipment_").removeprefix("ammo_"))
-        display_name = mapped_equipment
-    if equipment_type == "optics":
-        mapped_equipment = NAME_MAP["optics"].get(name.removeprefix("equipment_").removeprefix("optics_"))
-        display_name = mapped_equipment
-    if equipment_type == "sights":
-        mapped_equipment = NAME_MAP["sights"].get(name.removeprefix("equipment_").removeprefix("sight_").removeprefix("scope_"))
-        display_name = mapped_equipment["name"] if mapped_equipment else None
-    if equipment_type == "weapons":
-        pattern = r'^(equipment_)?(weapon_)?(.*?)_\d+$'
-        weapon_name = re.match(pattern, name).group(3)
-        mapped_equipment = NAME_MAP["weapons"].get(weapon_name)
-        display_name = mapped_equipment["name"] if mapped_equipment else None
-    return display_name if display_name else name
+def clean_equipment_name(name: str, equipment_type: str) -> tuple[str, str]:
+  name = name.removeprefix("equipment_").removeprefix(f"{equipment_type}_")
+  cleaned_name = name
+  variant_key = None
+  if equipment_type == "misc":
+      cleaned_name = name
+      backpack_colors = ["blaze", "evergreen", "glacier"]
+      for color in backpack_colors:
+        if name.endswith(color):
+          variant_key = color
+          cleaned_name = cleaned_name.removesuffix(f"_{color}")
+  if equipment_type == "optic":
+      cleaned_name = name.removeprefix("optics_")
+  if equipment_type == "sight":
+      cleaned_name = name.removeprefix("scope_")
+  # some equipments have multiple variants that end in an identifier eg. _01, _02, etc
+  # parse out the item name to group all variants as a single key in name_map.yaml
+  # return the variant id if it exists in case we need the specific variant
+  if equipment_type in ["weapon", "structure", "lure"]:
+      pattern = r'^([a-zA-Z_0-9]+?)(?:_(0\d))?$'
+      matches = re.match(pattern, name)
+      if matches:
+        cleaned_name = matches.group(1)
+        variant_key = str(matches.group(2))
+      else:
+        cleaned_name = name
+  return cleaned_name, variant_key
+
+def map_equipment(name: str, equipment_type: str) -> dict:
+  mapped_equipment = NAME_MAP[equipment_type].get(name, {})
+  return mapped_equipment
+
+def format_variant_name(mapped_equipment: dict, variant_key: str) -> str:
+  formatted_name = mapped_equipment["name"]
+  if variant_key:
+    if "variant" in mapped_equipment:
+      variant_name = mapped_equipment["variant"].get(variant_key)
+      if variant_name:
+        formatted_name = variant_name
+      else:
+        formatted_name = f"{mapped_equipment["name"]} {variant_key}"  # unknown variant
+    elif "style" in mapped_equipment:
+      style_name = mapped_equipment["style"].get(variant_key)
+      if style_name:
+       formatted_name = f'{mapped_equipment["name"]} - {style_name}'
+      else:
+        formatted_name = f"{mapped_equipment["name"]} - {variant_key}"  # unknown style
+  return formatted_name
+
+def get_equipment_name(name: str, equipment_type: str, variant: bool = False) -> str:
+  clean_name, variant_key = clean_equipment_name(name, equipment_type)
+  mapped_equipment = map_equipment(clean_name, equipment_type)
+  if mapped_equipment:
+    if variant:
+      return format_variant_name(mapped_equipment, variant_key)
+    return mapped_equipment["name"]
+  else:
+    if variant_key:
+      return f"{clean_name}_{variant_key}"
+    else:
+      return clean_name
 
 # def map_equipment_hash(hash: str, equipment_type: str) -> str:
 #     equipment_hash_map = json.load((LOOKUP_PATH / "settings/hp_settings/equipment_data.json").open())
 #     equipment_name = equipment_hash_map[equipment_type].get(str(hash), "")
 #     return equipment_name if equipment_name else ""
 
-def map_weapon_name_and_type(name: str) -> tuple[str, str]:
-    pattern = r'^equipment_weapon_(.*?)_\d+$'
-    weapon_name = re.match(pattern, name).group(1)
-    weapon_data = NAME_MAP["weapons"].get(weapon_name)
-    if weapon_data:
-        return weapon_data["name"], weapon_data["type"]
-    return name, ""
-
 # TODO: more flexible way to handle packaged files
 GLOBAL_FILES = get_global_file_info()
 LOCAL_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_LOCAL_PATH)
 NETWORK_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_NETWORK_PATH)
 GLOBAL_ANIMAL_FILES = get_global_animal_info(GLOBAL_ANIMALS_PATH)
+MODS_LIST, DEBUG_MODS_LIST = get_mods()

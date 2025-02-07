@@ -37,9 +37,14 @@ class Scope:
     return f"{self.name}, {self.file}, {self.bundle_file}"
 
   def _map_name(self) -> None:
-    filename = self.file.split("/")[-1].replace(".sighttunec","")
-    mapped_name = mods.map_equipment_name(filename, "sights")
-    self.name = mapped_name
+    split_file = self.file.split("/")
+    filename = split_file[-1].removesuffix(".sighttunec")  # filename without "".sighttunec" extension
+    self.name, _v = mods.clean_equipment_name(filename, "sight")
+    mapped_eqipment = mods.map_equipment(self.name, "sight")
+    if mapped_eqipment:
+      self.display_name = mapped_eqipment["name"]
+    else:
+      self.display_name = self.name
 
 def load_scopes() -> list[Scope]:
   scopes = []
@@ -51,13 +56,13 @@ def load_scopes() -> list[Scope]:
       sight_file = list((base_path / folder).glob("*.sighttunec"))[0]
       ee_file = list((base_path / folder).glob("*.ee"))[0]
       scopes.append(Scope(sight_file, ee_file))
-  return sorted(scopes, key=lambda x: x.name)
+  # print("Loaded scopes")
+  return sorted(scopes, key=lambda x: x.display_name)
 
 def get_option_elements() -> sg.Column:
-  scopes = load_scopes()
   layout = []
   advanced_layout = []
-  layout.append([sg.T("Scope: "), sg.Combo([x.name for x in scopes], k="scope_name", enable_events=True)])
+  layout.append([sg.T("Scope: "), sg.Combo([x.display_name for x in ALL_SCOPES], metadata=ALL_SCOPES, k="scope_name", enable_events=True)])
   for i in range(1,6):
     layout.append([
       sg.T(f"Level {i}: "),
@@ -76,11 +81,20 @@ def get_option_elements() -> sg.Column:
     ], k="scope_advanced_sensitivity_settings", visible=False))])
   return sg.Column(layout)
 
+def get_selected_scope(window: sg.Window, values: dict) -> Scope:
+  scope_list = window["scope_name"].metadata
+  scope_name = values.get("scope_name")
+  if scope_name:
+    try:
+      scope_index = window["scope_name"].Values.index(scope_name)
+      return scope_list[scope_index]
+    except ValueError as _e:  # user typed/edited data in box and we cannot match
+      pass
+  return None
+
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
   if event == "scope_name":
-    scope_name = values["scope_name"]
-    scopes = load_scopes()
-    selected_scope = next(x for x in scopes if x.name == scope_name)
+    selected_scope = get_selected_scope(window, values)
     for i in range(1,6):
       window[f"scope_level_{i}"].update(getattr(selected_scope, f"scope_level_{i}"))
       window[f"scope_level_{i}_sensitivity"].update(getattr(selected_scope, f"scope_level_{i}_sensitivity"))
@@ -93,20 +107,18 @@ def handle_event(event: str, window: sg.Window, values: dict) -> None:
     window["options"].contents_changed()
 
 def add_mod(window: sg.Window, values: dict) -> dict:
-  scope_name = values["scope_name"]
-  if not scope_name:
+  selected_scope = get_selected_scope(window, values)
+  if not selected_scope:
     return {
       "invalid": "Please select a scope first"
     }
 
-  scopes = load_scopes()
-  selected_scope = next(x for x in scopes if x.name == scope_name)
-
   mod_settings = {
-    "key": f"modify_scope_{selected_scope.file}",
+    "key": f"modify_scope_{selected_scope.name}",
     "invalid": None,
     "options": {
-      "name": scope_name,
+      "name": selected_scope.name,
+      "display_name": selected_scope.display_name,
       "file": selected_scope.file,
       "bundle_file": selected_scope.bundle_file,
     }
@@ -123,7 +135,9 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   return mod_settings
 
 def format(options: dict) -> str:
-  return f"Modify Scope Zoom: {options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']}, Advanced Settings: {options.get('advanced_sensitivity')})"
+  # safely handle old save files without display_name
+  display_name = options.get("display_name", options.get("name"))
+  return f"Modify Scope Zoom: {display_name} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']}, Advanced Settings: {options.get('advanced_sensitivity')})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_scope")
@@ -160,20 +174,30 @@ def process(options: dict) -> None:
     mods.update_file_at_offset(file, 172, options["level_5_h_speed"])
     mods.update_file_at_offset(file, 176, options["level_5_v_speed"])
 
-UPDATE_VERSION = "2.2.0"
-def handle_update(mod_key: str, mod_options: dict, _version: str) -> tuple[str, dict]:
-  scopes = load_scopes()
-  selected_scope = next(
-    x for x in scopes if (
+def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+  """
+  2.2.2
+  - Replace full filepath with just scope name in mod_key
+  2.2.0
+  - Use formatted name from 'name_map.yaml' as display_name
+  - Fix formatting of file path
+  """
+  # 2.1.9 and prior had double backslashes in file paths
+  selected_scope = next((
+    x for x in ALL_SCOPES if (
       x.file == mod_options["file"] or  # properly formatted path with single forward slash (/)
       x.file == mod_options["file"].replace("\\", "/")  # old path with double backslash (\\)
-    )
+    )), None
   )
   if not selected_scope:
-    raise ValueError(f"Unable to match scope {mod_options['name']}")
-  updated_mod_key = f"modify_scope_{selected_scope.file}"
+    raise ValueError(f"Unable to match scope {mod_options.get("display_name", mod_options.get("name"))}")
+
+  updated_mod_key = f"modify_scope_{selected_scope.name}"
   updated_mod_options = mod_options
   updated_mod_options["name"] = selected_scope.name
+  updated_mod_options["display_name"] = selected_scope.display_name
   updated_mod_options["file"] = selected_scope.file
   updated_mod_options["bundle_file"] = selected_scope.bundle_file
   return updated_mod_key, updated_mod_options
+
+ALL_SCOPES = load_scopes()

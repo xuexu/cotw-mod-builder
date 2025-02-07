@@ -52,4 +52,5 @@ def get_files(options: dict) -> list[str]:
 
 def process(options: dict) -> None:
   depth_cells = ["B2","B3","B4","B5"]
+  # "force=True" since we have two cells that point at the same value
   mods2.update_file_at_multiple_coordinates_with_value(BASE_WATER_FILE, "Sheet1", depth_cells, options["max_depth"], force = True)

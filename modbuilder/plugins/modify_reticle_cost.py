@@ -9,10 +9,10 @@ OPTIONS = [
     {
      "name": "Cost",
      "style": "slider",
-     "min": 1.0,
+     "min": 0.0,
      "max": 4500.0,
      "initial": 4500.0,
-     "increment": 1,
+     "increment": 10,
     }
 ]
 PRESETS = [
@@ -23,9 +23,9 @@ PRESETS = [
     ]
   },
   {
-   "name": "Cheap",
+   "name": "Free",
    "options": [
-     {"name": "cost", "value": 1.0},
+     {"name": "cost", "value": 0.0},
     ]
   },
 ]

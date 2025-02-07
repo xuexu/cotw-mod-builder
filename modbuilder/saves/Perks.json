@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "2.2.2",
   "mod_options": {
     "modify_skills_breath_control": {
       "heart_rate_multiplier": 0.0,

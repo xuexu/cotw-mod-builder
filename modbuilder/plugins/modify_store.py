@@ -1,298 +1,421 @@
-from typing import List, Tuple
 from modbuilder import mods
-from pathlib import Path
-from deca.ff_rtpc import rtpc_from_binary, RtpcNode
+from deca.ff_rtpc import RtpcNode
 import FreeSimpleGUI as sg
 import re
 
 DEBUG = False
 NAME = "Modify Store"
-DESCRIPTION = "Modify the store prices. I would discourage you from adding individual and bulk modifications for the same category at the same time."
+DESCRIPTION = "Modify prices and quantites of store items or apply bulk changes to an entire category. Individual and bulk changes in the same category will combine."
 EQUIPMENT_FILE = "settings/hp_settings/equipment_data.bin"
 
 class StoreItem:
-  def __init__(self, type: str, name: str, price: int, price_offset: int, quantity: int, quantity_offset: int) -> None:
-    self.type = type
-    self.name = name
-    self.price = price
-    self.price_offset = price_offset
-    self.quantity = quantity
-    self.quantity_offset = quantity_offset
-  
+  __slots__ = (
+    'type',
+    'name',
+    'display_name',
+    'base_name',
+    'base_display_name',
+    'detailed_type',
+    'internal_name',
+    'price',
+    'price_offset',
+    'quantity',
+    'quantity_offset'
+  )
+
+  type: str                   # item type
+  name: str                   # unique item name for specific item/variant
+  display_name: str           # unique display name for specific item/variant
+  base_name: str              # shared item for items with variants (for name_map.yaml)
+  base_display_name: str      # shared display name for items with variants (from name_map.yaml)
+  detailed_type: str          # additional type data (weapon for ammo and Illuminated Iron Sights, category for Misc/Lures)
+  internal_name: str          # used to match old naming schemes
+  price: int
+  price_offset: int
+  quantity: int
+  quantity_offset: int
+
+  def __init__(self, equipment_node: RtpcNode, equipment_type: str) -> None:
+    self.type = equipment_type
+    self.internal_name = None
+    self.detailed_type = None
+    self._parse_prop_table(equipment_node)
+    if self.type == "skin":
+      self.display_name = self._parse_skin_name()
+    if self.type != "skin":
+      self._map_equipment_name()
+    self._format_display_name()
+
   def __repr__(self) -> str:
     return f"{self.type}, {self.name} ({self.price}, {self.price_offset}, {self.quantity}, {self.quantity_offset})"
 
-def load_price_node(items: List[RtpcNode], type: str, name_offset: int = 4, price_offset: int = 7, quantity_offset = 13, name_handle: callable = None, price_handle: callable = None) -> list[StoreItem]:
-  prices = []
-  for item in items:
-    if name_handle:
-      name = name_handle(item)
+  def _parse_prop_table(self, equipment_node: RtpcNode) -> None:
+    self.price = 0
+    self.price_offset = None
+    self.quantity = 0
+    self.quantity_offset = -1  # some items do not have quantity
+    for prop in equipment_node.prop_table:
+      if (
+        self.type == "skin"  # parse texture name to get skin names
+        and prop.name_hash == 837395680  # 0x31e9a4e0
+      ):
+        self.name = prop.data.decode("utf-8")
+
+      if (
+        self.type != "skin"  # read "name" value for all other item types
+        and prop.name_hash == 3541743236  # 0xd31ab684 - "name"
+      ):
+        self.name = prop.data.decode("utf-8")
+
+      if prop.name_hash == 588564970:  # 0x2314c9ea - old name pre-2.2.2
+        data = prop.data.decode("utf-8")
+        if data:
+          self.internal_name = data
+
+      if prop.name_hash == 870267695:  # 0x33df3b2f
+        self.price = prop.data
+        self.price_offset = prop.data_pos
+
+      if self.type in ["ammo", "misc", "lure"]:  # categories with quantity
+        if (
+          prop.name_hash == 2979948800  # 0xb19e6900
+          and prop.data != 4294967295
+        ):
+          # some items in categories with quantity have no individual quantity (callers in "lures", backpacks in "misc")
+          # those items will have a "quantity" of 4294967295 (max 32-bit integer) that we can ignore
+          self.quantity = prop.data
+          self.quantity_offset = prop.data_pos
+
+  def _parse_skin_name(self) -> None:
+    skin_types = {
+      "t1": "Paint",
+      "t2": "Spray",
+      "t3": "Material",
+      "t4": "Camo",
+      "t5": "Wrap",
+    }
+    parts = self.name.split("\\")  # parse texture name into something readable
+    category = " ".join([x.capitalize() for x in parts[-2].split("_")])
+    name = parts[-1].removesuffix("_dif.ddsc")
+    if category == "Crosshair Thumbnails":
+      category = "Reticle"
+      pattern = r'^thumbnail_crosshair_(.*)_(\d\d)$'  # thumbnail_crosshair_mill_dot_01
+      matches = re.match(pattern, name)
+      display_name = f"Reticle: {" ".join([x.capitalize() for x in matches.group(1).split("_")])} {matches.group(2)}"
     else:
-      try:
-        name = item.prop_table[name_offset].data.decode("utf-8")
-      except:
-        name = "unknown"
-    if price_handle:
-      price, price_offset_value = price_handle(item)
+      pattern = r'(t\d)_(\d\d)$'  # camo_h2_lunar_new_year_1_t3_01 >> "Material 01"
+      matches = re.search(pattern, name)
+      display_name = f"{category}: {skin_types[matches.group(1)]} {matches.group(2)}"
+    return display_name
+
+  def _map_equipment_name(self) -> None:
+    self.base_name, variant_key = mods.clean_equipment_name(self.name, self.type)
+    mapped_equipment = mods.map_equipment(self.base_name, self.type)
+    if mapped_equipment:
+      self.detailed_type = mapped_equipment.get("type")
+      self.display_name = mods.format_variant_name(mapped_equipment, variant_key)
+      self.base_display_name = mapped_equipment["name"]
     else:
-      price_item = item.prop_table[price_offset]
-      if isinstance(price_item.data, bytes):
-        price_item = item.prop_table[price_offset + 1]
-      price = price_item.data
-      price_offset_value = price_item.data_pos
-    
-    if quantity_offset is None:
-      quantity = 0
-      quantity_offset_value = -1
-    else:
-      quantity_item = item.prop_table[quantity_offset]
-      quantity = quantity_item.data
-      if (isinstance(quantity, int) and quantity > 100) or not isinstance(quantity, int):
-        quantity = 0
-        quantity_offset_value = -1
-      else:
-        quantity_offset_value = quantity_item.data_pos
-    
-    prices.append(StoreItem(type, f"{name} (id: {price_offset_value})", price, price_offset_value, quantity, quantity_offset_value))
-  return sorted(prices, key=lambda x: x.name)
+      # print(f"Unable to map equipment {self.name}")
+      self.detailed_type = ""
+      self.display_name = self.name
+      self.base_display_name = self.base_name
 
-def handle_lure_name(item: RtpcNode) -> str:
-  if isinstance(item.prop_table[1].data, bytes):
-    return item.prop_table[1].data.decode("utf-8")
-  elif isinstance(item.prop_table[4].data, bytes):
-    return item.prop_table[4].data.decode("utf-8")
-  return "Unknown Lure"
+  def _format_display_name(self) -> None:
+    detailed_type = self.detailed_type if self.detailed_type else ""
+    if self.type in ["ammo", "misc", "weapon"]:
+      self.display_name = f"{detailed_type}: {self.display_name}"
+    if self.type == "sight":
+      if self.display_name == "Illuminated Iron Sights":
+        self.display_name = f"{self.display_name}: {detailed_type}"
+    if self.type == "lure":
+      self.display_name = f"{detailed_type}: {self.display_name.replace(" Decoy","").replace(" Caller","").replace(" Scent","")}"
 
-def  handle_lure_price(item: RtpcNode) -> Tuple[int,int]:
-  if isinstance(item.prop_table[1].data, bytes):
-    second_prop = item.prop_table[1].data.decode("Utf-8").lower()
-    if "caller" in second_prop or "call" in second_prop or "rattler" in second_prop:
-      return (item.prop_table[0].data, item.prop_table[0].data_pos)
-  else:
-    return (item.prop_table[7].data, item.prop_table[7].data_pos)
+def load_equipment_data(
+    equipment_nodes: list[RtpcNode],
+    equipment_type: str,
+  ) -> list[StoreItem]:
+  loaded_items = []
+  for equipment_node in equipment_nodes:
+    loaded_item = StoreItem(equipment_node, equipment_type)
+    if (  # skip some invalid items
+      (equipment_type == "optic" and loaded_item.name == "equipment_optics_camera_01")  # in-game "camera" item
+      or (equipment_type == "weapon" and loaded_item.name == "equipment_weapon_clay_pigeon_01")  # Salzwiesen shooting range launcher
+      or (equipment_type == "ammo" and loaded_item.name == "equipment_ammo_clay_pigeon_01")  # Salzwiesen shooting range ammo
+    ):
+      continue
+    loaded_items.append(loaded_item)
+  return sorted(loaded_items, key=lambda x: x.display_name)
 
-def handle_skin_name(item: RtpcNode) -> str:
-  if isinstance(item.prop_table[9].data, bytes):
-    parts = item.prop_table[9].data.decode("utf-8").split("\\")
-    map = " ".join([x.capitalize() for x in parts[-2].split("_")])
-    name = parts[-1].replace(".ddsc", "").replace("_dif", "")
-    name = f"{map} {name}"
-    return re.sub(r'_(\w+)$', '', name)
-  return "Unknown Skin"
-
-def handle_misc_name(item: RtpcNode) -> str:
-  name = item.prop_table[4].data
-  if type(name) is bytes:
-    name = name.decode("utf-8")
-  else:
-    name = item.prop_table[5].data
-    if type(name) is bytes:
-      name = name.decode("utf-8")
-    else:
-      name = "unknown"
-  if len(name) > 40:
-    return re.sub(r'\([\w\s\-\'\./]+\)$', "", name)
-  else:
-    return name
-
-def load_equipement_prices() -> dict:
+def load_store_items() -> dict[str, list[StoreItem]]:
   equipment = mods.open_rtpc(mods.APP_DIR_PATH / "org" / EQUIPMENT_FILE)
-  ammo_items = equipment.child_table[0].child_table
-  misc_items = equipment.child_table[1].child_table
-  sights_items = equipment.child_table[2].child_table
-  optic_items = equipment.child_table[3].child_table
-  skin_items = equipment.child_table[5].child_table
-  weapon_items = equipment.child_table[6].child_table
-  portable_items = equipment.child_table[7].child_table
-  lures_items = equipment.child_table[8].child_table
-  
-  return {
-    "ammo": load_price_node(ammo_items, "Ammo", name_offset=1, price_offset=0),
-    "misc": load_price_node(misc_items, "Misc", name_handle=handle_misc_name, quantity_offset=15),
-    "sight": load_price_node(sights_items, "Sight", name_offset=1, price_offset=0, quantity_offset=None),
-    "optic": load_price_node(optic_items, "Optic", quantity_offset=None),
-    "skin": load_price_node(skin_items, "Skin", name_handle=handle_skin_name, quantity_offset=None),
-    "weapon": load_price_node(weapon_items, "Weapon", price_offset=8, name_handle=handle_misc_name, quantity_offset=None),
-    "structure": load_price_node(portable_items, "Structure", quantity_offset=None),
-    "lure": load_price_node(lures_items, "Lure", name_handle=handle_lure_name, price_handle=handle_lure_price, quantity_offset=15)
-  }
+  store_items = {}
 
-def build_tab(type: str, items: List[StoreItem], include_quantity: bool = True) -> sg.Tab:
-  type_key = type.lower()
-  layout = [
-    [sg.T("Individual:", p=((10,0),(20,0)), text_color="orange")],
-    [sg.T("Item", p=((30,7),(10,0))), sg.Combo([x.name for x in items], metadata=items, k=f"{type_key}_item_name", p=((10,10),(10,0)), enable_events=True)],
-    [sg.T("Price", p=((30,0),(10,0))), sg.Input("", size=10, p=((10,0),(10,0)), k=f"{type_key}_item_price")]
-  ]
-  if include_quantity:
-    layout.append(
-      [sg.T("Quantity", p=((30,0),(10,0))), sg.Input("", size=10, p=((10,0),(10,0)), k=f"{type_key}_item_quantity")],  
-    )
-  layout.extend([
-      [sg.T("Bulk:", p=((10,0),(20,0)), text_color="orange"), sg.T("(applies to all items in this category)", font="_ 12", p=((0,0),(20,0)))],
-      [sg.T("Change Free to Price", p=((30,0),(10,0)))],
-      [sg.Input("", size=10, p=((60,0),(10,0)), k=f"{type_key}_free_price")], 
-      [sg.T("Discount Percent", p=((30,0),(10,0)))],
-      [sg.Slider((0,100), 0, 1, orientation="h", p=((60,0),(10,0)), k=f"{type_key}_discount")],             
-  ])
-  if include_quantity:
-    layout.extend([
-      [sg.T("Quantity", p=((30,0),(10,0)))],
-      [sg.Input("", size=10, p=((60,0),(10,0)), k=f"{type_key}_bulk_quantity")],       
-      [sg.T("")] 
-    ])
-  else:
-    layout.append([sg.T("")])
-  
-  return sg.Tab(type, layout, k=f"{type_key}_store_tab")
+  store_items["ammo"] = load_equipment_data(equipment.child_table[0].child_table, "ammo")
+  store_items["misc"] = load_equipment_data( equipment.child_table[1].child_table, "misc")
+  store_items["sight"] = load_equipment_data(equipment.child_table[2].child_table, "sight")
+  store_items["optic"] = load_equipment_data(equipment.child_table[3].child_table, "optic")
+  # store_items["vehicle"] = load_equipment_data(equipment.child_table[4].child_table, "vehicle")  # free with DLC, $20000 without (multiplayer only). Where is this value?
+  store_items["skin"] = load_equipment_data(equipment.child_table[5].child_table, "skin")
+  store_items["weapon"] = load_equipment_data(equipment.child_table[6].child_table, "weapon")
+  store_items["structure"] = load_equipment_data(equipment.child_table[7].child_table, "structure")
+  store_items["lure"] = load_equipment_data(equipment.child_table[8].child_table, "lure")
+  # print("Loaded store items")
+  return store_items
+
+def build_tab(item_type: str) -> sg.Tab:
+  item_list = ALL_STORE_ITEMS[item_type]
+  return sg.Tab(item_type.capitalize(), [
+    [sg.Combo([item.display_name for item in item_list], metadata=item_list, size=30, key=f"store_list_{item_type}", enable_events=True, expand_x=True)]
+  ], key=f"store_tab_{item_type}")
 
 def get_option_elements() -> sg.Column:
-  equipment_prices = load_equipement_prices()
-  
   layout = [[
-    sg.TabGroup([[
-      build_tab("Ammo", equipment_prices["ammo"]),
-      build_tab("Misc", equipment_prices["misc"]),
-      build_tab("Sight", equipment_prices["sight"], include_quantity=False),
-      build_tab("Optic", equipment_prices["optic"], include_quantity=False),
-      build_tab("Skin", equipment_prices["skin"], include_quantity=False),
-      build_tab("Weapon", equipment_prices["weapon"], include_quantity=False),
-      build_tab("Structure", equipment_prices["structure"], include_quantity=False),
-      build_tab("Lure", equipment_prices["lure"]),
-    ]], k="store_group")
-  ]]
+      sg.TabGroup([[
+        build_tab(key) for key in ALL_STORE_ITEMS
+      ]], k="store_tab_group", enable_events=True),
+      sg.Button("Add Category Modification", k="add_mod_group_store", button_color=f"{sg.theme_element_text_color()} on brown", p=((30,0),(30,0))),
+    ],
+    [sg.Column([
+        [
+          sg.T("Individual:", p=((10,0),(10,0)), text_color="orange"),
+          sg.Checkbox("Auto-update price and quantity", font="_12", default=True, k="store_update_price_quantity", enable_events=True, p=((15,0),(10,0))),
+        ],
+        [sg.T("Price:", p=((30,0),(10,0))), sg.Input("", size=10, p=((34,0),(10,0)), k="store_item_price")],
+        [sg.T("Quantity:", p=((30,0),(10,0)), k="store_item_quantity_label"), sg.Input("", size=10, p=((10,0),(10,0)), k="store_item_quantity")],
+      ], p=(0,0), element_justification='left', vertical_alignment='top'),
+      sg.Column([
+        [sg.T("Bulk:", p=((0,0),(10,0)), text_color="orange"), sg.T("(applies to all items in this category)", font="_ 12", p=((0,0),(10,0)))],
+        [sg.T("Category Discount Percent:", p=((20,0),(10,0))), sg.Slider((0,100), 0, 1, orientation="h", p=((10,0),(0,0)), k="store_bulk_discount")],
+        [sg.T("Change All Free to Price:", p=((20,0),(10,0))), sg.Input("", size=10, p=((10,0),(10,0)), k="store_bulk_free_price")],
+        [sg.T("Category Quantity:", p=((20,0),(12,0)), k="store_bulk_quantity_label"), sg.Input("", size=10, p=((67,0),(12,0)), k="store_bulk_quantity")],
+      ], p=((190,0),(0,0)), element_justification='left', vertical_alignment='top'),
+    ],
+  ]
   return sg.Column(layout)
 
+def get_selected_category(window: sg.Window) -> str:
+  active_tab = str(window["store_tab_group"].find_currently_active_tab_key()).lower()
+  return active_tab.removeprefix("store_tab_")
+
+def get_selected_item(window: sg.Window, values: dict) -> StoreItem:
+  item_type = get_selected_category(window)
+  item_list = f"store_list_{item_type}"
+  item_name = values.get(item_list)
+  if item_name:
+    try:
+      ammo_index = window[item_list].Values.index(item_name)
+      return window[item_list].metadata[ammo_index]
+    except ValueError as _e:  # user typed/edited data in box and we cannot match
+      pass
+  return None
+
+def separate_item_variants(window: sg.Window) -> None:
+  pass
+
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
-  if event.endswith("item_name"):
-    type_key = event.split("_")[0]
-    item_name = values[event]
-    item_index = window[event].Values.index(item_name)
-    item_price = window[event].metadata[item_index].price
-    window[f"{type_key}_item_price"].update(item_price)
-    
-    item_quantity = window[event].metadata[item_index].quantity
-    quantity_key = f"{type_key}_item_quantity"    
-    if item_quantity > 0:
-      window[quantity_key].update(item_quantity, disabled=False)      
-    elif quantity_key in window.key_dict:
-      window[quantity_key].update(item_quantity, disabled=True)
+  if event.startswith("store_"):
+    item_type = get_selected_category(window)
+    selected_item = get_selected_item(window, values)
+    if values["store_update_price_quantity"]:  # box checked = update values
+      if selected_item:
+        window["store_item_price"].update(selected_item.price)
+        window["store_item_quantity"].update(selected_item.quantity)
+      else:
+        window["store_item_price"].update("")
+        window["store_item_quantity"].update("")
+    if event.startswith("store_tab_"):
+      disabled = bool(item_type not in ["ammo", "misc", "lure"])  # disable for categories without quantity
+      if not disabled and selected_item:
+        disabled = selected_item.quantity == 0  # disable for items with 0 quantity
+      window["store_item_quantity"].update(disabled=disabled)
+      window["store_bulk_quantity"].update(disabled=disabled)
 
 def add_mod(window: sg.Window, values: dict) -> dict:
-  active_tab = window["store_group"].find_currently_active_tab_key().lower() 
-  active_tab = active_tab.split("_")[0]
-  
-  discount = int(values[f"{active_tab}_discount"])
-  free_price = values[f"{active_tab}_free_price"]
-  if f"{active_tab}_bulk_quantity" in values:
-    bulk_quantity = values[f"{active_tab}_bulk_quantity"]
-  else:
-    bulk_quantity = "0"
-    
-  if free_price.isdigit():
-    free_price = int(free_price)
-  elif free_price != "":
+  selected_item = get_selected_item(window, values)
+  if not selected_item:
     return {
-      "invalid": "Provide a valid free price"
-    }    
+      "invalid": "Please select an item first"
+    }
+  item_price = values[f"store_item_price"]
+  if item_price.isdigit():
+    item_price = int(item_price)
   else:
-    free_price = 0
+    return {
+      "invalid": "Provide a valid item price"
+    }
+  item_quantity = values[f"store_item_quantity"]
+  if item_quantity.isdigit():
+    item_quantity = int(item_quantity)
+  else:
+    return {
+      "invalid": "Provide a valid item quantity"
+    }
+
+  return {
+    "key": f"modify_store_{selected_item.name}",
+    "invalid": None,
+    "options": {
+      "type": selected_item.type,
+      "name": selected_item.name,
+      "display_name": selected_item.display_name,
+      "file": EQUIPMENT_FILE,
+      "price": item_price,
+      "quantity": item_quantity
+    }
+  }
+
+def add_mod_group(window: sg.Window, values: dict) -> dict:
+  bulk_discount = int(values[f"store_bulk_discount"])
+  bulk_free_price = values[f"store_bulk_free_price"]
+  if bulk_free_price.isdigit():
+    bulk_free_price = int(bulk_free_price)
+  else:
+    return {
+      "invalid": "Provide a valid bulk free price"
+    }
+  bulk_quantity = values[f"store_bulk_quantity"]
   if bulk_quantity.isdigit():
     bulk_quantity = int(bulk_quantity)
-  elif bulk_quantity == "":
-    bulk_quantity = 0
   else:
     return {
-      "invalid": f"Provide a valid bulk quantity ({bulk_quantity})"
-    }    
-
-  bulk_provided = discount != 0 or free_price != 0 or bulk_quantity != 0
-  
-  item_key = f"{active_tab}_item_name"
-  item_metadata = window[item_key].metadata
-  if not bulk_provided:    
-    item_name = values[item_key]
-    if not item_name:
-      return {
-        "invalid": "Please select an item first"
-      }
-    item_index = window[item_key].Values.index(item_name)
-    item = item_metadata[item_index]
-    item_price = values[f"{active_tab}_item_price"]
-    if f"{active_tab}_item_quantity" in values:
-      item_quantity = values[f"{active_tab}_item_quantity"]
-    else:
-      item_quantity = "0"
-      
-    if item_price.isdigit():
-      item_price = int(item_price)
-    else:
-      return {
-        "invalid": "Provide a valid item price"
-      }
-    if item_quantity.isdigit():
-      item_quantity = int(item_quantity)
-    else:
-      return {
-        "invalid": "Provide a valid item quantity"
-      }      
-    
-    return {
-      "key": f"modify_store_{item.name}",
-      "invalid": None,
-      "options": {
-        "type": active_tab,
-        "name": item.name,
-        "file": EQUIPMENT_FILE,
-        "price_offset": item.price_offset,
-        "price": item_price,
-        "quantity_offset": item.quantity_offset,
-        "quantity": item_quantity
-      }    
+      "invalid": "Provide a valid bulk quantity"
     }
-  else:
-    return {
-      "key": f"modify_store_{active_tab}",
-      "invalid": None,
-      "options": {
-        "type": active_tab,
-        "file": EQUIPMENT_FILE,
-        "discount": discount,
-        "free_price": free_price,
-        "bulk_quantity": bulk_quantity
+
+  item_type = get_selected_category(window)
+  return {
+    "key": f"modify_store_{item_type}",
+    "invalid": None,
+    "options": {
+      "type": item_type,
+      "file": EQUIPMENT_FILE,
+      "discount": bulk_discount,
+      "free_price": bulk_free_price,
+      "bulk_quantity": bulk_quantity
     }
   }
 
 def format(options: dict) -> str:
-  if "free_price" in options:
-    return f"Modify Store {options['type'].capitalize()} ({options['discount']}%, {options['free_price']}, {options['bulk_quantity'] if 'bulk_quantity' in options else '0'})"
-  else:
-    return f"{options['name']} ({options['price']}, {options['quantity']})"
+  if "free_price" in options:  # category - some pre-2.1.0 version didn't have "bulk_quantity"
+    return f"Modify Store Category: {options['type'].capitalize()} (-{options['discount']}%, free > ${options['free_price']}, {options['bulk_quantity'] if 'bulk_quantity' in options else '0'})"
+  else:  # single item
+    display_name = options.get("display_name", options["name"])  # diplay_name added in 2.2.2
+    selected_item = match_old_item(options)  # try to match options to a StoreItem
+    if selected_item:
+      display_name = selected_item.display_name
+    return f"Modify Store: {options['type'].capitalize()} - {display_name} (${options['price']}, {options['quantity']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_store")
 
-def get_files(options: dict) -> List[str]:
+def get_files(options: dict) -> list[str]:
   return [EQUIPMENT_FILE]
 
 def process(options: dict) -> None:
-  file = options["file"]
-  if "free_price" in options:
+  updates = []
+  item_list = ALL_STORE_ITEMS[options["type"]]
+
+  if "quantity" in options:  # single item
+    selected_item = next((i for i in item_list if i.name == options["name"]), None)
+    if selected_item:
+      updates.append({"offset": selected_item.price_offset, "value": options["price"]})
+      if options["quantity"] > 0 and selected_item.quantity_offset > 0:
+        updates.append({"offset": selected_item.quantity_offset, "value": ["quantity"]})
+
+  if "bulk_quantity" in options:  # category
     discount = options["discount"]
     free_price = options["free_price"]
-    bulk_quantity = options["bulk_quantity"] if "bulk_quantity" in options else 0
-    prices = load_equipement_prices()[options["type"]]
-    if discount != 0:
-      offsets = [x.price_offset for x in prices]
-      mods.update_file_at_offsets(file, offsets, 1 - discount / 100, transform="multiply")
-    if free_price != 0:
-      offsets = [x.price_offset for x in prices if x.price == 0]
-      mods.update_file_at_offsets(file, offsets, free_price)
-    if bulk_quantity != 0:
-      offsets = [x.quantity_offset for x in prices]
-      offsets = list(filter(lambda x: x != -1, offsets))
-      mods.update_file_at_offsets(file, offsets, bulk_quantity)
+    bulk_quantity = options["bulk_quantity"]
+    for item in item_list:
+      if discount > 0:
+        updates.append({"offset": item.price_offset, "value": 1 - discount / 100, "transform": "multiply"})
+      if free_price > 0:
+        updates.append({"offset": item.price_offset, "value": free_price})
+      if bulk_quantity > 0 and item.quantity_offset > 0:
+        updates.append({"offset": item.quantity_offset, "value": bulk_quantity})
+
+  mods.apply_updates_to_file(EQUIPMENT_FILE, updates)
+
+def match_old_item(options: dict) -> StoreItem:
+  selected_item = None
+  # Try to match the old name format. This doesn't work in a few cases where names are not unique
+  unmatchable_names = (
+    "unknown",
+    "trailscout mini daypack",  # small backpack - incorrect color names in save file
+    "exoadventurer 32 light daypack",  # medium backpack - incorrect color names in save file
+    "summit explorer 6000 pack",  # large backpack - incorrect color names in save file
+    "illuminated iron sights",  # does not include associated weapon name
+    "store_featured",  # Bolt Action Rifle Pack weapons
+    "placeable",  # "placeable decoy" and "placeable" structures are non-unique
+    "eurasian teal  decoy",  # strange duplicate names on some duck decoys
+    "eurasian teal decoy",
+  )
+  if not options["name"].lower().startswith(unmatchable_names):
+    cleaned_name = re.sub(r"\s*\(id: \d+\)", "", options["name"]).rstrip()  # remove " (id: 12345)"
+    selected_item = next((i for i in ALL_STORE_ITEMS[options["type"]] if cleaned_name == i.internal_name), None)
+    if not selected_item and options["type"] in ["weapons", "misc"]:
+      # some weapons and misc items had special parsing for internal names over 40 characters
+      # check against the regex from the old "handle_misc_name()" function
+      for item in ALL_STORE_ITEMS[options["type"]]:
+        if len(item.internal_name) > 40:
+          short_internal_name = re.sub(r'\([\w\s\-\'\./]+\)$', "", item.internal_name).rstrip()
+          if cleaned_name == short_internal_name:
+            selected_item = item
+    if selected_item:
+      print(f"NAME MATCH: {options["name"]} >> {selected_item.display_name}")
+  # 2.2.1 and prior relied on saved price and quantity offsets
+  # This breaks when new items are added to `equipment_data.bin`
+  # Try to match on those values. This is less accurate the older the save file is.
+  if (
+    not selected_item
+    and "price_offset" in options
+    and "quantity_offset" in options
+  ):
+    selected_item = next((i for i in ALL_STORE_ITEMS[options["type"]] if (
+      options["price_offset"] == i.price_offset
+      and options["quantity_offset"] == i.quantity_offset
+    )), None)
+    if selected_item:
+      print(f"OFFSETS MATCH: {options["name"]} >> {selected_item.display_name}")
+  return selected_item
+
+def handle_update(mod_key: str, mod_options: dict) -> dict:
+  """
+  2.2.2
+  - Parse exact prop data from each node for name, price, and quantity (do not save offsets)
+  - Use formatted name from 'name_map.yaml' as display_name
+  - Attempt to match items from imported save files by old display name or by matching offsets
+  """
+  if "quantity" in mod_options:  # single item
+    selected_item = next((i for i in ALL_STORE_ITEMS[mod_options["type"]] if mod_options["name"] == i.name), None)
+    if not selected_item:
+      # Try to parse the old item names/offsets to match with a StoreItem object
+      selected_item = match_old_item(mod_options)
+    if not selected_item:
+      raise ValueError(f"Unable to match item \"{mod_options["name"]}\"")
+
+    updated_mod_key = f"modify_store_{selected_item.name}"
+    updated_mod_options = {
+      "type": selected_item.type,
+      "name": selected_item.name,
+      "display_name": selected_item.display_name,
+      "file": EQUIPMENT_FILE,
+      "price": mod_options["price"],
+      "quantity": mod_options["quantity"],
+    }
+
+  elif "free_price" in mod_options:  # category
+    updated_mod_key = f"modify_store_{mod_options["type"]}"
+    updated_mod_options = {
+      "type": mod_options["type"],
+      "file": EQUIPMENT_FILE,
+      "discount": mod_options["discount"],
+      "free_price": mod_options["free_price"],
+      "bulk_quantity":mod_options.get("bulk_quantity", 0)  # some pre-2.1.0 version didn't have "bulk_quantity"
+    }
+
   else:
-    mods.update_file_at_offset(file, options["price_offset"], options["price"])
-    if options["quantity"] > 0:
-      mods.update_file_at_offset(file, options["quantity_offset"], options["quantity"])
+    raise ValueError(f"Unable to parse config: {mod_options}")
+  return updated_mod_key, updated_mod_options
+
+ALL_STORE_ITEMS = load_store_items()

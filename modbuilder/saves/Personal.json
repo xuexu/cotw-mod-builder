@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
+  "version": "2.2.2",
   "mod_options": {
     "increase_speed": {
       "stand_speed_multiplier": 2.5,
@@ -104,8 +104,8 @@
       "cooldown": 1.0
     },
     "modify_reticle_cost": {
-      "modify_reticle_cost": "Cheap",
-      "cost": 1.0
+      "modify_reticle_cost": "Free",
+      "cost": 0.0
     },
     "clean_scope_lenses": {},
     "remove_intro_logos": {}

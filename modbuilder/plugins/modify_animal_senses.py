@@ -2,10 +2,12 @@ from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Modify Animal Senses"
-DESCRIPTION = "Modify how animals sense and respond to you. Threshold values determine when an animal enters and exits various behavioral states. The higher the threshold, the longer it takes to enter into that state. Duration values modify how long an animal stays in an elevated state. Detection values modify how sensitive animals are to your character's noise, smell, and visual presence."
-FILE = "settings/hp_settings/animal_senses.bin"
-WARNING = "This mod modifies dozens of values and takes more time to build than other mods. Mod Builder may appear to hang for a few seconds while applying these changes. Please be patient."
+DESCRIPTION = "Modify how animals sense and respond to you. Threshold = time until an animal enters/exits behavioral state. Duration = how long an animal stays in an elevated state. Detection = how sensitive animals are to your character's noise, smell, and visual presence. Distances are in meters."
+ANIMAL_SENSES_FILE = "settings/hp_settings/animal_senses.bin"
+AI_FILE = "ai/aisystem.aisystunec"
 OPTIONS = [
+  { "name": "Tent Detection Distance", "min": 0, "max": 1000, "default": 500, "initial": 500, "increment": 50, "note": "Animals near the tent will spook when you fast travel." },
+  { "name": "Weapon Fire Detection Distance", "min": 0, "max": 1000, "default": 300, "initial": 300, "increment": 50, "note": "Adjusts base value. Bows/Pistols with shorter ranges will be scaled." },
   { "name": "Increase Attentiveness Threshold Percent", "min": 0, "max": 300, "default": 0, "increment": 10 },
   { "name": "Increase Alert Threshold Percent", "min": 0, "max": 300, "default": 0, "increment": 10 },
   { "name": "Increase Alarmed Threshold Percent", "min": 0, "max": 300, "default": 0, "increment": 10 },
@@ -14,35 +16,40 @@ OPTIONS = [
   { "name": "Reduce Defensive Duration Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
   { "name": "Reduce Scent Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
   { "name": "Reduce Vision Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
-  { "name": "Reduce Sound Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 }
+  { "name": "Reduce Sound Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
 ]
 
 def format(options: dict) -> str:
+  senses_details = []
+
+  tent_distance = options.get("tent_detection_distance")
+  if tent_distance is not None:
+    senses_details.append(f"{int(tent_distance)}m tent spook")
+
+  weapon_fire_distance = options.get("weapon_fire_detection_distance")
+  if weapon_fire_distance is not None:
+   senses_details.append(f"{int(weapon_fire_distance)}m weapon fire")
+
   attentive_percent = int(options['increase_attentiveness_threshold_percent'])
   alert_percent = int(options['increase_alert_threshold_percent'])
   alarmed_percent = int(options['increase_alarmed_threshold_percent'])
   defensive_percent = int(options['increase_defensive_threshold_percent'])
-  return f"Modify Animal Senses ({attentive_percent}%, {alert_percent}%, {alarmed_percent}%, {defensive_percent}%)"
+  senses_details.append(f"+{attentive_percent}% attent., +{alert_percent}% alert, +{alarmed_percent}% alarm, +{defensive_percent}% defense")
+  formatted_text =  f"Modify Animal Senses ({", ".join(senses_details)})"
+  return formatted_text
 
-def update_values_at_coordinates(options: dict) -> list[dict]:
-  attentive_percent = 1 + options['increase_attentiveness_threshold_percent'] / 100
-  alert_percent = 1 + options['increase_alert_threshold_percent'] / 100
-  alarmed_percent = 1 + options['increase_alarmed_threshold_percent'] / 100
-  defensive_percent = 1 + options['increase_defensive_threshold_percent'] / 100
+def get_files(options: dict) -> list[str]:
+  files = [ANIMAL_SENSES_FILE]
+  if options.get("tent_detection_distance"):
+    files.append(AI_FILE)
+  return files
 
-  nervous_duration_percent = 1 - options['reduce_nervous_duration_percent'] / 100
-  default_defensive_duration_percent = options['reduce_defensive_duration_percent'] if "reduce_defensive_duration_percent" in options else 0
-  defensive_duration_percent = 1 - default_defensive_duration_percent / 100
-  scent_multiplier = 1 - options['reduce_scent_detection_percent'] / 100
-  vision_multiplier = 1 - options['reduce_vision_detection_percent'] / 100
-  sound_multiplier = 1 - options['reduce_sound_detection_percent'] / 100
-
-  sound_prone_cells = mods2.range_to_coordinates_list("B", 93, 95)
-  sound_crouch_cells = mods2.range_to_coordinates_list("B", 98, 100)
-  sound_stand_cells = mods2.range_to_coordinates_list("B", 103, 105)
-  sound_run_cells = mods2.range_to_coordinates_list("B", 108, 110)
-  sound_swim_cells = mods2.range_to_coordinates_list("B", 113, 116)
-  sound_cells = sound_prone_cells + sound_crouch_cells + sound_stand_cells + sound_run_cells + sound_swim_cells
+def process(options: dict) -> list[dict]:
+  # We're modifying nearly 100 cells in a file with 62K+ cells
+  # It's OK if we use the closest existing value in the sheet
+  #  instead of methodically checking every cell for an unused value to overwrite
+  # Pass `skip_overwrite=True` to our mods2 functions to save a ton of time
+  # This will become a non-issue if I ever figure out how to add data to an XLSX ADF
 
   vision_shadow_cells = mods2.range_to_coordinates_list("B", 39, 43)
   vision_prone_cells = mods2.range_to_coordinates_list("B", 45, 50)
@@ -51,6 +58,17 @@ def update_values_at_coordinates(options: dict) -> list[dict]:
   vision_run_cells = mods2.range_to_coordinates_list("B", 72, 77)
   vision_swim_cells = mods2.range_to_coordinates_list("B", 81, 86)
   vision_cells = vision_shadow_cells + vision_prone_cells + vision_crouch_cells + vision_stand_cells + vision_run_cells + vision_swim_cells
+  vision_multiplier = 1 - options['reduce_vision_detection_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", vision_cells, vision_multiplier, transform="multiply", skip_overwrite=True)
+
+  sound_prone_cells = mods2.range_to_coordinates_list("B", 93, 95)
+  sound_crouch_cells = mods2.range_to_coordinates_list("B", 98, 100)
+  sound_stand_cells = mods2.range_to_coordinates_list("B", 103, 105)
+  sound_run_cells = mods2.range_to_coordinates_list("B", 108, 110)
+  sound_swim_cells = mods2.range_to_coordinates_list("B", 113, 116)
+  sound_cells = sound_prone_cells + sound_crouch_cells + sound_stand_cells + sound_run_cells + sound_swim_cells
+  sound_multiplier = 1 - options['reduce_sound_detection_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", sound_cells, sound_multiplier, transform="multiply", skip_overwrite=True)
 
   scent_prone_cells = mods2.range_to_coordinates_list("B", 119, 126)
   scent_crouch_cells = mods2.range_to_coordinates_list("B", 130, 137)
@@ -58,108 +76,34 @@ def update_values_at_coordinates(options: dict) -> list[dict]:
   scent_run_cells = mods2.range_to_coordinates_list("B", 152, 159)
   scent_swim_cells = mods2.range_to_coordinates_list("B", 163, 170)
   scent_cells = scent_prone_cells + scent_crouch_cells + scent_stand_cells + scent_run_cells + scent_swim_cells
+  scent_multiplier = 1 - options['reduce_scent_detection_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", scent_cells, scent_multiplier, transform="multiply", skip_overwrite=True)
 
-  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", sound_cells, sound_multiplier, transform="multiply")
-  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", vision_cells, vision_multiplier, transform="multiply")
-  mods2.update_file_at_multiple_coordinates_with_value(FILE, "species_data", scent_cells, scent_multiplier, transform="multiply")
+  attentive_percent = 1 + options['increase_attentiveness_threshold_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B4", "B5"], attentive_percent, "multiply", skip_overwrite=True)
 
-  return [
-    {
-      # attentive_enter_threshold
-      "coordinates": "B4",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": attentive_percent
-    },
-    {
-      # attentive_exit_threshold
-      "coordinates": "B5",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": attentive_percent
-    },
-    {
-      # alert_enter_threshold
-      "coordinates": "B6",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": alert_percent
-    },
-    {
-      # alert_exit_threshold
-      "coordinates": "B7",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": alert_percent
-    },
-    {
-      # alarmed_enter_threshold
-      "coordinates": "B8",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": alarmed_percent
-    },
-    {
-      # alarmed_exit_threshold
-      "coordinates": "B9",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": alarmed_percent
-    },
-    {
-      # defensive_enter_threshold
-      "coordinates": "B10",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_percent
-    },
-    {
-      # defensive_exit_threshold
-      "coordinates": "B11",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_percent
-    },
-    {
-      # nervous_min_duration
-      "coordinates": "B12",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": nervous_duration_percent,
-    },
-    {
-      # nervous_max_duration
-      "coordinates": "B13",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": nervous_duration_percent
-    },
-    {
-      # defensive_min_duration_easy
-      "coordinates": "B14",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_duration_percent
-    },
-    {
-      # defensive_min_duration_difficult
-      "coordinates": "B15",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_duration_percent
-    },
-    {
-      # defensive_max_duration_easy
-      "coordinates": "B16",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_duration_percent
-    },
-    {
-      # defensive_max_duration_difficult
-      "coordinates": "B17",
-      "sheet": "species_data",
-      "transform": "multiply",
-      "value": defensive_duration_percent
-    },
-  ]
+  alert_percent = 1 + options['increase_alert_threshold_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B6", "B7"], alert_percent, "multiply", skip_overwrite=True)
+
+  alarmed_percent = 1 + options['increase_alarmed_threshold_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B8", "B9"], alarmed_percent, "multiply", skip_overwrite=True)
+
+  defensive_percent = 1 + options['increase_defensive_threshold_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B10", "B11"], defensive_percent, "multiply", skip_overwrite=True)
+
+  nervous_duration_percent = 1 - options['reduce_nervous_duration_percent'] / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B12", "B13"], nervous_duration_percent, "multiply", skip_overwrite=True)
+
+  defensive_duration_percent = 1 - options.get('reduce_defensive_duration_percent', 0) / 100
+  mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B14", "B15", "B16", "B17"], defensive_duration_percent, "multiply", skip_overwrite=True)
+
+  tent_distance = options.get("tent_detection_distance")
+  if tent_distance:
+    mods.update_file_at_offset(AI_FILE, 800, tent_distance)
+
+  weapon_fire_distance = options.get("weapon_fire_detection_distance")
+  if weapon_fire_distance:
+    weapon_fire_distance_multiplier = weapon_fire_distance / 300  # default range
+    mods2.update_file_at_coordinates(ANIMAL_SENSES_FILE, {"sheet": "weapon_data", "coordinates": "B4", "value": weapon_fire_distance}, skip_overwrite=True)
+    mods2.update_coordinates_in_row(ANIMAL_SENSES_FILE, "weapon_data", 4, start="C", end=None, value=weapon_fire_distance_multiplier, transform="multiply", skip_overwrite=True)
+    mods2.update_coordinates_in_row(ANIMAL_SENSES_FILE, "weapon_data", 3, start="B", end=None, value=weapon_fire_distance_multiplier, transform="multiply", skip_overwrite=True)

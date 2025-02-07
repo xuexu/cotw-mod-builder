@@ -9,19 +9,12 @@ OPTIONS = [
 
 def format(options: dict) -> str:
   xp_reward_multiplier = int(options['xp_reward_multiplier'])
-  if "weapon_score_multiplier" in options:
-    weapon_score_multiplier = int(options['weapon_score_multiplier'])
-  else:
-    weapon_score_multiplier = xp_reward_multiplier
-  weapon_score_multiplier = int(options['weapon_score_multiplier'])
+  weapon_score_multiplier = int(options.get('weapon_score_multiplier', xp_reward_multiplier))
   return f"Increase XP Reward ({xp_reward_multiplier}x XP, {weapon_score_multiplier}x weapon score)"
 
 def update_values_at_coordinates(options: dict) -> list[dict]:
   xp_reward_multiplier = options['xp_reward_multiplier']
-  if "weapon_score_multiplier" in options:
-    weapon_score_multiplier = options['weapon_score_multiplier']
-  else:
-    weapon_score_multiplier = xp_reward_multiplier
+  weapon_score_multiplier = options.get('weapon_score_multiplier', xp_reward_multiplier)
 
   return [
     {
