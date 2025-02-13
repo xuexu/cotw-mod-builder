@@ -6,8 +6,8 @@ DESCRIPTION = "Change the character's default attributes. These settings can ena
 WARNING = "These values will be overridden if you invest in the related Skill/Perks"
 FILE = "settings/hp_settings/player_skills.bin"
 OPTIONS = [
-  { "name": "Base Health", "min": 100, "max": 9999, "default": 1000, "initial": 1000, "increment": 1, "note": '"Hardened" skill' },
-  { "name": "Carry Capacity", "min": 1, "max": 999, "default": 20, "initial": 20, "increment": 1, "note": '"Pack Mule" skill' },
+  { "name": "Base Health", "min": 100, "max": 10000, "default": 1000, "initial": 1000, "increment": 100, "note": '"Hardened" skill' },
+  { "name": "Carry Capacity", "min": 10, "max": 1000, "default": 20, "initial": 20, "increment": 10, "note": '"Pack Mule" skill. Capped at 999.9 in-game.' },
   { "name": "Reduce Recoil Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 1, "note": '"Recoil Management" shotgun perk' },
   { "name": "Recoil Recovery Speed", "min": 1.0, "max": 9.9, "default": 1.0, "initial": 1.0, "increment": 0.1, "note": '"Recoil Management" shotgun perk' },
   # { "name": "Raise Weapon Speed", "min": 0.0, "max": 10.0, "default": 0.75, "initial": 0.75, "increment": 0.25, "note": '"Fast Shouldering" shotgun perk' },
@@ -45,6 +45,9 @@ def format(options: dict) -> str:
   if clue_range != 20 or clue_direction_indicator_size < 90:
     trait_details.append(f"{clue_range}m + {clue_direction_indicator_size}° clues")
 
+  if options["show_clue_trails_on_map"]:
+    trait_details.append("clue trail")
+
   spot_duration = int(options["spot_duration"])
   spot_count = int(options["multiple_spot_count"])
   if spot_duration != 2 or spot_count != 1:
@@ -73,9 +76,11 @@ def process(options: dict) -> None:
     # 1. Point the "thermal" cell at a different definition (piggyback on "(0,0,0)" value from "show_animal_in_group_range_on_map")
     updates.append({"sheet": sheet, "coordinates": "B3", "value": "(0,0,0)"})
     # 2. Now if we write to "set_player_carry_capacity" we can overwrite the unused StringData value
-    updates.append({"sheet": sheet, "coordinates": "B44", "value": f"({options['carry_capacity']})".ljust(18, '\x00')})
+    # Carry capacity is actually capped at 999.9. We let the slider go to 1000 for ease of use
+    updates.append({"sheet": sheet, "coordinates": "B44", "value": f"({min(options['carry_capacity'], 999.9)})".ljust(18, '\x00')})
 
-  updates.append({"sheet": sheet, "coordinates": "B47", "value": f"({options['base_health']})".ljust(8, '\x00')})
+  # Max Health is actually capped at 9999.9. We let the slider go to 10K for ease of use
+  updates.append({"sheet": sheet, "coordinates": "B47", "value": f"({min(options['base_health'], 9999.9)})".ljust(8, '\x00')})
 
   recoil_percent = 1.0 - ( options["reduce_recoil_percent"] / 100 )
   recoil_speed = options["recoil_recovery_speed"]

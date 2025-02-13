@@ -1,7 +1,6 @@
 import textwrap
 from modbuilder.widgets import create_option, valid_option_value
-from modbuilder import mods
-from pathlib import Path
+from modbuilder import mods2
 from math import floor
 import FreeSimpleGUI as sg
 
@@ -62,15 +61,16 @@ def get_skill_option_keys(skill: str) -> list[str]:
 
 def render_pack_mule() -> list[dict]:
     return [
-        { "name": "Weight", "min": 24.0, "max": 999.9, "default": 23.0, "initial": 999.9, "increment": 0.1 }
+        { "name": "Weight", "min": 23, "max": 1000, "default": 23, "initial": 1000, "increment": 1 }
     ]
 def format_pack_mule(options: dict) -> str:
     return f"Enhanced Pack Mule ({options['weight']}kg)"
 def process_pack_mule(options: dict) -> list[dict]:
-    updated_value = options['weight']
+    weight = min(options['weight'], 999)  # max in-game value is 999
     return [{
-        "offset": 22176,
-        "value": f"set_player_carry_capacity({updated_value})"
+        "sheet": "skills_strategic",
+        "coordinates": "G11",
+        "value": f"set_player_carry_capacity({weight:>4})"
     }]
 
 def render_soft_feet() -> list[dict]:
@@ -79,16 +79,18 @@ def render_soft_feet() -> list[dict]:
     ]
 def format_soft_feet(options: dict) -> str:
     sound = options['soft_feet_percent']
-    return f"Enhanced Soft Feet ({int(sound)}%)"
+    return f"Enhanced Soft Feet (-{int(sound)}%)"
 def process_soft_feet(options: dict) -> list[dict]:
     updated_value = round(1.0 - options['soft_feet_percent'] / 100,1)
     return [
         {
-            "offset": 17864,
+            "sheet": "skills_active",
+            "coordinates": "G7",
             "value": f"set_material_noise_multiplier({updated_value})"
         },
         {
-            "offset": 17904,
+            "sheet": "skills_active",
+            "coordinates": "I7",
             "value": f"set_material_noise_multiplier({updated_value}), set_vegetation_noise_multiplier({updated_value})"
         }
     ]
@@ -99,12 +101,13 @@ def render_impact_resistance() -> list[dict]:
     ]
 def format_impact_resistance(options: dict) -> str:
     damage_reduce = options['fall_damage_reduction_percent']
-    return f"Enhanced Impact Resistance ({int(damage_reduce)}%)"
+    return f"Enhanced Impact Resistance (-{int(damage_reduce)}%)"
 def process_impact_resistance(options: dict) -> list[dict]:
     updated_value = round(1.0 - options['fall_damage_reduction_percent'] / 100, 1)
     return [
         {
-            "offset": 19904,
+            "sheet": "skills_passive",
+            "coordinates": "G5",
             "value": f"reduce_player_fall_damage({updated_value})"
         }
     ]
@@ -115,12 +118,13 @@ def render_haggle() -> list[dict]:
     ]
 def format_haggle(options: dict) -> str:
     haggle = options["haggle_percent"]
-    return f"Enhanced Haggle ({int(haggle)}%)"
+    return f"Enhanced Haggle (-{int(haggle)}%)"
 def process_haggle(options: dict) -> list[dict]:
     updated_value = int(options['haggle_percent'])
     return [
         {
-            "offset": 21104,
+            "sheet": "skills_passive",
+            "coordinates": "G14",
             "value": f"haggle({updated_value})"
         }
     ]
@@ -128,20 +132,21 @@ def process_haggle(options: dict) -> list[dict]:
 def render_keen_eye() -> list[dict]:
     return [
         { "name": "Cooldown Seconds", "min": 1, "max": 1800, "default": 1800, "initial": 10, "increment": 1 },
-        { "name": "Zone Distance", "min": 500, "max": 990, "default": 500, "increment": 10 },
+        { "name": "Zone Distance", "min": 500, "max": 10000, "default": 500, "increment": 100, "note": "Meters" },
         { "name": "Min Number of Zones", "min": 2, "max": 99, "default": 2, "increment": 1 },
         { "name": "Max Number of Zones", "min": 2, "max": 99, "default": 2, "increment": 1 },
-        { "name": "Animal Distance", "min": 500, "max": 990, "default": 500, "increment": 10 },
-        { "name": "Min Number of Animals", "min": 1, "max": 99, "default": 1, "increment": 1 },
-        { "name": "Max Number of Animals", "min": 3, "max": 99, "default": 3, "increment": 1 }
+        { "name": "Animal Distance", "min": 500, "max": 990, "default": 500, "increment": 10, "note": 'Requires level 2 "Keen Eye" skill' },
+        { "name": "Min Number of Animals", "min": 1, "max": 99, "default": 1, "increment": 1, "note": 'Requires level 2 "Keen Eye" skill' },
+        { "name": "Max Number of Animals", "min": 3, "max": 99, "default": 3, "increment": 1, "note": 'Requires level 2 "Keen Eye" skill' }
     ]
 def format_keen_eye(options: dict) -> str:
-    cool = options["cooldown_seconds"]
+    cooldown = options["cooldown_seconds"]
+    distance = options["zone_distance"]
     max_zones = options["max_number_of_zones"]
-    return f"Enhanced Keen Eye ({int(cool)}s, {int(max_zones)} zones)"
+    return f"Enhanced Keen Eye ({int(cooldown)}s, {int(distance)}m, {int(max_zones)} zones)"
 def process_keen_eye(options: dict) -> list[dict]:
-    cool = float(options["cooldown_seconds"])
-    zone_distance = int(options["zone_distance"])
+    cooldown = float(options["cooldown_seconds"])
+    zone_distance = min(int(options["zone_distance"]), 9999)  # max in-game value is 9999
     min_zones = int(options["min_number_of_zones"])
     max_zones = int(options["max_number_of_zones"])
     animal_distance = int(options["animal_distance"])
@@ -149,16 +154,19 @@ def process_keen_eye(options: dict) -> list[dict]:
     max_animals = int(options["max_number_of_animals"])
     return [
         {
-            "offset": 21912,
-            "value": f"show_need_zone_in_range_on_map({zone_distance:>3},{min_zones:>2},{max_zones:>2})"
+            "sheet": "skills_strategic",
+            "coordinates": "G9",
+            "value": f"show_need_zone_in_range_on_map({zone_distance:>4},{min_zones:>2},{max_zones:>2})"
         },
         {
-            "offset": 21960,
-            "value": f"show_need_zone_in_range_on_map({zone_distance:>3},{min_zones:>2},{max_zones:>2}), show_animal_group_in_range_on_map({animal_distance:>3},{min_animals:>2},{max_animals:>2})"
+            "sheet": "skills_strategic",
+            "coordinates": "I9",
+            "value": f"show_need_zone_in_range_on_map({zone_distance:>4},{min_zones:>2},{max_zones:>2}), show_animal_group_in_range_on_map({animal_distance:>3},{min_animals:>2},{max_animals:>2})"
         },
         {
-            "offset": 34472,
-            "value": cool
+            "sheet": "skills_strategic",
+            "coordinates": "F9",
+            "value": cooldown
         }
     ]
 
@@ -174,22 +182,25 @@ def process_endurance(options: dict) -> list[dict]:
     heart_rate_recover = 1 + endurance_percent
     return [
         {
-            "offset": 18368,
+            "sheet": "skills_active",
+            "coordinates": "G11",
             "value": f"heart_rate_movement_increase_multiplier({endurance_percent:0<4.2f}), heart_rate_recovery_multiplier({heart_rate_recover:0<4.2f})"
         }
     ]
 
 def render_improvised_blind() -> list[dict]:
     return [
-        { "name": "Vegetation Camoflauge Percent", "max": 890, "min": 50, "default": 50, "initial": 890, "increment": 1 }
+        { "name": "Vegetation Camoflauge Percent", "max": 900, "min": 50, "default": 50, "initial": 900, "increment": 50 }
     ]
 def format_improvised_blind(options: dict) -> str:
     camo = options["vegetation_camoflauge_percent"]
     return f"Enhanced Improvised Blind ({int(camo)}%)"
 def process_improvised_blind(options: dict) -> list[dict]:
-    updated_value = 1.0 + options['vegetation_camoflauge_percent'] / 100
+    # max value is 9.9
+    updated_value = min(1.0 + options['vegetation_camoflauge_percent'] / 100, 9.9)
     return [{
-        "offset": 18272,
+        "sheet": "skills_active",
+        "coordinates": "G10",
         "value": f"increase_vegetation_camo({updated_value})"
     }]
 
@@ -210,11 +221,13 @@ def process_spotting_knowledge(options: dict) -> list[dict]:
     weight = options["weight"]
     return [
         {
-            "offset": 19192,
+            "sheet": "skills_passive",
+            "coordinates": "I3",
             "value": f"spotting_show_health(true, {health:>4.2f}), spotting_show_advanced_awareness(true)"
         },
         {
-            "offset": 19272,
+            "sheet": "skills_passive",
+            "coordinates": "K3",
             "value": f"spotting_show_health(true, {health:>4.2f}), spotting_show_score(true,{score:>4.2f}), spotting_show_weight(true, {weight:>4.2f}), spotting_show_advanced_awareness(true)"
         }
     ]
@@ -233,20 +246,22 @@ def process_track_knowledge(options: dict) -> list[dict]:
     weight = options["weight"]
     return [
         {
-            "offset": 17576,
+            "sheet": "skills_active",
+            "coordinates": "I6",
             "value": f"clue_show_gender(true), clue_show_health(true, {health:>4.2}), clue_show_group_size(true)"
         },
         {
-            "offset": 17664,
+            "sheet": "skills_active",
+            "coordinates": "K6",
             "value": f"clue_show_gender(true), clue_show_health(true, {health:>4.2}), clue_show_color(true), clue_show_group_size(true), clue_show_weight(true, {weight:>4.2})"
         }
     ]
 
 def render_locate_tracks() -> list[dict]:
     return [
-        { "name": "Angle", "min": 0.0, "max": 45.0, "default": 45.0, "initial": 0.0, "increment": 0.5},
-        { "name": "Spawn Distance", "min": 40.0, "max": 99.9, "default": 40.0, "initial": 99.9, "increment": 0.1},
-        { "name": "Despawn Distance", "min": 45.0, "max": 99.9, "default": 45.0, "initial": 99.9, "increment": 0.1},
+        { "name": "Angle", "min": 0.0, "max": 45.0, "default": 45.0, "initial": 0.0, "increment": 0.5 },
+        { "name": "Spawn Distance", "min": 40.0, "max": 99.9, "default": 40.0, "initial": 99.9, "increment": 0.1, "note": "Meters" },
+        { "name": "Despawn Distance", "min": 45.0, "max": 99.9, "default": 45.0, "initial": 99.9, "increment": 0.1, "note": "Meters" },
     ]
 def format_locate_tracks(options: dict) -> str:
     angle = options["angle"]
@@ -262,15 +277,18 @@ def process_locate_tracks(options: dict) -> list[dict]:
         angle_whole = 1
     return [
         {
-            "offset": 16992,
+            "sheet": "skills_active",
+            "coordinates": "G3",
             "value": f"clue_directional_cone_size(MEDIUM, {angle:>4.1f})"
         },
         {
-            "offset": 17040,
+            "sheet": "skills_active",
+            "coordinates": "I3",
             "value": f"clue_directional_cone_size(MEDIUM, {angle:>4.1f}), clue_spawn_distance({spawn_distance:>4.1f}, {despawn_distance:>4.1f})"
         },
         {
-            "offset": 17120,
+            "sheet": "skills_active",
+            "coordinates": "K3",
             "value": f"clue_directional_cone_size(NARROW, {angle_whole:>2}), clue_spawn_distance({spawn_distance:>4.1f}, {despawn_distance:>4.1f})"
         }
     ]
@@ -289,43 +307,48 @@ def process_whos_deer(options: dict) -> list[dict]:
     response_probability = options["response_probability"]
     return [
         {
-            "offset": 20064,
+            "sheet": "skills_passive",
+            "coordinates": "G7",
             "value": f"caller_attraction_probability({attraction_probability:<3.1f})"
         },
         {
-            "offset": 20104,
+            "sheet": "skills_passive",
+            "coordinates": "I7",
             "value": f"caller_attraction_probability({attraction_probability:<3.1f}), caller_response_probability(ALL, {response_probability:<3.1f})"
         }
     ]
 
 def render_hill_caller() -> list[dict]:
     return [
-        { "name": "Attraction Range", "min": 100.0, "max": 999.0, "default": 100.0, "initial": 999.0, "increment": 1.0},
+        { "name": "Attraction Range", "min": 100, "max": 1000, "default": 100, "initial": 1000, "increment": 50, "note": "Meters" },
     ]
 def format_hill_caller(options: dict) -> str:
     attraction_range = options["attraction_range"]
     return f"Enhanced Hill Caller ({int(attraction_range)}m range)"
 def process_hill_caller(options: dict) -> list[dict]:
-    attraction_range = options["attraction_range"]
+    attraction_range = min(options["attraction_range"], 999.9)  # max in-game value is 999.9
     return [
         {
-            "offset": 21248,
+            "sheet": "skills_passive",
+            "coordinates": "G16",
             "value": f"increase_caller_item_range_at_lookout_tower({attraction_range:>4.1f})"
         }
     ]
 
 def render_hardened() -> list[dict]:
     return [
-        { "name": "Health", "min": 1150.0, "max": 9999.0, "default": 1150.0, "initial": 9999.0, "increment": 1.0},
+        { "name": "Health", "min": 1150, "max": 10000, "default": 1150, "initial": 10000, "increment": 50},
     ]
 def format_hardened(options: dict) -> str:
     health = options["health"]
-    return f"Enhaned Hardened ({int(health)})"
+    return f"Enhaned Hardened ({int(health)} HP)"
 def process_hardened(options: dict) -> list[dict]:
+    health = min(options["health"], 9999.9)  # max in-game value is 9999.9
     return [
         {
-            "offset": 21816,
-            "value": f"set_player_max_health({options['health']:>6.1f})"
+            "sheet": "skills_strategic",
+            "coordinates": "G8",
+            "value": f"set_player_max_health({health:>6.1f})"
         }
     ]
 
@@ -346,11 +369,13 @@ def process_im_only_happy_when_it_rains(options: dict) -> list[dict]:
     scent = options["scent"]
     return [
         {
-            "offset": 17256,
+            "sheet": "skills_active",
+            "coordinates": "G4",
             "value": f"weather_animal_senses_multiplier(FOG, {visibility:<3.1f}, {hearing:<3.1f}, {scent:<3.1f})"
         },
         {
-            "offset": 17312,
+            "sheet": "skills_active",
+            "coordinates": "I4",
             "value": f"weather_animal_senses_multiplier(FOG, {visibility:<3.1f}, {hearing:<3.1f}, {scent:<3.1f}), weather_animal_senses_multiplier(RAIN, {visibility:<3.1f}, {hearing:<3.1f}, {scent:<3.1f})"
         }
     ]
@@ -366,11 +391,13 @@ def process_innate_triangulation(options: dict) -> list[dict]:
     indicator_accuracy = int(options["indicator_accuracy"])
     return [
         {
-            "offset": 18520,
+            "sheet": "skills_active",
+            "coordinates": "G12",
             "value": f"audio_clue_accuracy({indicator_accuracy})"
         },
         {
-            "offset": 18544,
+            "sheet": "skills_active",
+            "coordinates": "I12",
             "value": f"audio_clue_accuracy({indicator_accuracy})"
         }
     ]
@@ -395,19 +422,23 @@ def process_scent_tinkerer(options: dict) -> list[dict]:
     attraction = options["attraction"]
     return [
         {
-            "offset": 19480,
+            "sheet": "skills_passive",
+            "coordinates": "G4",
             "value": f"increase_scent_item_uses({uses:>4.1f})"
         },
         {
-            "offset": 19512,
+            "sheet": "skills_passive",
+            "coordinates": "I4",
             "value": f"increase_scent_item_uses({uses:>4.1f}), increase_scent_item_duration({duration:>5.1f})"
         },
         {
-            "offset": 19584,
+            "sheet": "skills_passive",
+            "coordinates": "K4",
             "value": f"increase_scent_item_uses({uses:>4.1f}), increase_scent_item_duration({duration:>5.1f}), increase_scent_item_range({range:>4.1f})"
         },
         {
-            "offset": 19688,
+            "sheet": "skills_passive",
+            "coordinates": "M4",
             "value": f"increase_scent_item_uses({uses:>4.1f}), increase_scent_item_duration({duration:>5.1f}), increase_scent_item_range({range:>4.1f}), increase_scent_item_attraction_chance({attraction:>4.1f})"
         },
     ]
@@ -432,11 +463,13 @@ def process_tag(options: dict) -> list[dict]:
         spottable_1 = 1
     return [
         {
-            "offset": 20312,
+            "sheet": "skills_passive",
+            "coordinates": "G9",
             "value": f"tag({duration:>3},{spottable_1:>2})"
         },
         {
-            "offset": 20328,
+            "sheet": "skills_passive",
+            "coordinates": "I9",
             "value": f"tag({duration:>3},{spottable_2:>2})"
         }
     ]
@@ -452,7 +485,8 @@ def process_the_more_the_merrier(options: dict) -> list[dict]:
     reward_multiplier = int(options["reward_multiplier"])
     return [
         {
-            "offset": 20520,
+            "sheet": "skills_passive",
+            "coordinates": "G11",
             "value": f"mission_reward_modifier(reward_mission_cash_small,{reward_multiplier:<2}),\nmission_reward_modifier(reward_mission_cash_medium,{reward_multiplier:<2}),\nmission_reward_modifier(reward_mission_cash_large,{reward_multiplier:<2})"
         }
     ]
@@ -468,7 +502,8 @@ def format_ranger(options: dict) -> str:
 def process_ranger(options: dict) -> list[dict]:
     return [
         {
-            "offset": 25936,
+            "sheet": "perks_bows",
+            "coordinates": "G3",
             "value": f"range_finder({options['accuracy']:<4.2f})"
         }
     ]
@@ -484,11 +519,13 @@ def process_fast_shouldering(options: dict) -> list[dict]:
     speed_multiplier = options["speed_multiplier"]
     return [
         {
-            "offset": 24960,
+            "sheet": "perks_shotguns",
+            "coordinates": "G4",
             "value": f"in_out_aim_speed(weapon_category_handguns,{speed_multiplier:<4.1f}\n,weapon_category_rifles,{speed_multiplier:<4.1f}\n,weapon_category_bows,{speed_multiplier:<4.1f}\n,weapon_category_shotguns,{speed_multiplier:<4.1f})"
         },
         {
-            "offset": 25096,
+            "sheet": "perks_shotguns",
+            "coordinates": "I4",
             "value": f"in_out_aim_speed(weapon_category_handguns,{speed_multiplier:<5.2f}\n,weapon_category_rifles,{speed_multiplier:<5.2f}\n,weapon_category_bows,{speed_multiplier:<5.2f}\n,weapon_category_shotguns,{speed_multiplier:<5.2f})"
         }
     ]
@@ -510,7 +547,8 @@ def process_focused_shot(options: dict) -> list[dict]:
     fov_multiplier = options["fov_multiplier"]
     return [
         {
-            "offset": 22768,
+            "sheet": "perks_rifles",
+            "coordinates": "G3",
             "value": f"hold_breath_zoom({ease_in:<3.1f}, {ease_out:<3.1f}, {fov_multiplier:<3.1f})"
         }
     ]
@@ -532,15 +570,18 @@ def process_breath_control(options: dict) -> list[dict]:
     wobble_multiplier = options["wobble_multiplier"]
     return [
         {
-            "offset": 22960,
+            "sheet": "perks_rifles",
+            "coordinates": "G5",
             "value": f"breath_out_heart_rate_gain_multiplier({heart_rate_multiplier:>5.3f})"
         },
         {
-            "offset": 23008,
+            "sheet": "perks_rifles",
+            "coordinates": "I5",
             "value": f"breath_out_heart_rate_gain_multiplier({heart_rate_multiplier:>5.3f}), hold_breath_duration_multiplier({hold_breath_multiplier:>3.1f})"
         },
         {
-            "offset": 23096,
+            "sheet": "perks_rifles",
+            "coordinates": "K5",
             "value": f"breath_out_heart_rate_gain_multiplier({heart_rate_multiplier:>5.3f}), hold_breath_duration_multiplier({hold_breath_multiplier:>3.1f}), hold_breath_wobble_multiplier({wobble_multiplier:>4.2f})"
         }
     ]
@@ -556,11 +597,13 @@ def process_steady_hands(options: dict) -> list[dict]:
     wobble_multiplier = options["wobble_multiplier"]
     return [
         {
-            "offset": 22856,
+            "sheet": "perks_rifles",
+            "coordinates": "G4",
             "value": f"base_wobble({wobble_multiplier:<3.1f})"
         },
         {
-            "offset": 22880,
+            "sheet": "perks_rifles",
+            "coordinates": "I4",
             "value": f"base_wobble({wobble_multiplier:<3.1f})"
         }
     ]
@@ -579,7 +622,8 @@ def process_survival_instinct(options: dict) -> list[dict]:
     damage_reduction = options["damage_reduction"]
     return [
         {
-            "offset": 23944,
+            "sheet": "perks_handguns",
+            "coordinates": "G6",
             "value": f"hurt_animals_damage_less({duration:<4.1f},{damage_reduction:<3.1f})"
         }
     ]
@@ -595,15 +639,18 @@ def process_lightning_hands(options: dict) -> list[dict]:
     reload_speed_modifier = options.get("reload_speed_modifier", options.get("reload_speed_multiplier_1", 1.0))
     return [
         {
-            "offset": 24040,
+            "sheet": "perks_handguns",
+            "coordinates": "G7",
             "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         },
         {
-            "offset": 24064,
+            "sheet": "perks_handguns",
+            "coordinates": "I7",
             "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         },
         {
-            "offset": 24088,
+            "sheet": "perks_handguns",
+            "coordinates": "K7",
             "value": f"reload_speed_gun({int(reload_speed_modifier)})"
         }
     ]
@@ -624,15 +671,18 @@ def process_quick_draw(options: dict) -> list[dict]:
     accuracy = f"{accuracy_multiplier:>3.2f}"
     return [
         {
-            "offset": 24168,
+            "sheet": "perks_handguns",
+            "coordinates": "G8",
             "value": f"quickshot_speed_scatter(weapon_category_handguns, {speed},{accuracy}\n,weapon_category_rifles, {speed},{accuracy}\n,weapon_category_bows,{speed},{accuracy}\n,weapon_category_shotguns, {speed},{accuracy})"
         },
         {
-            "offset": 24336,
+            "sheet": "perks_handguns",
+            "coordinates": "I8",
             "value": f"quickshot_speed_scatter(weapon_category_handguns,{speed},{accuracy}\n,weapon_category_rifles,{speed},{accuracy}\n,weapon_category_bows,{speed},{accuracy}\n,weapon_category_shotguns,{speed}, {accuracy})"
         },
         {
-            "offset": 24504,
+            "sheet": "perks_handguns",
+            "coordinates": "K8",
             "value": f"quickshot_speed_scatter(weapon_category_handguns,{speed},{accuracy}\n,weapon_category_rifles,{speed},{accuracy}\n,weapon_category_bows,{speed},{accuracy}\n,weapon_category_shotguns,{speed}, {accuracy})"
         }
     ]
@@ -649,11 +699,13 @@ def process_quick_feet(options: dict) -> list[dict]:
     steady = f"{steady:>3.1f}"
     return [
         {
-            "offset": 23632,
+            "sheet": "perks_handguns",
+            "coordinates": "G3",
             "value": f"stance_transition_ended_unsteady_time(weapon_category_handguns,0.0,{steady})"
         },
         {
-            "offset": 23704,
+            "sheet": "perks_handguns",
+            "coordinates": "I3",
             "value": f"stance_transition_ended_unsteady_time(weapon_category_handguns,0.0,{steady})"
         }
     ]
@@ -670,11 +722,13 @@ def process_body_control(options: dict) -> list[dict]:
     speed = f"{speed_multiplier:>3.1f}"
     return [
         {
-            "offset": 25376,
+            "sheet": "perks_shotguns",
+            "coordinates": "G6",
             "value": f"stable_after_rotation({speed})"
         },
         {
-            "offset": 25408,
+            "sheet": "perks_shotguns",
+            "coordinates": "I6",
             "value": f"stable_after_rotation({speed})"
         }
     ]
@@ -695,11 +749,13 @@ def process_both_eyes_open(options: dict) -> list[dict]:
     amount = f"{blur_amount:>5.3f}"
     return [
         {
-            "offset": 24784,
+            "sheet": "perks_shotguns",
+            "coordinates": "G2",
             "value": f"set_iron_sight_blur({start},{amount})"
         },
         {
-            "offset": 24816,
+            "sheet": "perks_shotguns",
+            "coordinates": "I2",
             "value": f"set_iron_sight_blur({start}, {amount})"
         }
     ]
@@ -720,15 +776,18 @@ def process_recoil_management(options: dict) -> list[dict]:
     speed = f"{speed:>3.1f}"
     return [
         {
-            "offset": 25552,
+            "sheet": "perks_shotguns",
+            "coordinates": "G8",
             "value": f"less_recoil({recoil}, {speed})"
         },
         {
-            "offset": 25576,
+            "sheet": "perks_shotguns",
+            "coordinates": "I8",
             "value": f"less_recoil({recoil}, {speed})"
         },
         {
-            "offset": 25600,
+            "sheet": "perks_shotguns",
+            "coordinates": "K8",
             "value": f"less_recoil({recoil}, {speed})"
         }
     ]
@@ -747,7 +806,8 @@ def process_tracershot(options: dict) -> list[dict]:
     skill_time = options["skill_time"]
     return [
         {
-            "offset": 25296,
+            "sheet": "perks_shotguns",
+            "coordinates": "G5",
             "value": f"tracershot({tracer_duration:<3.1f},{skill_time:<3.1f})"
         }
     ]
@@ -764,11 +824,13 @@ def process_increased_confidence(options: dict) -> list[dict]:
     accuracy = f"{accuracy:>3.1f}"
     return [
         {
-            "offset": 26016,
+            "sheet": "perks_bows",
+            "coordinates": "G4",
             "value": f"modify_bow_scatter({accuracy})"
         },
         {
-            "offset": 26040,
+            "sheet": "perks_bows",
+            "coordinates": "I4",
             "value": f"modify_bow_scatter({accuracy})"
         }
     ]
@@ -793,15 +855,18 @@ def process_full_draw(options: dict) -> list[dict]:
     hold = f"{hold_duration:>5.1f}"
     return [
         {
-            "offset": 25760,
+            "sheet": "perks_bows",
+            "coordinates": "G2",
             "value": f"set_bow_hold_time({start}, {multiplier},{hold})"
         },
         {
-            "offset": 25800,
+            "sheet": "perks_bows",
+            "coordinates": "I2",
             "value": f"set_bow_hold_time({start}, {multiplier},{hold})"
         },
         {
-            "offset": 25840,
+            "sheet": "perks_bows",
+            "coordinates": "K2",
             "value": f"set_bow_hold_time({start}, {multiplier},{hold})"
         }
     ]
@@ -817,7 +882,8 @@ def process_move_n_shoot(options: dict) -> list[dict]:
     steady_multiplier = int(options["steady_multiplier"])
     return [
         {
-            "offset": 26200,
+            "sheet": "perks_bows",
+            "coordinates": "G6",
             "value": f"shoot_and_move({steady_multiplier})"
         }
     ]
@@ -834,11 +900,13 @@ def process_pumping_iron(options: dict) -> list[dict]:
     draw = f"{draw_length:>3.1f}"
     return [
         {
-            "offset": 26584,
+            "sheet": "perks_bows",
+            "coordinates": "G9",
             "value": f"ammunition_item_total_muzzle_energy_multiplier(equipment_ammo_jp_bow_arrow_300gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_jp_bow_tracer_arrow_300gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_arrow_420gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_tracer_arrow_420gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_arrow_600gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_tracer_arrow_600gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_350gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_350gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_540gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_540gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_700gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_700gr_01, {draw})"
         },
         {
-            "offset": 27744,
+            "sheet": "perks_bows",
+            "coordinates": "I9",
             "value": f"ammunition_item_total_muzzle_energy_multiplier(equipment_ammo_jp_bow_arrow_300gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_jp_bow_tracer_arrow_300gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_arrow_420gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_tracer_arrow_420gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_arrow_600gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_bow_tracer_arrow_600gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_350gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_350gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_540gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_540gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_arrow_700gr_01, {draw}),\nammunition_item_total_muzzle_energy_multiplier(equipment_ammo_bh_longbow_tracer_arrow_700gr_01, {draw})"
         }
     ]
@@ -855,11 +923,13 @@ def process_recycle(options: dict) -> list[dict]:
     chance = f"{break_chance:>4.1f}"
     return [
         {
-            "offset": 26280,
+            "sheet": "perks_bows",
+            "coordinates": "G7",
             "value": f"enable_arrow_retrieval(true), set_arrow_break_on_impact_probability({chance})"
         },
         {
-            "offset": 26360,
+            "sheet": "perks_bows",
+            "coordinates": "I7",
             "value": f"enable_arrow_retrieval(true), set_arrow_break_on_impact_probability({chance})"
         }
     ]
@@ -960,8 +1030,11 @@ DESCRIPTIONS = {
 NOTES = {
     "Spotting Knowledge": "Smaller values = more accurate information",
     "Track Knowledge": "Smaller values = more accurate information",
+    "Ranger": "Smaller value = more accurate information",
     "Breath Control": "Smaller values = better",
     "Steady Hands": "Smaller value = better",
+    "Increased Confidence": "Smaller value = better",
+    "Recycle": "Smaller value = better",
 }
 
 
@@ -1067,5 +1140,4 @@ def process(options: dict) -> None:
     func_name = f"process_{options['key']}"
     if func_name in globals():
         updates = globals()[func_name](options)
-        for update in updates:
-            mods.update_file_at_offset(Path(FILE), update["offset"], update["value"], update["transform"] if "transform" in update else None)
+        mods2.apply_coordinate_updates_to_file(FILE, updates)

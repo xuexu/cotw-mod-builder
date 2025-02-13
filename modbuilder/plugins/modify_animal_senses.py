@@ -40,7 +40,7 @@ def format(options: dict) -> str:
 
 def get_files(options: dict) -> list[str]:
   files = [ANIMAL_SENSES_FILE]
-  if options.get("tent_detection_distance"):
+  if options.get("tent_detection_distance") is not None:
     files.append(AI_FILE)
   return files
 
@@ -98,11 +98,11 @@ def process(options: dict) -> list[dict]:
   mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B14", "B15", "B16", "B17"], defensive_duration_percent, "multiply", skip_overwrite=True)
 
   tent_distance = options.get("tent_detection_distance")
-  if tent_distance:
+  if tent_distance is not None:
     mods.update_file_at_offset(AI_FILE, 800, tent_distance)
 
   weapon_fire_distance = options.get("weapon_fire_detection_distance")
-  if weapon_fire_distance:
+  if weapon_fire_distance is not None:
     weapon_fire_distance_multiplier = weapon_fire_distance / 300  # default range
     mods2.update_file_at_coordinates(ANIMAL_SENSES_FILE, {"sheet": "weapon_data", "coordinates": "B4", "value": weapon_fire_distance}, skip_overwrite=True)
     mods2.update_coordinates_in_row(ANIMAL_SENSES_FILE, "weapon_data", 4, start="C", end=None, value=weapon_fire_distance_multiplier, transform="multiply", skip_overwrite=True)

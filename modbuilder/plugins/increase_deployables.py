@@ -20,6 +20,7 @@ class Deployable(str, Enum):
   TENT = "tent"
   TRIPOD = "tripodstand"
   GROUNDBLIND = "groundblind"
+  DECOY = "decoy"
 
 class DeployableValue:
   def __init__(self, value: int, offset: int) -> None:
@@ -34,7 +35,8 @@ def is_deployable_prop(value: str) -> bool:
     Deployable.TREESTAND in value or \
       Deployable.TENT in value or \
         Deployable.TRIPOD in value or \
-          Deployable.GROUNDBLIND in value
+          Deployable.GROUNDBLIND in value or \
+            Deployable.DECOY in value
 
 def is_deployable(props: list[RtpcProperty]) -> bool:
   for prop in props:
@@ -48,10 +50,9 @@ def update_uint(data: bytearray, offset: int, new_value: int) -> None:
         data[offset + i] = value_bytes[i]
 
 def update_reserve_deployables(root: RtpcNode, f_bytes: bytearray, multiply: int) -> None:
-  deployables = root.child_table[5].child_table
-  if len(deployables) == 0:
-    # Medved (reserve_2.bin) has deployables in a different table for some reason
-    deployables = root.child_table[4].child_table
+  for data_table in root.child_table:
+    if data_table.name_hash == 3050727908:  # 0xb5d669e4
+      deployables = data_table.child_table
   deployable_values = []
   for deployable in deployables:
     if is_deployable(deployable.prop_table):

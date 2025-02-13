@@ -184,10 +184,10 @@ def use_value_from_data_array(extracted_adf: AdfValue, cell: XlsxCell, verbose: 
     desired_value_indexes = [i for i, value in enumerate(extracted_adf[cell.desired_data_array_name].value) if value == cell.desired_value]
 
   # 1a. Point current cell at a different definition that references the desired value
-  cell_defs_with_matching_value = find_cell_definitions(extracted_adf["Cell"].value, cell.desired_data_type, desired_value_indexes, verbose=verbose)
+  cell_defs_with_matching_value = find_cell_definitions(extracted_adf, cell.desired_data_type, desired_value_indexes, verbose=verbose)
   matching_definition = None
   if cell_defs_with_matching_value:
-    cell_defs_with_matching_atttribute = [def_tuple for def_tuple in cell_defs_with_matching_value if def_tuple[1].value["AttributeIndex"] == cell.attribute_index]
+    cell_defs_with_matching_atttribute = [def_tuple for def_tuple in cell_defs_with_matching_value if def_tuple[1]["AttributeIndex"] == cell.attribute_index]
     if cell_defs_with_matching_atttribute:
       matching_definition = cell_defs_with_matching_atttribute.pop()
     else:
@@ -202,9 +202,9 @@ def use_value_from_data_array(extracted_adf: AdfValue, cell: XlsxCell, verbose: 
 
   # 1b. Check if any other cells use the same definition as our cell
   #     If not, point current cell definition at desired value
-  cells_with_same_definition = find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell)
+  cells_with_same_definition = find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose)
   if verbose:
-      print(f'1b. {len(cells_with_same_definition)} cells point at the same definition.')
+      print(f'1b. {len(cells_with_same_definition)} other cells point at the same definition.')
   if not cells_with_same_definition:
     update = (cell.value_index_offset, desired_value_indexes[0])
     extracted_adf["Cell"].value[cell.definition_index].value["DataIndex"].value = desired_value_indexes[0]
@@ -243,9 +243,9 @@ def write_value_to_data_array(extracted_adf: AdfValue, cell: XlsxCell, verbose: 
   #     (there might be a cell index that points at our cell but it could be unused)
   #     If none are found then overwrite our current value in the data array
   if cell.data_type == cell.desired_data_type:
-    cells_with_shared_value = find_cells(extracted_adf, data_type=cell.data_type, value_index=cell.value_index, ignore_cell=cell)
+    cells_with_shared_value = find_cells(extracted_adf, data_type=cell.data_type, value_index=cell.value_index, ignore_cell=cell, verbose=verbose)
     if verbose:
-      print(f"2a. {len(cells_with_shared_value)} cells point at the same value.")
+      print(f"2a. {len(cells_with_shared_value)} other cells point at the same value.")
       # for (si,ci,di) in cells_with_shared_value:
       #   print(f"Sheet: {extracted_adf["Sheet"].value[si].value["Name"].value}   Coords: {calculate_coordinates(ci, extracted_adf["Sheet"].value[si].value["Cols"].value)}")
 
@@ -259,13 +259,23 @@ def write_value_to_data_array(extracted_adf: AdfValue, cell: XlsxCell, verbose: 
         print(f'2a. Overwriting {cell.desired_data_array_name} value at index {cell.value_index} to new value {cell.desired_value}')
         print(update)
       return [update]
+    else:
+      if verbose:
+        print(f'2a. Cannot overwrite data at index {cell.value_index} directly without affecting other cells.')
 
   # 2b/c. Try to find an unused item in the data array to overwrite
   unused_value_indexes_and_offsets = get_unused_value_indexes_and_offsets(extracted_adf, cell.desired_data_array_name, cell.desired_data_type)
   # 2b. If one exists, check if any other cells share our definition
   #     If not, overwrite the value and point our definition at the new value
   if unused_value_indexes_and_offsets:
-    if not find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell):
+    if verbose:
+      print(f'2b. Found {len(unused_value_indexes_and_offsets)} unused values in {cell.desired_data_array_name}')
+      for unused_value in unused_value_indexes_and_offsets:
+        value = extracted_adf[cell.desired_data_array_name].value[unused_value["index"]]
+        if cell.desired_data_array_name == "StringData":
+          value = value.value
+        print(f'  Index: {unused_value["index"]}   Value: {value}')
+    if not find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose):
       # Overwrite the unused data array item
       unused_value = unused_value_indexes_and_offsets.pop()
       if verbose:
@@ -359,11 +369,13 @@ def force_overwrite_value(extracted_adf: AdfValue, cell: XlsxCell, verbose: bool
 def use_closest_value_in_array(extracted_adf: AdfValue, cell: XlsxCell, verbose: bool = False) -> list[tuple[int, int]]:
   # Find the closest value in the array
   closest_value_index, closest_value = find_closest_value(extracted_adf["ValueData"].value, cell.desired_value)
+  if verbose:
+    print(f'  Closest value in data array is {closest_value} at index {closest_value_index}')
   # 3a. Check if any other cells are using the same definition as our cell.
   #     If not, point our cell definition at the closest value in the array
-  cells_with_same_definition = find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell)
+  cells_with_same_definition = find_cells(extracted_adf, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose)
   if verbose:
-      print(f'3a. {len(cells_with_same_definition)} cells point at the same definition as our cell.')
+    print(f'3a. {len(cells_with_same_definition)} cells point at the same definition as our cell.')
   if not cells_with_same_definition:
     update = (cell.value_index_offset, closest_value_index)
     extracted_adf["Cell"].value[cell.definition_index].value["DataIndex"].value = closest_value_index
@@ -373,11 +385,11 @@ def use_closest_value_in_array(extracted_adf: AdfValue, cell: XlsxCell, verbose:
     return [update]
   # 3b. Check if any other definitions are pointing at the closest value
   #    If one is found then point our cell at that definition
-  defs_with_closest_value = find_cell_definitions(extracted_adf["Cell"].value, cell.data_type, [closest_value_index], verbose=verbose)
+  defs_with_closest_value = find_cell_definitions(extracted_adf, cell.data_type, [closest_value_index], verbose=verbose)
   if verbose:
     print(f'3a. {len(defs_with_closest_value)} cell definitions point at a definition with the closest value {closest_value}: {[d[0] for d in defs_with_closest_value]}')
   if defs_with_closest_value:
-    defs_with_same_attributes = [(i,d) for (i,d) in defs_with_closest_value if d.value["AttributeIndex"].value == cell.attribute_index]
+    defs_with_same_attributes = [(i,d) for (i,d) in defs_with_closest_value if d["AttributeIndex"].value == cell.attribute_index]
     if defs_with_same_attributes:
       if verbose:
         print(f'3a. {len(defs_with_same_attributes)} cell definitions have the same attribute ({cell.attribute_index}): {[d[0] for d in defs_with_same_attributes]}.')
@@ -464,7 +476,7 @@ def get_data_array_for_data_type(extracted_adf: AdfValue, data_type: int) -> tup
 
 def find_cells(
     extracted_adf: AdfValue,
-    definition_indexes: int = None,
+    definition_indexes: list[int] = None,
     data_type: int = None,
     value_index: int = None,
     ignore_cell: XlsxCell = None,
@@ -474,28 +486,28 @@ def find_cells(
   if definition_indexes:  # find cells with same definition index
     for sheet_index, sheet in enumerate(extracted_adf["Sheet"].value):
       matching_cells.extend([(sheet_index, cell_index, def_index) for cell_index, def_index in enumerate(sheet.value["CellIndex"].value) if def_index in definition_indexes])
-  if data_type and value_index:  # find cells that point at the same value index
-    defs_with_value_match = find_cell_definitions(extracted_adf["Cell"].value, data_type=data_type, value_indexes=[value_index], verbose=verbose)
-    matching_cells.extend(find_cells(extracted_adf, definition_indexes=[i for (i,_d) in defs_with_value_match]))
+  if data_type is not None and value_index is not None:  # find cells that point at the same value index
+    defs_with_value_match = find_cell_definitions(extracted_adf, data_type, [value_index], verbose=verbose)
+    matching_cells.extend(find_cells(extracted_adf, definition_indexes=[i for (i,_d) in defs_with_value_match], verbose=verbose))
   if ignore_cell:  # don't return the cell we're trying to match
     matching_cells = [c for c in matching_cells if c != (ignore_cell.sheet_index, ignore_cell.index, ignore_cell.definition_index)]
   return matching_cells
 
 
 def find_cell_definitions(
-    cell_definitions: list[AdfValue],
+    extracted_adf: AdfValue,
     data_type: int,
     value_indexes: list[int],
     verbose: bool = False,
-  ) -> list[tuple[int, AdfValue]]:  # (definition_index, definition_object)
-  defs_with_value_match = []
-  defs_with_data_type_match = [(i,d) for i,d in enumerate(cell_definitions) if d.value["Type"].value == data_type]
+  ) -> list[tuple[int, dict]]:  # (definition_index, definition_object.value)
+  cell_definitions = extracted_adf["Cell"].value
+  defs_with_value_match = [
+    (i, d.value)
+    for i,d in enumerate(cell_definitions)
+    if d.value["Type"].value == data_type and d.value["DataIndex"].value in value_indexes
+  ]
   if verbose:
-    print(f"Found {len(defs_with_data_type_match)} cell defs with data type {data_type}")
-  if defs_with_data_type_match:
-    defs_with_value_match = [def_tuple for def_tuple in defs_with_data_type_match if def_tuple[1].value["DataIndex"].value in value_indexes]
-    if verbose:
-      print(f"Found {len(defs_with_value_match)} cell defs that point at value index in {value_indexes}")
+    print(f"  Found {len(defs_with_value_match)} definitions with data type {data_type} pointing at value indexes in {value_indexes}")
   return defs_with_value_match
 
 
@@ -508,10 +520,6 @@ def get_unused_cell_def_indexes(extracted_adf: AdfValue) -> list[int]:  # defiti
 
 
 def get_unused_value_indexes_and_offsets(extracted_adf: AdfValue, data_array_name: str, data_type: int) -> list[dict]:  # (index, offset)
-  # Check if any cell defs point at the value (we don't know if the definition is unused)
-  # all_value_indexes = set(range(len(extracted_adf[data_array_name].value)))
-  # assigned_value_indexes = set(d.value["DataIndex"].value for d in extracted_adf["Cell"].value)
-  # unused_value_indexes = all_value_indexes - assigned_value_indexes
   # Check if any cells point at the value
   all_value_indexes = list(range(len(extracted_adf[data_array_name].value)))
   unused_value_indexes = []

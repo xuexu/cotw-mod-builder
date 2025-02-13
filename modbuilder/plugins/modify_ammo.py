@@ -120,7 +120,10 @@ def get_option_elements() -> sg.Column:
         ],
         buttons_row,
       ], p=((30,0),(0,0)), vertical_alignment='top'),
-      sg.Button("Add Category Modification", k="add_mod_group_ammo", button_color=f"{sg.theme_element_text_color()} on brown", p=((30,0),(30,0))),
+      sg.Column([
+        [sg.Checkbox("Apply class selection to category", default=False, font="_12", k="ammo_category_classes", p=((0,0),(0,0)))],
+        [sg.Button("Add Category Modification", k="add_mod_group_ammo", button_color=f"{sg.theme_element_text_color()} on brown", p=((5,0),(5,0)))],
+      ], p=((25,0),(0,0))),
     ],
     [sg.Column([
         [sg.Text("Increase Kinetic Energy Percent:", p=((0,10),(18,4)))],
@@ -227,10 +230,13 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     return {
       "invalid": "Please select an ammo type first"
     }
-  classes = format_class_selection()
+  if values["ammo_category_classes"]:
+    classes = format_class_selection()
+  else:
+    classes = []
 
   return {
-    "key": f"modify_ammo_{ammo_type}",
+    "key": f"modify_ammo_type_{ammo_type}",
     "invalid": None,
     "options": {
       "type": ammo_type,
@@ -250,11 +256,11 @@ def format(options: dict) -> str:
   expansion = int(options["expansion"])
   damage = int(options["damage"])
   classes = options["classes"]
-  details_text = f"({kinetic_energy}% energy, {penetration}% penetration, {expansion}% expansion, {damage}% damage) {classes}"
-  if "name" in options:
+  details_text = f"({kinetic_energy}% energy, {penetration}% penetration, {expansion}% expansion, {damage}% damage)  Classes: {classes if classes else 'No Changes'}"
+  if "file" in options:  # single ammo
     ammo_name = options["name"]
     return f"Modify Ammo: {ammo_name} {details_text}"
-  else:
+  else:  # category
     ammo_type = options["type"]
     return f"Modify Ammo Type: {ammo_type.capitalize()} {details_text}"
 
@@ -308,7 +314,8 @@ def process(options: dict) -> None:
     mods.update_file_at_offset(ammo.file, ammo.offsets["expansion"], expansion_rate, "multiply")
     mods.update_file_at_offset(ammo.file, ammo.offsets["contraction"], expansion_rate, "multiply")
     mods.update_file_at_offset(ammo.file, ammo.offsets["max_expansion"], max_expansion, "multiply")
-    mods.update_file_at_offset(ammo.file, ammo.offsets["projectiles"], projectiles, "add")
+    if ammo.type == "shotgun":
+      mods.update_file_at_offset(ammo.file, ammo.offsets["projectiles"], projectiles, "add")
 
     if len(classes) > 0:
       header_offset = ammo.offsets["classes_info"]
@@ -322,27 +329,33 @@ def handle_update(mod_key: str, mod_options: dict) -> dict:
   """
   2.2.2
   - Replace full filepath with just ammo name in mod_key
+  - Separete key for category mods
   2.2.1
   - Use formatted name from 'name_map.yaml' as "display_name"
   """
   # 2.2.0 and prior saved the name with an old format (not from `name_map.yaml`)
   # 2.2.1 saved the full filename in the key
   # Update the config to use the display name and add ammo type
-  ammo = Ammo(mod_options["file"])
-  updated_mod_key = f"modify_ammo_{ammo.name}"
-  updated_mod_options = {
-    "name": ammo.display_name,
-    "type": ammo.type,
-    "file": ammo.file,
-    "classes": mod_options["classes"],
-    "kinetic_energy": mod_options["kinetic_energy"],
-    "penetration": mod_options["penetration"],
-    "expansion": mod_options["expansion"],
-    "damage": mod_options["damage"],
-    "mass": mod_options["mass"],
-    "projectiles": mod_options["projectiles"],
-  }
+  if "file" in mod_options:  # single ammo
+    ammo = Ammo(mod_options["file"])
+    updated_mod_key = f"modify_ammo_{ammo.name}"
+    updated_mod_options = {
+      "name": ammo.display_name,
+      "type": ammo.type,
+      "file": ammo.file,
+      "classes": mod_options["classes"],
+      "kinetic_energy": mod_options["kinetic_energy"],
+      "penetration": mod_options["penetration"],
+      "expansion": mod_options["expansion"],
+      "damage": mod_options["damage"],
+      "mass": mod_options["mass"],
+      "projectiles": mod_options["projectiles"],
+    }
+  else:  # category
+    updated_mod_key = f"modify_ammo_type_{mod_options["type"]}"
+    updated_mod_options = mod_options
+
   return updated_mod_key, updated_mod_options
 
 ALL_AMMO = load_all_ammo()
-AMMO_CLASS_BUTTONS_STATE = [True for i in range(9)]
+AMMO_CLASS_BUTTONS_STATE = [True for _i in range(9)]

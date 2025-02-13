@@ -185,10 +185,14 @@ def get_option_elements() -> sg.Column:
         [sg.T("Quantity:", p=((30,0),(10,0)), k="store_item_quantity_label"), sg.Input("", size=10, p=((10,0),(10,0)), k="store_item_quantity")],
       ], p=(0,0), element_justification='left', vertical_alignment='top'),
       sg.Column([
-        [sg.T("Bulk:", p=((0,0),(10,0)), text_color="orange"), sg.T("(applies to all items in this category)", font="_ 12", p=((0,0),(10,0)))],
+        [sg.T("Bulk:", p=((0,0),(10,0)), text_color="orange"), sg.T('(use "Add Category Modification" to apply changes to all items in this category)', font="_ 12 italic", p=((0,0),(10,0)))],
         [sg.T("Category Discount Percent:", p=((20,0),(10,0))), sg.Slider((0,100), 0, 1, orientation="h", p=((10,0),(0,0)), k="store_bulk_discount")],
-        [sg.T("Change All Free to Price:", p=((20,0),(10,0))), sg.Input("", size=10, p=((10,0),(10,0)), k="store_bulk_free_price")],
-        [sg.T("Category Quantity:", p=((20,0),(12,0)), k="store_bulk_quantity_label"), sg.Input("", size=10, p=((67,0),(12,0)), k="store_bulk_quantity")],
+        [
+          sg.T("Free to Price:", p=((20,0),(10,0))),
+          sg.Input("0", size=10, p=((10,0),(10,0)), k="store_bulk_free_price"),
+          sg.T('Set a price for "free" DLC / mission items in this category', font="_ 12 italic", text_color="orange", p=((10,10),(10,0)))
+        ],
+        [sg.T("Category Quantity:", p=((20,0),(12,0)), k="store_bulk_quantity_label"), sg.Input("", size=10, p=((10,0),(12,0)), k="store_bulk_quantity")],
       ], p=((190,0),(0,0)), element_justification='left', vertical_alignment='top'),
     ],
   ]
@@ -267,6 +271,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
 
 def add_mod_group(window: sg.Window, values: dict) -> dict:
   bulk_discount = int(values[f"store_bulk_discount"])
+
   bulk_free_price = values[f"store_bulk_free_price"]
   if bulk_free_price.isdigit():
     bulk_free_price = int(bulk_free_price)
@@ -274,6 +279,9 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     return {
       "invalid": "Provide a valid bulk free price"
     }
+
+  if window["store_bulk_quantity"].Disabled:
+    values[f"store_bulk_quantity"] = "0"
   bulk_quantity = values[f"store_bulk_quantity"]
   if bulk_quantity.isdigit():
     bulk_quantity = int(bulk_quantity)
