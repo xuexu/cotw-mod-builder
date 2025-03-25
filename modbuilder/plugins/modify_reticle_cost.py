@@ -4,7 +4,7 @@ from deca.ff_rtpc import RtpcNode
 DEBUG = False
 NAME = "Modify Reticle Cost"
 DESCRIPTION = "Reduce the cost of changing the reticle on your scopes. Requires the Scopes and Crosshairs DLC pack."
-FILE = "settings/hp_settings/equipment_data.bin"
+FILE = mods.EQUIPMENT_DATA_FILE
 OPTIONS = [
     {
      "name": "Cost",

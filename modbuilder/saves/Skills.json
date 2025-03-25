@@ -1,6 +1,11 @@
 {
-  "version": "2.2.2",
+  "version": "2.2.4",
   "mod_options": {
+    "modify_skills_skill_tier_cost": {
+      "reduce_skill_tier_cost": true,
+      "name": "Skill Tier Cost",
+      "key": "skill_tier_cost"
+    },
     "modify_skills_endurance": {
       "reduce_heart_rate_percent": 100.0,
       "name": "Endurance",

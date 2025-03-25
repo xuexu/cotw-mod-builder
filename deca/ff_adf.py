@@ -192,12 +192,17 @@ class InstanceEntry:
         self.offset = None
         self.size = None
         self.name = None
+        self.header_profile = {}
 
     def deserialize(self, f, nt):
         self.META_position = f.tell()
+        self.header_profile["name_hash_offset"] = f.tell()
         self.name_hash = f.read_u32()
+        self.header_profile["type_hash_offset"] = f.tell()
         self.type_hash = f.read_u32()
+        self.header_profile["offset_offset"] = f.tell()
         self.offset = f.read_u32()
+        self.header_profile["size_offset"] = f.tell()
         self.size = f.read_u32()
         self.name = nt[f.read_u64()][1]
         # print('{:08x}'.format(self.name_hash), '{:08x}'.format(self.type_hash), self.offset, self.size, self.name)
@@ -865,6 +870,8 @@ class Adf:
         self.nametable_offset = None
         self.total_size = None
 
+        self.header_profile = {}
+
         self.unknown = []
 
         self.comment = b''
@@ -950,6 +957,7 @@ class Adf:
         if len(header) < 0x40:
             raise EDecaErrorParse('File Too Short')
 
+        self.header_profile["start_offset"] = fh.tell()
         magic = fh.read_strl(4)
 
         if magic != b' FDA':
@@ -958,21 +966,27 @@ class Adf:
         self.version = fh.read_u32()
 
         self.instance_count = fh.read_u32()
+        self.header_profile["instance_offset_offset"] = fh.tell()
         self.instance_offset = fh.read_u32()
 
         self.typedef_count = fh.read_u32()
+        self.header_profile["typedef_offset_offset"] = fh.tell()
         self.typedef_offset = fh.read_u32()
 
         self.stringhash_count = fh.read_u32()
+        self.header_profile["stringhash_offset_offset"] = fh.tell()
         self.stringhash_offset = fh.read_u32()
 
         self.nametable_count = fh.read_u32()
+        self.header_profile["nametable_offset_offset"] = fh.tell()
         self.nametable_offset = fh.read_u32()
 
+        self.header_profile["total_size_offset"] = fh.tell()
         self.total_size = fh.read_u32()
 
         self.unknown = fh.read_u32(5)
 
+        self.header_profile["end_offset"] = fh.tell()
         self.comment = fp.read_strz()
 
         # name table

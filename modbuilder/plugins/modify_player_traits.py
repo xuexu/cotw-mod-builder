@@ -1,20 +1,26 @@
 from modbuilder import mods2
+try:  # running normally (source)
+    from modbuilder.plugins import modify_skills
+except ModuleNotFoundError:  # running as an exe (PyInstaller)
+    from plugins import modify_skills
+
 
 DEBUG = False
 NAME = "Modify Player Traits"
 DESCRIPTION = "Change the character's default attributes. These settings can enable abilities from Perks and Skills trees without needing to spend points."
-WARNING = "These values will be overridden if you invest in the related Skill/Perks"
+WARNING = 'If you are also using "Modify Skills" then move this mod higher on the build list to ensure changes are not overridden.'
 FILE = "settings/hp_settings/player_skills.bin"
 OPTIONS = [
   { "name": "Base Health", "min": 100, "max": 10000, "default": 1000, "initial": 1000, "increment": 100, "note": '"Hardened" skill' },
+  { "name": "Fall Damage Reduction Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 10, "note": '"Impact Resistance" skill' },
   { "name": "Carry Capacity", "min": 10, "max": 1000, "default": 20, "initial": 20, "increment": 10, "note": '"Pack Mule" skill. Capped at 999.9 in-game.' },
   { "name": "Reduce Recoil Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 1, "note": '"Recoil Management" shotgun perk' },
   { "name": "Recoil Recovery Speed", "min": 1.0, "max": 9.9, "default": 1.0, "initial": 1.0, "increment": 0.1, "note": '"Recoil Management" shotgun perk' },
-  # { "name": "Raise Weapon Speed", "min": 0.0, "max": 10.0, "default": 0.75, "initial": 0.75, "increment": 0.25, "note": '"Fast Shouldering" shotgun perk' },
-  { "name": "Clue Detection Range", "min": 1, "max": 99, "default": 20, "initial": 20, "increment": 1, "note": '"Locate Tracks" skill' },
+  { "name": "Raise Weapon Speed", "min": 0.05, "max": 10.0, "default": 0.75, "initial": 0.75, "increment": 0.05, "note": '"Fast Shouldering" shotgun perk' },
+  { "name": "Clue Detection Range", "min": 1, "max": 100, "default": 20, "initial": 20, "increment": 1, "note": '"Locate Tracks" skill' },
   { "name": "Clue Direction Angle", "min": 1, "max": 90, "default": 90, "initial": 90, "increment": 1, "note": 'Locate Tracks" skill. Smaller size = more accurate indicator.' },
   { "name": "Show Clue Trails on Map", "style": "boolean", "default": False, "initial": False, "note": '"Connect The Dots" skill' },
-  { "name": "Spot Duration", "min": 1, "max": 999, "default": 2, "initial": 2, "increment": 1, "note": '"Tag" skill' },
+  { "name": "Spot Duration", "min": 1, "max": 999, "default": 1, "initial": 1, "increment": 1, "note": '"Tag" skill' },
   { "name": "Multiple Spot Count", "min": 1, "max": 99, "default": 1, "initial": 1, "increment": 1, "note": '"Tag" skill' },
   { "name": "Spot Animals With Scope", "style": "boolean", "default": False, "initial": False, "note": '"Sight Spotting" skill' },
   { "name": "Reload While Running", "style": "boolean", "default": False, "initial": False, "note": '"Sprint & Load" handgun perk' },
@@ -24,33 +30,38 @@ OPTIONS = [
 def format(options: dict) -> str:
   trait_details = []
 
-  base_health = int(options["base_health"])
+  base_health = int(options.get("base_health", 1000))
   if base_health != 1000:
     trait_details.append(f"{base_health} HP")
 
-  carry_capacity = int(options["carry_capacity"])
-  if carry_capacity != 20:
-    trait_details.append(f"{carry_capacity} KG")
+  fall_damage_reduction = int(options.get("fall_damage_reduction_percent", 0))
+  if fall_damage_reduction:
+    trait_details.append(f"-{fall_damage_reduction}% fall damage")
 
-  recoil_percent = options["reduce_recoil_percent"]
-  recoil_speed = options["recoil_recovery_speed"]
+  carry_capacity = int(options.get("carry_capacity", 20))
+  if carry_capacity != 20:
+    trait_details.append(f"{carry_capacity}kg")
+
+  recoil_percent = int(options.get("reduce_recoil_percent", 0))
+  recoil_speed = options.get("recoil_recovery_speed", 1.0)
   if recoil_percent > 0 or recoil_speed > 1:
     trait_details.append(f"-{recoil_percent}% + {recoil_speed} recoil")
 
-  # if options["raise_weapon_speed"] > 0.75:
-  #   trait_details.append(f"{options['raise_weapon_speed']}x shouldering")
+  raise_weapon_speed = options.get("raise_weapon_speed", 0.75)
+  if raise_weapon_speed != 0.75:
+    trait_details.append(f"{raise_weapon_speed}x shouldering")
 
-  clue_range = int(options["clue_detection_range"])
-  clue_direction_indicator_size = int(options["clue_direction_angle"])
+  clue_range = int(options.get("clue_detection_range", 20))
+  clue_direction_indicator_size = int(options.get("clue_direction_angle", 90))
   if clue_range != 20 or clue_direction_indicator_size < 90:
     trait_details.append(f"{clue_range}m + {clue_direction_indicator_size}° clues")
 
-  if options["show_clue_trails_on_map"]:
+  if options.get("show_clue_trails_on_map", False):
     trait_details.append("clue trail")
 
-  spot_duration = int(options["spot_duration"])
-  spot_count = int(options["multiple_spot_count"])
-  if spot_duration != 2 or spot_count != 1:
+  spot_duration = int(options.get("spot_duration", 1))
+  spot_count = int(options.get("multiple_spot_count", 1))
+  if spot_duration != 1 or spot_count != 1:
     trait_details.append(f"{spot_duration}s + {spot_count} spots")
 
   if options["spot_animals_with_scope"]:
@@ -62,64 +73,109 @@ def format(options: dict) -> str:
   if options["reload_while_aiming"]:
     trait_details.append(f"aim reload")
 
+  if not trait_details:
+    trait_details.append("No changes")
   return f"Modify Player Traits ({", ".join(trait_details)})"
 
 def process(options: dict) -> None:
-  # values are padded with `.ljust(XX, '\x00')` to ensure they overwrite the original values with null data
-  sheet = "skill_component_descriptions"
   updates = []
 
-  carry_capacity = options['carry_capacity']
-  if carry_capacity != 20:
-    # "set_player_carry_capacity" shares a value "(20.0)" with "audio_clue_accuracy"
-    # Shuffle some data and overwrite the unused "thermal" value in the array
-    # 1. Point the "thermal" cell at a different definition (piggyback on "(0,0,0)" value from "show_animal_in_group_range_on_map")
-    updates.append({"sheet": sheet, "coordinates": "B3", "value": "(0,0,0)"})
-    # 2. Now if we write to "set_player_carry_capacity" we can overwrite the unused StringData value
-    # Carry capacity is actually capped at 999.9. We let the slider go to 1000 for ease of use
-    updates.append({"sheet": sheet, "coordinates": "B44", "value": f"({min(options['carry_capacity'], 999.9)})".ljust(18, '\x00')})
+  # Max Health is capped at 9999.9. We let the slider go to 10K for ease of use
+  base_health = min(options.get('base_health', 1000), 9999.9)
+  updates.append({"coordinates": "B47", "value": f"({base_health})"})
+  # Hardened increases max health by 15%
+  hardened_health = round(options['base_health'] * 1.15, 1)
+  updates.extend(modify_skills.process_hardened({"health": hardened_health}))
 
-  # Max Health is actually capped at 9999.9. We let the slider go to 10K for ease of use
-  updates.append({"sheet": sheet, "coordinates": "B47", "value": f"({min(options['base_health'], 9999.9)})".ljust(8, '\x00')})
+  # Fall Damage Reduction = Impact Resistance skill
+  if (fall_damage_reduction := options.get("fall_damage_reduction_percent")):
+    damage_reduction_value = round(1.0 - fall_damage_reduction / 100, 1)
+    updates.append({"coordinates": "B48", "value": f"({damage_reduction_value})"})
+    updates.extend(modify_skills.process_impact_resistance({"fall_damage_reduction_percent": fall_damage_reduction}))
 
-  recoil_percent = 1.0 - ( options["reduce_recoil_percent"] / 100 )
-  recoil_speed = options["recoil_recovery_speed"]
-  updates.append({"sheet": sheet, "coordinates": "B30", "value": f"({recoil_percent}, {recoil_speed})"})
+  # Carry capacity is capped at 999. We let the slider go to 1000 for ease of use
+  base_carry_weight = min(options.get('carry_capacity', 20), 999)
+  updates.append({"coordinates": "B44", "value": f"({base_carry_weight})"})
+  # Pack Mule increases carry weight by 15%
+  pack_mule_weight = round(options['carry_capacity'] * 1.15, 1)
+  updates.extend(modify_skills.process_pack_mule({"weight": pack_mule_weight}))
 
-  # weapon_speed = options["raise_weapon_speed"]
-  # if weapon_speed > 0.75:
-  #   weapon_speed
-  #   f"(weapon_category_handguns, {weapon_speed},weapon_category_rifles, {weapon_speed},weapon_category_bows, {weapon_speed},weapon_category_shotguns, {weapon_speed})".ljust(144, '\x00')
-  #   updates.append({"sheet": sheet, "coordinates": "B51", "value": weapon_speed})
+  # Reoil Management shotgun perk
+  recoil_percent = 1 - ( options.get("reduce_recoil_percent", 0) / 100 )
+  recoil_speed = options.get("recoil_recovery_speed", 1.0)
+  updates.append({"coordinates": "B30", "value": f"({recoil_percent}, {recoil_speed})"})
+  # Recoil Management has 3 tiers. Each tier is a flat 20% buff to recoil percent and speed
+  # Subtract for recoil since it starts at 0. Multiply for speed since it starts at 1
+  recoil_buffs = {
+    "recoil": max(recoil_percent - 0.2, 0),
+    "speed": min(recoil_speed * 1.2, 9.9),
+    "recoil_2": max(recoil_percent - 0.4, 0),
+    "speed_2": min(recoil_speed * 1.4, 9.9),
+    "recoil_3": max(recoil_percent - 0.6, 0),
+    "speed_3": min(recoil_speed * 1.6, 9.9),
+  }
+  updates.extend(modify_skills.process_recoil_management(recoil_buffs))
 
-  clue_spawn = options["clue_detection_range"]
-  clue_despawn = round(clue_spawn + 5)  # despawn range should be longer to prevent flickering
-  clue_despawn = min(clue_despawn, 99)  # still capped at 99
-  clue_range = f"({clue_spawn:.1f}, {clue_despawn:.1f})"
-  updates.append({"sheet": sheet, "coordinates": "B8", "value": clue_range.ljust(12, '\x00')})
+  # Fast Shouldering shotgun perk
+  if (speed_multiplier := options.get("raise_weapon_speed")):
+    speed_multiplier_text = f"(weapon_category_handguns, {speed_multiplier}\n,weapon_category_rifles, {speed_multiplier}\n,weapon_category_bows, {speed_multiplier}\n,weapon_category_shotguns, {speed_multiplier})"
+    updates.append({"coordinates": "B51", "value": speed_multiplier_text})
+    # Fast Shouldering has 2 tiers. Each tier is a 33% buff to weapon in/out aim speed
+    speed_buffs = {
+      "speed_multiplier": min(speed_multiplier * 4/3, 10.0),
+      "speed_multiplier_2": min(speed_multiplier * 5/3, 10.0),
+    }
+    updates.extend(modify_skills.process_fast_shouldering(speed_buffs))
 
-  clue_angle = int(options["clue_direction_angle"])
-  if clue_angle < 90:
-    clue_cone = "WIDE"
-    if clue_angle < 70:
-      clue_cone = "MEDIUM"
-    if clue_angle < 45:
-      clue_cone = "NARROW"
-    clue_indicator = f"({clue_cone}, {clue_angle})".ljust(12, '\x00')
-    updates.append({"sheet": sheet, "coordinates": "B7", "value": clue_indicator.ljust(12, '\x00')})
+  # Locate Tracks skill
+  clue_spawn_distance = min(options.get("clue_detection_range", 20.0), 99.9)  # capped at 99.9
+  clue_despawn_distance = min(clue_spawn_distance + 5, 99.9)  # despawn range longer to prevent flickering, capped at 99
+  clue_range = f"({clue_spawn_distance}, {clue_despawn_distance})"
+  updates.append({"coordinates": "B8", "value": clue_range})
+  clue_angle = mods2.least_sigfig(options["clue_direction_angle"])
+  clue_cone = "WIDE" if clue_angle >= 90 else "MEDIUM" if 45 < clue_angle < 90 else "NARROW"
+  clue_indicator = f"({clue_cone}, {clue_angle})"
+  updates.append({"coordinates": "B7", "value": clue_indicator})
+  # Locate Tracks has 3 tiers
+  # Tier 1+3 are a 25% and 50% buff to cone size
+  # Tier 2+3 are a 10m buff to distance with a max of 99
+  clue_buffs = {
+    "angle": max(round(clue_angle * 0.75, 1), 1),
+    "angle_2": round(clue_angle * 0.5, 1),
+    "spawn_distance": clue_spawn_distance + 10,
+    "despawn_distance": clue_despawn_distance + 10,
+    "spawn_distance_2": clue_spawn_distance + 20,
+    "despawn_distance_2": clue_despawn_distance + 20,
+  }
+  updates.extend(modify_skills.process_locate_tracks(clue_buffs))
 
-  if options["show_clue_trails_on_map"]:
-    updates.append({"sheet": sheet, "coordinates": "B26", "value": "(true)"})
+  if options.get("show_clue_trails_on_map"):
+    updates.append({"coordinates": "B26", "value": "(true)"})
 
-  updates.append({"sheet": sheet, "coordinates": "B23", "value": f"({options["spot_duration"]}, {int(options["multiple_spot_count"])})".ljust(16, '\x00')})
+  # Tag skill
+  spot_duration = options.get("spot_duration", 1)
+  spot_count = int(options["multiple_spot_count"])
+  updates.append({"coordinates": "B23", "value": f"({spot_duration}, {spot_count})"})
+  # Each level of Tag is a .5s increase to spot duration. 1s > 1.5s > 2s
+  tag_buffs = {
+    "duration": spot_duration * 1.5,
+    "duration_2": spot_duration * 2,
+    "spottable": spot_count,
+    "spottable_2": spot_count * 3,
+    "extra_spots_at_level_1": bool(spot_count > 1)  # Tag level 1 doesn't include multiple spots by default
+  }
+  updates.extend(modify_skills.process_tag(tag_buffs))
 
   if options["spot_animals_with_scope"]:
-    updates.append({"sheet": sheet, "coordinates": "B29", "value": "(true)"})
+    updates.append({"coordinates": "B29", "value": "(true)"})
 
   if options["reload_while_running"]:
-    updates.append({"sheet": sheet, "coordinates": "B70", "value": "(true)"})
+    updates.append({"coordinates": "B70", "value": "(true)"})
 
   if options["reload_while_aiming"]:
-    updates.append({"sheet": sheet, "coordinates": "B22", "value": "(1.0)"})
+    updates.append({"coordinates": "B22", "value": "(1.0)"})
 
+  for update in updates:
+    update["sheet"] = "skill_component_descriptions" if "sheet" not in update else update["sheet"]
+    update["allow_new_data"] = True
   mods2.apply_coordinate_updates_to_file(FILE, updates)

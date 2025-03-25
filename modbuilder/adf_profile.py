@@ -1,6 +1,5 @@
-import struct, re
+import struct
 from pathlib import Path
-from typing import Tuple, List
 
 typedef_s8 = 1477249634
 typedef_u8 = 211976733
@@ -12,6 +11,7 @@ typedef_s64 = 2940286287
 typedef_u64 = 2704924703
 typedef_f32 = 1964352007
 typedef_f64 = 3322541667
+ADF_VALUE = 2304071742
 PRIMITIVES = [typedef_s8, typedef_u8, typedef_s16, typedef_u16, typedef_s32, typedef_u32, typedef_s64, typedef_u64, typedef_f32, typedef_f64]
 PRIMITIVE_1 = [typedef_s8, typedef_u8]
 PRIMITIVE_2 = [typedef_s16, typedef_u16]
@@ -19,6 +19,7 @@ PRIMITIVE_8 = [typedef_s64, typedef_u64, typedef_f64]
 STRUCTURE = 1
 ARRAY = 3
 STRINGHASH = 9
+
 
 class AdfArray:
   def __init__(self, name: str, population: int, group: int, length: int, header_start_offset: int, header_length_offset: int, header_array_offset: int, array_start_offset: int, array_end_offset: int, rel_array_start_offset: int, rel_array_end_offset: int) -> None:
@@ -35,7 +36,7 @@ class AdfArray:
     self.array_end_offset = array_end_offset
     self.rel_array_start_offset = rel_array_start_offset
     self.rel_array_end_offset = rel_array_end_offset
-    
+
   def __repr__(self) -> str:
     return f"{self.name} ; Header Offset: {self.header_start_offset},{hex(self.header_start_offset)}; Data Offset: {self.array_start_offset},{hex(self.array_start_offset)}"
 
@@ -44,6 +45,12 @@ def read_u32(data: bytearray) -> int:
 
 def create_u32(value: int) -> bytearray:
   return bytearray(struct.pack("I", value))
+
+def read_u16(data: bytearray) -> int:
+  return struct.unpack("H", data)[0]
+
+def create_u16(value: int) -> bytearray:
+  return bytearray(struct.pack("H", value))
 
 def read_u8(data: bytearray) -> int:
   return struct.unpack("B", data)[0]
@@ -64,7 +71,7 @@ def read_str(data: bytearray) -> str:
   value = data[0:-1]
   return value.decode("utf-8")
 
-def write_value(data: bytearray, new_data: bytearray, offset: int) -> None:
+def write_value(data: bytearray, offset: int, new_data: bytearray) -> None:
   data[offset:offset+len(new_data)] = new_data
 
 def find_length_of_string(data: bytearray) -> bytearray:
@@ -81,25 +88,25 @@ def find_nametable_size(data: bytearray, count: int) -> int:
     size += 1 + i_length + eos
   return size
 
-def read_nametables(data: bytearray, count: int) -> List[str]:
+def read_nametables(data: bytearray, count: int) -> list[str]:
   nametable_sizes = []
   nametables = []
   for i in range(count):
     i_length = read_u8(data[i:i+1])
     nametable_sizes.append(i_length)
-  
+
   table_offset = count
   pointer = table_offset
-  
+
   for i in range(count):
     i_length = nametable_sizes[i]
     nametables.append(read_str(data[pointer:pointer+i_length+1]))
     pointer += i_length + 1
-  
+
   return nametables
 
-def read_typemember(data: bytearray, nametables: List[str]) -> dict:
-  name_index = read_u64(data[0:8]) 
+def read_typemember(data: bytearray, nametables: list[str]) -> dict:
+  name_index = read_u64(data[0:8])
   name = nametables[name_index]
   type_hash = read_u32(data[8:12])
   size = read_u32(data[12:16])
@@ -111,7 +118,7 @@ def read_typemember(data: bytearray, nametables: List[str]) -> dict:
     "offset": offset
   }
 
-def read_typedef(header: bytearray, offset: int, nametables: List[str]) -> Tuple[int, dict]:
+def read_typedef(header: bytearray, offset: int, nametables: list[str]) -> tuple[int, dict]:
   header_size = 36
   member_size = 32
   metatype = read_u32(header[0:4])
@@ -120,7 +127,7 @@ def read_typedef(header: bytearray, offset: int, nametables: List[str]) -> Tuple
   name_index = read_u64(header[16:24])
   element_type_hash = read_u32(header[28:32])
   name = nametables[name_index]
-  
+
   if metatype == 1:
     member_count = read_u32(header[header_size:header_size+4])
     structure_size = header_size + 4 + (member_size * member_count)
@@ -129,50 +136,49 @@ def read_typedef(header: bytearray, offset: int, nametables: List[str]) -> Tuple
       pointer = i * member_size
       members.append(read_typemember(header[header_size+4+pointer:], nametables))
     return (structure_size, {
-      "name": name, 
+      "name": name,
       "metatype": metatype,
       "type_hash": type_hash,
-      "start": offset, 
+      "start": offset,
       "end": offset + structure_size,
       "size": size,
       "members": members
     })
   elif metatype == 0:
     return (header_size, {
-      "name": name, 
+      "name": name,
       "metatype": metatype,
       "type_hash": type_hash,
-      "start": offset, 
+      "start": offset,
       "end": offset + header_size
     })
   else:
     return (header_size+4, {
-      "name": name, 
+      "name": name,
       "metatype": metatype,
       "type_hash": type_hash,
       "element_type_hash": element_type_hash,
-      "start": offset, 
+      "start": offset,
       "end": offset+header_size+4
     })
 
-def find_typedef_offset(data: bytearray, typedef_offset: int, count: int, nametables: List[str]) -> dict:
+def find_typedef_offset(data: bytearray, typedef_offset: int, count: int, nametables: list[str]) -> dict:
   pointer = typedef_offset
   offsets = []
   for i in range(count):
     read_size, info = read_typedef(data[pointer:], pointer, nametables)
     pointer += read_size
     offsets.append(info)
-  
+
   type_map = {}
   for offset in offsets:
-    type_map[offset["type_hash"]] = { 
-      "name": offset["name"], 
+    type_map[offset["type_hash"]] = {
+      "name": offset["name"],
       "metatype": offset["metatype"],
       "size": offset["size"] if "size" in offset else None,
       "element_type_hash": offset["element_type_hash"] if "element_type_hash" in offset else None,
       "members": offset["members"] if "members" in offset else []
     }
-  
   return {
     "start": typedef_offset,
     "end": pointer,
@@ -193,12 +199,15 @@ def get_primitive_size(type_id: int) -> int:
 def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type_map: dict) -> dict:
   value = None
   pos = offset+pointer
-  
+
   if type_id in PRIMITIVES:
     primitive_size = get_primitive_size(type_id)
     value = f"Primitive ({primitive_size}, {pos})"
     pointer += primitive_size
-  else:
+  elif type_id == ADF_VALUE:
+    # print(f"AdfValue string! OFFSET: {offset}   POINTER: {pointer}   POS: {pos}")
+    None
+  elif type_id in type_map:
     type_def = type_map[type_id]
     if type_def["metatype"] == STRUCTURE:
       value = {}
@@ -208,25 +217,25 @@ def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type
         m_offset = m["offset"]
         pointer = org_pointer + m_offset
         v = read_instance(data, offset, pointer, int(m["type_hash"]), type_map)
-        value[m["name"]] = { 
+        value[m["name"]] = {
           "value": v[0]
         }
       pointer = org_pointer + type_def["size"]
     elif type_def["metatype"] == ARRAY:
       array_offset = read_u32(data[pos:pos+4])
-      length = read_u32(data[pos+8:pos+12]) 
+      length = read_u32(data[pos+8:pos+12])
       array_header_size = 12
       org_pos = pos
       pointer += array_header_size
       org_pointer = pointer
       pos = offset+pointer
-      value = { "Array": { 
-        "name": type_def["name"], 
+      value = { "Array": {
+        "name": type_def["name"],
         "header_offset": (org_pos, org_pos+array_header_size),
         "length": length
       }}
       pointer = array_offset
-      
+
       if length > 0:
         element_type = type_def["element_type_hash"]
         new_pointer = pointer
@@ -237,7 +246,7 @@ def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type
         value["Array"]["type"] = "Primitives" if element_type in PRIMITIVES else "Structures"
         value["Array"]["array_offset"] = (offset+pointer, offset+new_pointer)
         value["Array"]["values"] = values
-      
+
       pointer = org_pointer
     elif type_def["metatype"] == STRINGHASH:
       if type_def["size"] == 4:
@@ -246,10 +255,17 @@ def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type
     else:
       None
       # print(f"Unknown metatype: {type_def['metatype']}")
-  
+  else:
+    # ADFs that extract to XLSX have two typedefs that don't have any instance data in the file
+    # 2240023889 - A[String]
+    # 3238441815 - A[XLSCell]
+    None
+    # print(f"Unknown typedef: {type_id}")
+
+
   return (value, pointer)
 
-def find_instance_offset(data: bytearray, offset: int, count: int, nametables: List[str], type_map: dict) -> dict:
+def find_instance_offset(data: bytearray, offset: int, count: int, nametables: list[str], type_map: dict) -> dict:
   instance_header_size = 24
   instances = []
   for i in range(count):
@@ -258,17 +274,18 @@ def find_instance_offset(data: bytearray, offset: int, count: int, nametables: L
     instance_offset = read_u32(data[pointer+8:pointer+12])
     instance_size = read_u32(data[pointer+12:pointer+16])
     instance_name = nametables[read_u64(data[pointer+16:pointer+24])]
-    instances.append({ 
-      "offset": (instance_offset, instance_offset + instance_size), 
-      "size": instance_size, 
+    instances.append({
+      "offset": (instance_offset, instance_offset + instance_size),
+      "size_offset": offset + 12,
+      "size": instance_size,
       f"{instance_name}": read_instance(data, instance_offset, 0, instance_type, type_map)[0]
     })
-  
+
   return {
     "offset": (offset, offset + count*instance_header_size),
     "instances": instances
   }
-  
+
 def profile_header(data: bytearray) -> dict:
   header = data[:64]
   instance_count = read_u32(header[8:12])
@@ -279,8 +296,8 @@ def profile_header(data: bytearray) -> dict:
   stringhash_offset = read_u32(header[28:32])
   nametable_count = read_u32(header[32:36])
   nametable_offset = read_u32(header[36:40])
-  total_size = read_u32(header[40:44])  
-  
+  total_size = read_u32(header[40:44])
+
   return {
     "total_size": total_size,
     "typedef_count": typedef_count,
@@ -298,7 +315,7 @@ def profile_header(data: bytearray) -> dict:
     "header_nametable_offset": 36,
     "header_total_size_offset": 40,
     "header_end": 64
-  }  
+  }
 
 def create_profile(filename: Path) -> None:
   data = bytearray(filename.read_bytes())
@@ -308,7 +325,7 @@ def create_profile(filename: Path) -> None:
   typedef_count = header_profile["typedef_count"]
   typedef_offset = header_profile["typedef_offset"]
   stringhash_count = header_profile["stringhash_count"]
-  stringhash_offset = header_profile["stringhash_offset"]  
+  stringhash_offset = header_profile["stringhash_offset"]
   nametable_count = header_profile["nametable_count"]
   nametable_offset = header_profile["nametable_offset"]
   total_size = header_profile["total_size"]
@@ -318,7 +335,7 @@ def create_profile(filename: Path) -> None:
   typedef_offsets = find_typedef_offset(data, typedef_offset, typedef_count, nametables)
   type_map = typedef_offsets["type_map"]
   instance_offsets = find_instance_offset(data, instance_offset, instance_count, nametables, type_map)
-  
+
   return {
     "total_size": total_size,
     "header_start": 0,
@@ -333,9 +350,9 @@ def create_profile(filename: Path) -> None:
     "instance_start": instance_offsets["instances"][0]["offset"][0],
     "instance_end": instance_offsets["instances"][0]["offset"][0] + instance_offsets["instances"][0]["size"],
     "instance_header_start": instance_offsets["offset"][0],
-    "instance_header_end": instance_offsets["offset"][1],    
+    "instance_header_end": instance_offsets["offset"][1],
     "typedef_start": typedef_offset,
-    "typedef_end": typedef_offsets["end"],    
+    "typedef_end": typedef_offsets["end"],
     "stringhash_start": stringhash_offset,
     "stringhash_end": nametable_offset,
     "nametable_start": nametable_offset,

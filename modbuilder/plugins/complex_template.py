@@ -22,7 +22,7 @@ def handle_key(mod_key: str) -> bool:
 def get_files(options: dict) -> List[str]:
   None
 
-def merge_files(files: List[str], options: dict) -> None:
+def merge_files(files: list[str], options: dict) -> None:
   None
 
 def process(options: dict) -> None:

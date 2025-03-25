@@ -26,7 +26,7 @@ def format(options: dict) -> str:
   stand_percent = options['reduce_stand_percent']
   crouch_percent = options['reduce_crouch_percent']
   prone_percent = options['reduce_prone_percent']
-  return f"Decrease Wobble ({int(stand_percent)}%, {int(crouch_percent)}%, {int(prone_percent)}%)"
+  return f"Decrease Wobble (-{int(stand_percent)}% stand, -{int(crouch_percent)}% crouch, -{int(prone_percent)}% prone)"
 
 def update_values_at_offset(options: dict) -> List[dict]:
   stand_percent = options['reduce_stand_percent']

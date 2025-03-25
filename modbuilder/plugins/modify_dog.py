@@ -16,7 +16,7 @@ def format(options: dict) -> str:
   both = traits and xp != 1
   return f"Modify Dog ({str(xp) + 'x' if xp != 1 else ''}{', ' if both else ''}{'unlock traits' if traits else ''})"
 
-def merge_files(files: List[str], options: dict) -> None:
+def merge_files(files: list[str], options: dict) -> None:
   traits = options["allow_all_traits_to_be_learned"]
   if traits:
     from_base = mods.APP_DIR_PATH / "org/modded/dog_traits/ui"

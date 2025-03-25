@@ -1,0 +1,85 @@
+{
+  "version": "2.2.4",
+  "mod_options": {
+    "modify_ammo_type_bow": {
+      "type": "bow",
+      "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "penetration": 0.0,
+      "expansion": 0.0,
+      "damage": 0.0,
+      "kinetic_energy": 0.0,
+      "mass": 0.0,
+      "projectiles": 0
+    },
+    "modify_ammo_type_handgun": {
+      "type": "handgun",
+      "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "penetration": 0.0,
+      "expansion": 0.0,
+      "damage": 0.0,
+      "kinetic_energy": 0.0,
+      "mass": 0.0,
+      "projectiles": 0
+    },
+    "modify_ammo_type_rifle": {
+      "type": "rifle",
+      "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "penetration": 0.0,
+      "expansion": 0.0,
+      "damage": 0.0,
+      "kinetic_energy": 0.0,
+      "mass": 0.0,
+      "projectiles": 0
+    },
+    "modify_ammo_type_shotgun": {
+      "type": "shotgun",
+      "classes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "penetration": 0.0,
+      "expansion": 0.0,
+      "damage": 0.0,
+      "kinetic_energy": 0.0,
+      "mass": 0.0,
+      "projectiles": 0.0
+    }
+  }
+}

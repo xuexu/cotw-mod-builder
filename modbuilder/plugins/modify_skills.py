@@ -4,12 +4,15 @@ from modbuilder import mods2
 from math import floor
 import FreeSimpleGUI as sg
 
-DEBUG=False
-NAME="Modify Skills"
-DESCRIPTION="Modify all skills and perks that have changable values."
-FILE = "settings/hp_settings/player_skills.bin"
+DEBUG = False
+NAME = "Modify Skills"
+DESCRIPTION = "Modify all skills and perks that have changable values."
+SKILLS_FILE = "settings/hp_settings/player_skills.bin"
+SKILL_TREES_FILE = "settings/hp_settings/player_skill_trees.bin"
+
 KEY_PREFIX = "modify_skills"
 TABGROUP_PADDING = ((0,0),(10,0))
+
 
 def name_to_key(skill: str) -> str:
     return "_".join(skill.lower().split(" "))
@@ -25,21 +28,23 @@ def option_to_key(skill: str, option_name: str) -> str:
 
 def get_active_tab(window: sg.Window) -> str:
     active_tab = window["modify_skills_group"].find_currently_active_tab_key().lower()
-    if active_tab == "skills":
+    if active_tab == "modify_skills_tab":
         active_tab = window["skill_group"].find_currently_active_tab_key().lower()
-        if active_tab == "ambusher":
+        if active_tab == "skill_ambusher":
             active_tab = window["ambusher_group"].find_currently_active_tab_key().lower()
-        else:
+        elif active_tab == "skill_stalker":
             active_tab = window["stalker_group"].find_currently_active_tab_key().lower()
-    else:
+        elif active_tab == "skill_tier_cost":
+            pass
+    elif active_tab == "modify_perks_tab":
         active_tab = window["perk_group"].find_currently_active_tab_key().lower()
-        if active_tab == "rifles":
+        if active_tab == "perk_rifle":
             active_tab = window["rifle_group"].find_currently_active_tab_key().lower()
-        elif active_tab == "handguns":
+        elif active_tab == "perk_handgun":
             active_tab = window["handgun_group"].find_currently_active_tab_key().lower()
-        elif active_tab == "shotguns":
+        elif active_tab == "perk_shotgun":
             active_tab = window["shotgun_group"].find_currently_active_tab_key().lower()
-        else:
+        elif active_tab == "perk_archery":
             active_tab = window["archery_group"].find_currently_active_tab_key().lower()
     return active_tab
 
@@ -64,13 +69,14 @@ def render_pack_mule() -> list[dict]:
         { "name": "Weight", "min": 23, "max": 1000, "default": 23, "initial": 1000, "increment": 1 }
     ]
 def format_pack_mule(options: dict) -> str:
-    return f"Enhanced Pack Mule ({options['weight']}kg)"
+    return f"Enhanced Pack Mule ({int(options['weight'])}kg)"
 def process_pack_mule(options: dict) -> list[dict]:
-    weight = min(options['weight'], 999)  # max in-game value is 999
+     # Carry capacity is capped at 999. We let the slider go to 1000 for ease of use
+    weight = min(options['weight'], 999)
     return [{
         "sheet": "skills_strategic",
         "coordinates": "G11",
-        "value": f"set_player_carry_capacity({weight:>4})"
+        "value": f"set_player_carry_capacity({weight})"
     }]
 
 def render_soft_feet() -> list[dict]:
@@ -97,7 +103,7 @@ def process_soft_feet(options: dict) -> list[dict]:
 
 def render_impact_resistance() -> list[dict]:
     return [
-        { "name": "Fall Damage Reduction Percent", "min": 20, "max": 100, "default": 20, "initial": 100, "increment": 1 }
+        { "name": "Fall Damage Reduction Percent", "min": 20, "max": 100, "default": 20, "initial": 100, "increment": 10 }
     ]
 def format_impact_resistance(options: dict) -> str:
     damage_reduce = options['fall_damage_reduction_percent']
@@ -259,37 +265,44 @@ def process_track_knowledge(options: dict) -> list[dict]:
 
 def render_locate_tracks() -> list[dict]:
     return [
-        { "name": "Angle", "min": 0.0, "max": 45.0, "default": 45.0, "initial": 0.0, "increment": 0.5 },
-        { "name": "Spawn Distance", "min": 40.0, "max": 99.9, "default": 40.0, "initial": 99.9, "increment": 0.1, "note": "Meters" },
-        { "name": "Despawn Distance", "min": 45.0, "max": 99.9, "default": 45.0, "initial": 99.9, "increment": 0.1, "note": "Meters" },
+        { "name": "Angle", "min": 0.0, "max": 90.0, "default": 45.0, "initial": 0.0, "increment": 1.0 },
+        { "name": "Spawn Distance", "min": 40.0, "max": 99.0, "default": 40.0, "initial": 100.0, "increment": 1, "note": "Meters" },
+        { "name": "Despawn Distance", "min": 45.0, "max": 99.0, "default": 45.0, "initial": 100.0, "increment": 1, "note": "Meters" },
     ]
 def format_locate_tracks(options: dict) -> str:
     angle = options["angle"]
-    spawn_distance = options["spawn_distance"]
-    despawn_distance = options["despawn_distance"]
-    return f"Enhanced Locate Tracks ({angle:.2f} angle, {spawn_distance:.2f}m spawn, {despawn_distance:.2f}m despawn)"
+    spawn_distance = int(options["spawn_distance"])
+    despawn_distance = int(options["despawn_distance"])
+    return f"Enhanced Locate Tracks ({angle} angle, {spawn_distance}m spawn, {despawn_distance}m despawn)"
 def process_locate_tracks(options: dict) -> list[dict]:
-    angle = options["angle"]
-    spawn_distance = options["spawn_distance"]
+    angle = max(options["angle"], 1)
+    angle_2 = max(options.get("angle_2", options["angle"]), 1)
+    angles = [angle, angle_2]
+    cones = ["WIDE" if angle >= 90 else "MEDIUM" if 45 < angle < 90 else "NARROW" for angle in angles]
+    cone, cone_2 = cones
+    spawn_distance = min(options["spawn_distance"], 99.9)  # capped at 99.9
     despawn_distance = options["despawn_distance"]
-    angle_whole = floor(angle)
-    if angle_whole == 0:
-        angle_whole = 1
+    if despawn_distance <= spawn_distance:
+        despawn_distance = min(spawn_distance + 5, 99.9)  # despawn range longer to prevent flickering, capped at 99
+    spawn_distance_2 = min(options.get("spawn_distance_2", options["spawn_distance"]), 99.9)  # capped at 99.9
+    despawn_distance_2 = options.get("despawn_distance_2", options["despawn_distance"])
+    if despawn_distance_2 <= spawn_distance_2:
+        despawn_distance_2 = min(spawn_distance_2 + 5, 99.9)  # despawn range longer to prevent flickering, capped at 99
     return [
         {
             "sheet": "skills_active",
             "coordinates": "G3",
-            "value": f"clue_directional_cone_size(MEDIUM, {angle:>4.1f})"
+            "value": f"clue_directional_cone_size({cone}, {mods2.least_sigfig(angle)})"
         },
         {
             "sheet": "skills_active",
             "coordinates": "I3",
-            "value": f"clue_directional_cone_size(MEDIUM, {angle:>4.1f}), clue_spawn_distance({spawn_distance:>4.1f}, {despawn_distance:>4.1f})"
+            "value": f"clue_directional_cone_size({cone}, {mods2.least_sigfig(angle)}), clue_spawn_distance({spawn_distance}, {despawn_distance})"
         },
         {
             "sheet": "skills_active",
             "coordinates": "K3",
-            "value": f"clue_directional_cone_size(NARROW, {angle_whole:>2}), clue_spawn_distance({spawn_distance:>4.1f}, {despawn_distance:>4.1f})"
+            "value": f"clue_directional_cone_size({cone_2}, {mods2.least_sigfig(angle_2)}), clue_spawn_distance({spawn_distance_2}, {despawn_distance_2})"
         }
     ]
 
@@ -340,15 +353,15 @@ def render_hardened() -> list[dict]:
         { "name": "Health", "min": 1150, "max": 10000, "default": 1150, "initial": 10000, "increment": 50},
     ]
 def format_hardened(options: dict) -> str:
-    health = options["health"]
-    return f"Enhaned Hardened ({int(health)} HP)"
+    return f"Enhaned Hardened ({int(options["health"])} HP)"
 def process_hardened(options: dict) -> list[dict]:
-    health = min(options["health"], 9999.9)  # max in-game value is 9999.9
+    # Max Health is capped at 9999.9. We let the slider go to 10K for ease of use
+    health = min(options["health"], 9999.9)
     return [
         {
             "sheet": "skills_strategic",
             "coordinates": "G8",
-            "value": f"set_player_max_health({health:>6.1f})"
+            "value": f"set_player_max_health({health})"
         }
     ]
 
@@ -456,21 +469,22 @@ def format_tag(options: dict) -> str:
     return f"Enhanced Tag ({int(duration)}s duration, {int(spottable)} spottable{extra_spots_text})"
 def process_tag(options: dict) -> list[dict]:
     duration = int(options["duration"])
-    spottable_2 = int(options["spottable"])
+    duration_2 = int(options.get("duration_2", options["duration"]))
     if bool(options["extra_spots_at_level_1"]):
-        spottable_1 = spottable_2
+        spottable = int(options["spottable"])
     else:
-        spottable_1 = 1
+        spottable = 1
+    spottable_2 = int(options.get("spottable_2", options["spottable"]))
     return [
         {
             "sheet": "skills_passive",
             "coordinates": "G9",
-            "value": f"tag({duration:>3},{spottable_1:>2})"
+            "value": f"tag({duration},{spottable})"
         },
         {
             "sheet": "skills_passive",
             "coordinates": "I9",
-            "value": f"tag({duration:>3},{spottable_2:>2})"
+            "value": f"tag({duration_2},{spottable_2})"
         }
     ]
 
@@ -517,16 +531,17 @@ def format_fast_shouldering(options: dict) -> str:
     return f"Enhanced Fast Shouldering ({speed_multiplier}x)"
 def process_fast_shouldering(options: dict) -> list[dict]:
     speed_multiplier = options["speed_multiplier"]
+    speed_multiplier_2 = options.get("speed_multiplier_2", options["speed_multiplier"])
     return [
         {
             "sheet": "perks_shotguns",
             "coordinates": "G4",
-            "value": f"in_out_aim_speed(weapon_category_handguns,{speed_multiplier:<4.1f}\n,weapon_category_rifles,{speed_multiplier:<4.1f}\n,weapon_category_bows,{speed_multiplier:<4.1f}\n,weapon_category_shotguns,{speed_multiplier:<4.1f})"
+            "value": f"in_out_aim_speed(weapon_category_handguns, {speed_multiplier}\n,weapon_category_rifles, {speed_multiplier}\n,weapon_category_bows, {speed_multiplier}\n,weapon_category_shotguns, {speed_multiplier})"
         },
         {
             "sheet": "perks_shotguns",
             "coordinates": "I4",
-            "value": f"in_out_aim_speed(weapon_category_handguns,{speed_multiplier:<5.2f}\n,weapon_category_rifles,{speed_multiplier:<5.2f}\n,weapon_category_bows,{speed_multiplier:<5.2f}\n,weapon_category_shotguns,{speed_multiplier:<5.2f})"
+            "value": f"in_out_aim_speed(weapon_category_handguns, {speed_multiplier_2}\n,weapon_category_rifles, {speed_multiplier_2}\n,weapon_category_bows, {speed_multiplier_2}\n,weapon_category_shotguns, {speed_multiplier_2})"
         }
     ]
 
@@ -762,8 +777,8 @@ def process_both_eyes_open(options: dict) -> list[dict]:
 
 def render_recoil_management() -> list[dict]:
     return [
-        { "name": "Recoil", "min": 0.0, "max": 0.4, "default": 0.4, "initial": 0.0, "increment": 0.1},
-        { "name": "Speed", "min": 1.6, "max": 9.9, "default": 1.6, "initial": 9.9, "increment": 0.1},
+        { "name": "Recoil", "min": 0.0, "max": 0.8, "default": 0.4, "initial": 0.0, "increment": 0.1, "note": "Lower is better"},
+        { "name": "Speed", "min": 1.2, "max": 9.9, "default": 1.6, "initial": 9.9, "increment": 0.1, "note": "Higher is better"},
     ]
 def format_recoil_management(options: dict) -> str:
     recoil = options["recoil"]
@@ -771,9 +786,17 @@ def format_recoil_management(options: dict) -> str:
     return f"Enhanced Recoil Management ({recoil} recoil, {speed} speed)"
 def process_recoil_management(options: dict) -> list[dict]:
     recoil = options["recoil"]
-    recoil = f"{recoil:>3.1f}"
+    recoil = f"{recoil}"
     speed = options["speed"]
-    speed = f"{speed:>3.1f}"
+    speed = f"{speed}"
+    recoil_2 = options.get("recoil_2", options["recoil"])
+    recoil_2 = f"{recoil_2}"
+    speed_2 = options.get("speed_2", options["speed"])
+    speed_2 = f"{speed_2}"
+    recoil_3 = options.get("recoil_3", options["recoil"])
+    recoil_3 = f"{recoil_3}"
+    speed_3 = options.get("speed_3", options["speed"])
+    speed_3 = f"{speed_3}"
     return [
         {
             "sheet": "perks_shotguns",
@@ -783,12 +806,12 @@ def process_recoil_management(options: dict) -> list[dict]:
         {
             "sheet": "perks_shotguns",
             "coordinates": "I8",
-            "value": f"less_recoil({recoil}, {speed})"
+            "value": f"less_recoil({recoil_2}, {speed_2})"
         },
         {
             "sheet": "perks_shotguns",
             "coordinates": "K8",
-            "value": f"less_recoil({recoil}, {speed})"
+            "value": f"less_recoil({recoil_3}, {speed_3})"
         }
     ]
 
@@ -934,6 +957,64 @@ def process_recycle(options: dict) -> list[dict]:
         }
     ]
 
+def format_skill_tier_cost(options: dict) -> str:
+    text = "Reduce" if options["reduce_skill_tier_cost"] else "Load Default"
+    return f"Modify Skills: {text} Skill Tier Cost"
+def process_skill_tier_cost(options: dict) -> list[dict]:
+    updates = []
+    if not options["reduce_skill_tier_cost"]:
+        return updates
+
+    skill_tier3_cells = ["B6", "B7", "B8"]  # 5 > 2 points
+    skill_tier4_cells = ["B9", "B10", "B11"]  # 9 > 3 points
+    skill_tier5_cells = ["B12", "B13", "B14"]  # 13 > 4 points
+    updates.extend([
+        {
+            "sheet": "skills_active",
+            "coordinates": coordinates,
+            "value": 2,
+        } for coordinates in skill_tier3_cells
+    ])
+    updates.extend([
+        {
+            "sheet": "skills_active",
+            "coordinates": coordinates,
+            "value": 3,
+        } for coordinates in skill_tier4_cells
+    ])
+    updates.extend([
+        {
+            "sheet": "skills_active",
+            "coordinates": coordinates,
+            "value": 4,
+        } for coordinates in skill_tier5_cells
+    ])
+    updates.extend([
+        {
+            "sheet": "skills_passive",
+            "coordinates": coordinates,
+            "value": 2,
+        } for coordinates in skill_tier3_cells
+    ])
+    updates.extend([
+        {
+            "sheet": "skills_passive",
+            "coordinates": coordinates,
+            "value": 3,
+        } for coordinates in skill_tier4_cells
+    ])
+    updates.extend([
+        {
+            "sheet": "skills_passive",
+            "coordinates": coordinates,
+            "value": 4,
+        } for coordinates in skill_tier5_cells
+    ])
+
+    for update in updates:
+        update["allow_new_data"] = True
+    return updates
+
 
 SKILLS = {
     "Stalker": [
@@ -1062,13 +1143,21 @@ def get_skill_tab(skills: list[str]) -> list[sg.Tab]:
         ))
     return skill_details
 
+def get_skill_tier_cost_tab() -> sg.Tab:
+    return sg.Tab("Tier Cost", [[
+        sg.Checkbox("Reduce Skill Tier Cost", k="reduce_skill_tier_cost", p=(10,10)),
+        sg.Text("Lowers the cost of unlocking each tier of the skill tree to just one point.", font="_ 12 italic", text_color="orange")
+    ]], k="skill_tier_cost")
+
 def get_skill_elements() -> sg.TabGroup:
     stalker = SKILLS["Stalker"]
     ambusher = SKILLS["Ambusher"]
     stalker_options = sg.TabGroup([get_skill_tab(stalker)], k="stalker_group", p=TABGROUP_PADDING)
     ambusher_options = sg.TabGroup([get_skill_tab(ambusher)], k="ambusher_group", p=TABGROUP_PADDING)
-    return sg.TabGroup(
-        [[sg.Tab("Stalker", [[stalker_options]]), sg.Tab("Ambusher", [[ambusher_options]])
+    return sg.TabGroup([[
+        get_skill_tier_cost_tab(),
+        sg.Tab("Stalker", [[stalker_options]], k="skill_stalker"),
+        sg.Tab("Ambusher", [[ambusher_options]], k="skill_ambusher")
     ]], k="skill_group", p=TABGROUP_PADDING)
 
 def get_perk_elements() -> sg.TabGroup:
@@ -1077,14 +1166,17 @@ def get_perk_elements() -> sg.TabGroup:
     shotgun_options = sg.TabGroup([get_skill_tab(PERKS["Shotguns"])], k="shotgun_group", p=TABGROUP_PADDING)
     archery_options = sg.TabGroup([get_skill_tab(PERKS["Archery"])], k="archery_group", p=TABGROUP_PADDING)
     return sg.TabGroup(
-        [[sg.Tab("Rifles", [[rifle_options]]), sg.Tab("Handguns", [[handgun_options]]), sg.Tab("Shotguns", [[shotgun_options]]), sg.Tab("Archery", [[archery_options]])
+        [[sg.Tab("Rifles", [[rifle_options]], k="perk_rifle"),
+            sg.Tab("Handguns", [[handgun_options]], k="perk_handgun"),
+            sg.Tab("Shotguns", [[shotgun_options]], k="perk_shotgun"),
+            sg.Tab("Archery", [[archery_options]], k="perk_archery")
     ]], k="perk_group", p=TABGROUP_PADDING)
 
 def get_option_elements() -> sg.Column:
     layout = [
         [sg.TabGroup([[
-            sg.Tab("Skills", [[get_skill_elements()]]),
-            sg.Tab("Perks", [[get_perk_elements()]])
+            sg.Tab("Skills", [[get_skill_elements()]], k="modify_skills_tab"),
+            sg.Tab("Perks", [[get_perk_elements()]], k="modify_perks_tab")
         ]], k="modify_skills_group", p=TABGROUP_PADDING)],
     ]
     col = sg.Column(layout, expand_x=True)
@@ -1098,6 +1190,8 @@ def add_mod(window: sg.Window, values: dict) -> dict:
 
     mod_options = {}
     invalid_result = None
+    if active_tab == "skill_tier_cost":
+        mod_options["reduce_skill_tier_cost"] = values["reduce_skill_tier_cost"]
     for i, option in enumerate(skill_option_keys):
         mod_option = option.split("__")[1]
         mod_value = values[option]
@@ -1121,6 +1215,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "options": mod_options
     }
 
+
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
     pass
 
@@ -1134,10 +1229,24 @@ def format(options: dict) -> str:
 
 
 def handle_key(mod_key: str) -> bool:
-  return mod_key.startswith(KEY_PREFIX)
+    return mod_key.startswith(KEY_PREFIX)
+
+
+def get_files(options: dict) -> list[str]:
+    if "reduce_skill_tier_cost" in options:
+        return [SKILL_TREES_FILE]
+    else:
+        return [SKILLS_FILE]
+
 
 def process(options: dict) -> None:
     func_name = f"process_{options['key']}"
     if func_name in globals():
         updates = globals()[func_name](options)
-        mods2.apply_coordinate_updates_to_file(FILE, updates)
+        if "reduce_skill_tier_cost" in options:
+            file = SKILL_TREES_FILE
+        else:
+            file = SKILLS_FILE
+        for update in updates:
+            update["allow_new_data"] = True
+        mods2.apply_coordinate_updates_to_file(file, updates)

@@ -73,7 +73,7 @@ def process(options: dict) -> None:
     if len(not_allowed_weather_conditions) > 0:
         mods.update_file_at_offsets_with_values(PRESETS_FILE, not_allowed_weather_conditions)
 
-def handle_update(mod_key: str, mod_options: dict) -> dict:
+def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
   """
   2.2.2
   - Prevent non-weather fullscreen effects from being disabled (night vision, healing/damage indicators)
@@ -81,4 +81,6 @@ def handle_update(mod_key: str, mod_options: dict) -> dict:
   allowed_weather_conditions = [weather for weather in mod_options["allowed_weather_conditions"] if weather in AVAILABLE_WEATHER_CONDITIONS]
   updated_mod_key = mod_key
   updated_mod_options = {"allowed_weather_conditions": allowed_weather_conditions}
+  if "modify_weather" in mod_options:
+    updated_mod_options["modify_weather"] = mod_options["modify_weather"]
   return updated_mod_key, updated_mod_options

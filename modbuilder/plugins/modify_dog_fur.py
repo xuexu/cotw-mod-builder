@@ -22,7 +22,7 @@ def format(options: dict) -> str:
 def get_files(options: dict) -> List[str]:
   return []
 
-def merge_files(files: List[str], options: dict) -> None:
+def merge_files(files: list[str], options: dict) -> None:
   red_and_black_pigmented = "bloodhound_redblackpigmented_dif.ddsc"  
   black_and_tan_full_coat = "bloodhound_blacktan_dif.ddsc"
   black_tan_saddle = "bloodhound_common_dif.ddsc"

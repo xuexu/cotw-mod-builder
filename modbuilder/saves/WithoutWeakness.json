@@ -1,18 +1,20 @@
 {
-  "version": "2.2.2",
+  "version": "2.2.4",
   "mod_options": {
     "remove_intro_logos": {},
     "clean_scope_lenses": {
       "remove_night_vision_tint": true
     },
+    "modify_binocular_overlay": {
+      "binoculars_overlay": "pill"
+    },
     "decrease_wobble": {
-      "decrease_wobble": "",
-      "reduce_stand_percent": 100.0,
-      "reduce_crouch_percent": 100.0,
+      "reduce_stand_percent": 50.0,
+      "reduce_crouch_percent": 75.0,
       "reduce_prone_percent": 100.0
     },
     "increase_cash_reward": {
-      "cash_reward_multiplier": 5.0
+      "cash_reward_multiplier": 2.0
     },
     "increase_xp_reward": {
       "xp_reward_multiplier": 2.0,
@@ -42,13 +44,61 @@
       "stand_speed_multiplier": 1.5,
       "stand_sprint_speed_multiplier": 1.5,
       "crouch_speed_multiplier": 2.0,
-      "crouch_sprint_speed_multiplier": 1.0,
+      "crouch_sprint_speed_multiplier": 1.5,
       "prone_speed_multiplier": 1.5,
-      "prone_sprint_speed_multiplier": 1.0,
+      "prone_sprint_speed_multiplier": 1.5,
       "jump_speed_multiplier": 1.0
+    },
+    "modify_player_traits": {
+      "base_health": 10000.0,
+      "fall_damage_reduction_percent": 100.0,
+      "carry_capacity": 1000.0,
+      "reduce_recoil_percent": 0.0,
+      "recoil_recovery_speed": 1.0,
+      "raise_weapon_speed": 0.75,
+      "clue_detection_range": 50.0,
+      "clue_direction_angle": 1.0,
+      "show_clue_trails_on_map": true,
+      "spot_duration": 10.0,
+      "multiple_spot_count": 1.0,
+      "spot_animals_with_scope": true,
+      "reload_while_running": true,
+      "reload_while_aiming": true
+    },
+    "modify_skills_skill_tier_cost": {
+      "reduce_skill_tier_cost": true,
+      "name": "Skill Tier Cost",
+      "key": "skill_tier_cost"
     },
     "increase_weapon_fov": {
       "first-person_weapon_fov": 50.0
+    },
+    "modify_scope_rifle_scope_4-12x_33mm_01": {
+      "name": "rifle_scope_4-12x_33mm_01",
+      "display_name": "Odin 4-12x33",
+      "file": "editor/entities/hp_weapons/sights/rifle_scope_4-12x_33mm_01/equipment_sight_rifle_scope_4-12x_33mm_01.sighttunec",
+      "bundle_file": "editor/entities/hp_weapons/sights/rifle_scope_4-12x_33mm_01/equipment_sight_rifle_scope_4-12x_33mm_01.ee",
+      "level_1": 4.0,
+      "level_2": 10.0,
+      "level_3": 20.0,
+      "level_4": 35.0,
+      "level_5": 50.0,
+      "advanced_sensitivity": true,
+      "level_1_sensitivity": 0.02,
+      "level_1_h_speed": 60.0,
+      "level_1_v_speed": 50.0,
+      "level_2_sensitivity": 0.02,
+      "level_2_h_speed": 60.0,
+      "level_2_v_speed": 50.0,
+      "level_3_sensitivity": 0.014,
+      "level_3_h_speed": 60.0,
+      "level_3_v_speed": 50.0,
+      "level_4_sensitivity": 0.008,
+      "level_4_h_speed": 60.0,
+      "level_4_v_speed": 50.0,
+      "level_5_sensitivity": 0.004,
+      "level_5_h_speed": 60.0,
+      "level_5_v_speed": 50.0
     },
     "modify_atv": {
       "top_speed": "120",
@@ -62,6 +112,20 @@
       "handheld_caller_range": 500.0,
       "scent_range": 500.0,
       "decoy_range": 500.0
+    },
+    "modify_store_structure": {
+      "type": "structure",
+      "file": "settings/hp_settings/equipment_data.bin",
+      "discount": 90,
+      "free_price": 0,
+      "bulk_quantity": 0
+    },
+    "modify_store_skin": {
+      "type": "skin",
+      "file": "settings/hp_settings/equipment_data.bin",
+      "discount": 90,
+      "free_price": 0,
+      "bulk_quantity": 0
     },
     "modify_respec_cost": {
       "modify_respec_cost": "Cheap",
@@ -77,25 +141,6 @@
     "modify_reticle_cost": {
       "modify_reticle_cost": "Free",
       "cost": 0.0
-    },
-    "modify_skills_impact_resistance": {
-      "fall_damage_reduction_percent": 100.0,
-      "name": "Impact Resistance",
-      "key": "impact_resistance"
-    },
-    "modify_player_traits": {
-      "base_health": 9999.0,
-      "carry_capacity": 999.0,
-      "reduce_recoil_percent": 0.0,
-      "recoil_recovery_speed": 1.0,
-      "clue_detection_range": 50.0,
-      "clue_direction_angle": 1.0,
-      "show_clue_trails_on_map": true,
-      "spot_duration": 10.0,
-      "multiple_spot_count": 1.0,
-      "spot_animals_with_scope": true,
-      "reload_while_running": true,
-      "reload_while_aiming": true
     }
   }
 }

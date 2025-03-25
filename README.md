@@ -23,15 +23,15 @@ After each game update to theHunter: Call of the Wild, Mod Builder needs to be u
 
 ## How to Add New Item Names
 
-Internal item names from the game files are mapped to human-readable names in `name_map.yaml`. This file can be edited in the `_internal` folder of an already-built Mod Builder release if needed. When new items are added to the game they will appear as `equipment_<type>_<name>_01` in mods like Modify Ammo, Modify Weapon, and Modify Store. Adding the appropriate data to `name_map.yaml` will allow all of the mods to display a proper name.
+Internal item names from the game files are mapped to human-readable names in `name_map.yaml`. This file can be found in the `_internal` folder of an already-built Mod Builder release to update an existing version. When new items are added to the game they will appear as `equipment_<type>_<name>_01` in mods like Modify Ammo, Modify Store, and Modify Weapon. Adding the appropriate data to `name_map.yaml` will allow all of the mods to display a proper name.
 
-1. Determine the "internal" name of the item by reading the name parsed and displayed by Mod Builder
+1. Determine the "internal" name of the item by reading the name parsed and displayed by Mod Builder from Modify Store (reads from `equipment_data.bin`)
 1. Open `name_map.yaml` in a text editor
 1. Find the appropriate location to add the equipment. Ammos/Sights/Weapons/Lures are organized by type. Try to keep things mostly alphabetical
-1. Add the item name as a new key (remove the `equipment_<type>_` prefix). Variant suffixes (`_01`, `_02`) should be removed for weapons
+1. Add the item name as a new key, removing the `equipment_<type>_` prefix. Variant suffixes (`_01`, `_02`) should be removed to group reskins of the same item (common for weapons and structures).
 1. Fill in relevant data for the value (name, type, variant info)
 
-Modify Weapon pulls names from `.wtunec` tuning files in `org/editor/entities/hp_weapons`. These names often do not match the names from other locations. Most of these are handled as duplicate entries using YAML anchors (`&item` and `*item`). Follow the examples in the file to see how to format new additions.
+Modify Weapon pulls names from `.wtunec` tuning files in `org/editor/entities/hp_weapons`. These names often do not match the names from other locations. Some weapons have multiple tuning files for different ammos (shotguns with shot/slugs, Grelck Drilling Rifle, etc). Most of these are handled as duplicate entries using YAML anchors (`&item` and `*item`), with an optional `ammo` value to differentiate mutliple tuning files. Follow the examples in the file to see how to format new additions.
 
 ## How to Build
 
@@ -49,4 +49,17 @@ pip install -r requirements.txt
 3. Run the application:
 ```shell
 python -m modbuilder
+```
+4. Build the application. The `.exe` and accompanying `_internal` folder will be placed in `\build`
+```shell
+pip install pyinstaller
+.\scripts\build.bat
+```
+5. Pack the application. The `modbuilder.7z` file will be placed in `\dist`
+```shell
+.\scripts\pack.bat
+```
+6. Alternatively, build + pack the application with an automated version number tag from `setup.cfg` (eg. `modbuilder_2.2.4.7z`)
+```shell
+.\scripts\build.bat && .\scripts\version.bat
 ```

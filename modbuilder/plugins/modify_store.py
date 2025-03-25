@@ -5,16 +5,14 @@ import re
 
 DEBUG = False
 NAME = "Modify Store"
-DESCRIPTION = "Modify prices and quantites of store items or apply bulk changes to an entire category. Individual and bulk changes in the same category will combine."
-EQUIPMENT_FILE = "settings/hp_settings/equipment_data.bin"
+DESCRIPTION = "Modify prices and quantites of store items or apply bulk changes to an entire category. Individual and bulk changes in the same category can cause unintended results."
+EQUIPMENT_FILE = mods.EQUIPMENT_DATA_FILE
 
 class StoreItem:
   __slots__ = (
     'type',
     'name',
     'display_name',
-    'base_name',
-    'base_display_name',
     'detailed_type',
     'internal_name',
     'price',
@@ -26,8 +24,6 @@ class StoreItem:
   type: str                   # item type
   name: str                   # unique item name for specific item/variant
   display_name: str           # unique display name for specific item/variant
-  base_name: str              # shared item for items with variants (for name_map.yaml)
-  base_display_name: str      # shared display name for items with variants (from name_map.yaml)
   detailed_type: str          # additional type data (weapon for ammo and Illuminated Iron Sights, category for Misc/Lures)
   internal_name: str          # used to match old naming schemes
   price: int
@@ -109,17 +105,12 @@ class StoreItem:
     return display_name
 
   def _map_equipment_name(self) -> None:
-    self.base_name, variant_key = mods.clean_equipment_name(self.name, self.type)
-    mapped_equipment = mods.map_equipment(self.base_name, self.type)
-    if mapped_equipment:
-      self.detailed_type = mapped_equipment.get("type")
-      self.display_name = mods.format_variant_name(mapped_equipment, variant_key)
-      self.base_display_name = mapped_equipment["name"]
+    if (mapped_equipment := mods.map_equipment(self.name, self.type)):
+      self.detailed_type = mapped_equipment.get("type", "")
+      self.display_name = mods.format_variant_name(mapped_equipment)
     else:
-      # print(f"Unable to map equipment {self.name}")
       self.detailed_type = ""
       self.display_name = self.name
-      self.base_display_name = self.base_name
 
   def _format_display_name(self) -> None:
     detailed_type = self.detailed_type if self.detailed_type else ""
@@ -179,7 +170,7 @@ def get_option_elements() -> sg.Column:
     [sg.Column([
         [
           sg.T("Individual:", p=((10,0),(10,0)), text_color="orange"),
-          sg.Checkbox("Auto-update price and quantity", font="_12", default=True, k="store_update_price_quantity", enable_events=True, p=((15,0),(10,0))),
+          sg.Checkbox("Auto-update price and quantity", font="_ 12", default=True, k="store_update_price_quantity", enable_events=True, p=((15,0),(10,0))),
         ],
         [sg.T("Price:", p=((30,0),(10,0))), sg.Input("", size=10, p=((34,0),(10,0)), k="store_item_price")],
         [sg.T("Quantity:", p=((30,0),(10,0)), k="store_item_quantity_label"), sg.Input("", size=10, p=((10,0),(10,0)), k="store_item_quantity")],
@@ -213,9 +204,6 @@ def get_selected_item(window: sg.Window, values: dict) -> StoreItem:
     except ValueError as _e:  # user typed/edited data in box and we cannot match
       pass
   return None
-
-def separate_item_variants(window: sg.Window) -> None:
-  pass
 
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
   if event.startswith("store_"):
@@ -280,7 +268,7 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
       "invalid": "Provide a valid bulk free price"
     }
 
-  if window["store_bulk_quantity"].Disabled:
+  if window["store_bulk_quantity"].Disabled or not values["store_bulk_quantity"]:
     values[f"store_bulk_quantity"] = "0"
   bulk_quantity = values[f"store_bulk_quantity"]
   if bulk_quantity.isdigit():
@@ -304,14 +292,24 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
   }
 
 def format(options: dict) -> str:
+  details = []
   if "free_price" in options:  # category - some pre-2.1.0 version didn't have "bulk_quantity"
-    return f"Modify Store Category: {options['type'].capitalize()} (-{options['discount']}%, free > ${options['free_price']}, {options['bulk_quantity'] if 'bulk_quantity' in options else '0'})"
+    details.append(f"-{options['discount']}% discount")
+    if options['free_price'] > 0:
+      details.append(f"free > {options['free_price']}")
+    bulk_quantity = options.get("bulk_quantity", 0)
+    if bulk_quantity > 0:
+      details.append(f"{bulk_quantity} quantity")
+    return f"Modify Store Category: {options['type'].capitalize()} ({' ,'.join(details)})"
   else:  # single item
     display_name = options.get("display_name", options["name"])  # diplay_name added in 2.2.2
     selected_item = match_old_item(options)  # try to match options to a StoreItem
     if selected_item:
       display_name = selected_item.display_name
-    return f"Modify Store: {options['type'].capitalize()} - {display_name} (${options['price']}, {options['quantity']})"
+    details.append(f"${options["price"]}")
+    if options["quantity"]:
+      details.append(f"{options["quantity"]} quantity")
+    return f"Modify Store: {options['type'].capitalize()} - {display_name} ({' ,'.join(details)})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_store")
@@ -328,7 +326,7 @@ def process(options: dict) -> None:
     if selected_item:
       updates.append({"offset": selected_item.price_offset, "value": options["price"]})
       if options["quantity"] > 0 and selected_item.quantity_offset > 0:
-        updates.append({"offset": selected_item.quantity_offset, "value": ["quantity"]})
+        updates.append({"offset": selected_item.quantity_offset, "value": options["quantity"]})
 
   if "bulk_quantity" in options:  # category
     discount = options["discount"]
@@ -355,8 +353,8 @@ def match_old_item(options: dict) -> StoreItem:
     "illuminated iron sights",  # does not include associated weapon name
     "store_featured",  # Bolt Action Rifle Pack weapons
     "placeable",  # "placeable decoy" and "placeable" structures are non-unique
-    "eurasian teal  decoy",  # strange duplicate names on some duck decoys
-    "eurasian teal decoy",
+    "eurasian teal  decoy",  # strange duplicate "drake" names on both male + female duck decoys
+    "eurasian teal decoy",  # including decoys labeled "eurasian teal" that are not eurasian teal decoys
   )
   if not options["name"].lower().startswith(unmatchable_names):
     cleaned_name = re.sub(r"\s*\(id: \d+\)", "", options["name"]).rstrip()  # remove " (id: 12345)"
@@ -369,8 +367,6 @@ def match_old_item(options: dict) -> StoreItem:
           short_internal_name = re.sub(r'\([\w\s\-\'\./]+\)$', "", item.internal_name).rstrip()
           if cleaned_name == short_internal_name:
             selected_item = item
-    if selected_item:
-      print(f"NAME MATCH: {options["name"]} >> {selected_item.display_name}")
   # 2.2.1 and prior relied on saved price and quantity offsets
   # This breaks when new items are added to `equipment_data.bin`
   # Try to match on those values. This is less accurate the older the save file is.
@@ -383,11 +379,9 @@ def match_old_item(options: dict) -> StoreItem:
       options["price_offset"] == i.price_offset
       and options["quantity_offset"] == i.quantity_offset
     )), None)
-    if selected_item:
-      print(f"OFFSETS MATCH: {options["name"]} >> {selected_item.display_name}")
   return selected_item
 
-def handle_update(mod_key: str, mod_options: dict) -> dict:
+def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
   """
   2.2.2
   - Parse exact prop data from each node for name, price, and quantity (do not save offsets)

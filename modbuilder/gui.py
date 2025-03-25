@@ -1,11 +1,28 @@
-import textwrap, math, inspect
-from modbuilder import __version__, logo, mods, party
-from modbuilder.widgets import create_option, valid_option_value
+import math
+import textwrap
+
 import FreeSimpleGUI as sg
+from deepmerge import always_merger
+
+from modbuilder import __version__, logo, mods, party
+from modbuilder.widgets import create_option, valid_option_value, generate_buttons
 
 DEFAULT_FONT = "_ 14"
 TEXT_WRAP = 142
-MOD_NAMES = [m.NAME for m in mods.MODS_LIST.values()]
+MOD_NAMES = []
+
+def _get_mods(window: sg.Window) -> None:
+  window.refresh()
+  height = window["options"].Widget.winfo_height()  # column sometimes shrinks after window.extend_layout()
+  mods.load_mods()
+  global MOD_NAMES
+  MOD_NAMES = [m.NAME for m in mods.MODS_LIST.values()]
+  window["modification"].update(values=MOD_NAMES)
+  window["modification"].metadata=MOD_NAMES
+  window.extend_layout(window["options"], _get_mod_options())
+  window['options'].Widget.config(height=height)  # reset column height to preserve layout
+  window.refresh()
+  window.set_icon(logo.value)  # fix taskbar icon if it didn't load properly
 
 def _mod_name_to_key(name: str) -> str:
   if name is None:
@@ -21,7 +38,7 @@ def _get_mod_options() -> list[dict]:
     mod_details.append([sg.T(textwrap.fill(mod.DESCRIPTION, TEXT_WRAP), p=(10,0))])
 
     if hasattr(mod, "WARNING"):
-      warning_header = sg.T("WARNING", font="_ 14", text_color="red", p=(10, 10), background_color="black")
+      warning_header = sg.T(" WARNING ", font="_ 14", text_color="firebrick1", p=(10, 10), background_color="black")
       warning = sg.T(textwrap.fill(mod.WARNING, TEXT_WRAP), p=(10,0))
       mod_details.append([warning_header])
       mod_details.append([warning])
@@ -59,8 +76,8 @@ def _format_selected_mods(selected_mods: dict) -> list[str]:
     if mod is not None:
       try:
         formatted_mod_options.append(mod.format(mod_options))
-      except:
-        pass
+      except Exception as e:
+        print(f"ERROR! {mod_key} : {e}")
   return formatted_mod_options
 
 def _valid_option_value(mod_option: dict, mod_value: any) -> str:
@@ -68,7 +85,7 @@ def _valid_option_value(mod_option: dict, mod_value: any) -> str:
 
 def _enable_mod_button(window: sg.Window) -> None:
   selected_mod_size = len(window["selected_mods"].get_list_values())
-  window["build_tab"].update(title=f"Build Modifications ({selected_mod_size})")
+  window["build_mod_tab"].update(title=f"Build Modifications ({selected_mod_size})")
   window["build_mod"].update(disabled=(selected_mod_size == 0))
   window["save"].update(disabled=(selected_mod_size == 0))
   window["move_up"].update(disabled=(selected_mod_size == 0))
@@ -156,11 +173,11 @@ def _load_and_validate_saved_mods(mod_list_name: str, window: sg.Window, event: 
   if imported_mods["error"]:
     _show_update_errors(imported_mods["error"])
   if imported_mods["update"]:
-    _show_updated_mods(imported_mods, mod_list_name, event)
-    loaded_mods_list |= (imported_mods["update"])
+    _handle_updated_mods(imported_mods, mod_list_name, event)
+    loaded_mods_list = always_merger.merge(loaded_mods_list, imported_mods["update"])
   return loaded_mods_list
 
-def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Window) -> dict[str, any]:
+def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Window) -> dict[str, dict[str, dict]]:
   mods_to_keep = {}
   updated_mods = {}
   update_errors = {}
@@ -170,13 +187,13 @@ def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Wi
   step = 1
   progress_step = 100 / len(loaded_saved_mods)
   for mod_key, mod_options in loaded_saved_mods.items():
-    result, output = mods.validate_and_update_mod(mod_key, mod_options)
+    result, output_mods = mods.validate_and_update_mod(mod_key, mod_options)
     if result == "invalid":
       mods_to_remove[mod_key] = mod_options
     elif result == "update":
-      updated_mods |= output
+      updated_mods = always_merger.merge(updated_mods, output_mods)
     elif result == "error":
-      update_errors[mods.format_mod_display_name(mod_key, mod_options)] = output
+      update_errors[mods.format_mod_display_name(mod_key, mod_options)] = output_mods
     elif result == "valid":
       mods_to_keep[mod_key] = mod_options
     else:
@@ -187,29 +204,69 @@ def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Wi
   return {"load": mods_to_keep, "update": updated_mods, "error": update_errors, "remove": mods_to_remove}
 
 def _handle_unsupported_mods(imported_mods: dict, mod_list_name: str) -> dict:
-  formatted_mods_list = "".join(f"\n - {mods.format_mod_display_name(mod_key, mod_options)}" for mod_key, mod_options in imported_mods["remove"].items())
-  remove_confirm = sg.popup_scrolled(f"The following mods are unsupported and cannot be loaded. Do you want to remove them from the save file?\n{formatted_mods_list}", title=f"Unsupported mod configuration", icon=logo.value, yes_no=True, font=DEFAULT_FONT)
+  formatted_mods = [mods.format_mod_display_name(mod_key, mod_options) for mod_key, mod_options in imported_mods["remove"].items()]
+  count = len(formatted_mods)
+  s = "s" if count > 1 else ""
+  remove_confirm = _show_mods_popup(
+    "Unsupported mod configuration",
+    "UNSUPPORTED MODS!", "firebrick1",
+    f"The following mod{s} are unsupported and cannot be loaded.",
+    "Do you want to remove them from the save file?",
+    ["yes", "no"],
+    formatted_mods,
+  )
   if remove_confirm == "Yes":
-    mods_to_keep = imported_mods["load"] | imported_mods["update"]
+    mods_to_keep = always_merger.merge(imported_mods["load"], imported_mods["update"])
     mods.save_mod_list(mods_to_keep, mod_list_name)
     return {}
   return imported_mods["remove"]
 
-def _show_updated_mods(imported_mods: dict, mod_list_name: str, event: str) -> None:
-  formatted_updates = [mods.format_mod_display_name(new_key, new_options) for new_key, new_options in imported_mods["update"].items()]
-  if imported_mods["error"] or event == "merge":
-    formatted_mods_list = "".join(f"\n - {line}" for line in formatted_updates)
-    sg.popup_scrolled(f"The following mods were updated successfully and will be loaded.\n\nThe save file has NOT been modified.\n{formatted_mods_list}", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
-  else:
-    update_confirm = sg.popup_yes_no(f"Updated configuration for {len(imported_mods["update"])} mods. Do you want to update the save file?", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
-    if update_confirm == "Yes":
-      mods_to_keep = imported_mods["load"] | imported_mods["update"] | imported_mods["remove"]
-      mods.save_mod_list(mods_to_keep, mod_list_name)
-      sg.popup_quick_message("Modifications Saved", font="_ 28", background_color="brown")
+def _handle_updated_mods(imported_mods: dict, mod_list_name: str, event: str) -> None:
+  formatted_mods = [mods.format_mod_display_name(new_key, new_options) for new_key, new_options in imported_mods["update"].items()]
+  count = len(formatted_mods)
+  s = "s" if count > 1 else ""
+  update_confirm = _show_mods_popup(
+      f"Updated {count} mod{s}",
+      "UPDATE SUCCESS!", "green",
+      f"{len(formatted_mods)} mod{s} were updated and will be loaded",
+      "Do you want to update the save file?",
+      ["yes", "no"],
+      formatted_mods,
+    )
+    # update_confirm = sg.popup_yes_no(f"Updated configuration for {len(imported_mods["update"])} mods. Do you want to update the save file?", title=f"Update success!", icon=logo.value, font=DEFAULT_FONT)
+  if update_confirm == "Yes":
+    mods_to_keep = always_merger.merge(always_merger.merge(imported_mods["remove"], imported_mods["load"]), imported_mods["update"])
+    mods.save_mod_list(mods_to_keep, mod_list_name)
+    sg.popup_quick_message("Modifications Saved", font="_ 28", background_color="brown")
 
 def _show_update_errors(update_errors: list[dict]) -> None:
-  formatted_errors = "".join(f"\n - {key}: {value}" for key, value in update_errors.items())
-  sg.popup_scrolled(f"Update failed!\nThe following mods could not be loaded. Please recreate them with updated settings.\n\nThe save file has NOT been modified.\n{formatted_errors}", title=f"ERROR: Update failed!", icon=logo.value, font=DEFAULT_FONT)
+  formatted_errors = [f"{key}: {value}" for key, value in update_errors.items()]
+  count = len(formatted_errors)
+  s = "s" if count > 1 else ""
+  _show_mods_popup(
+    f"Error updating {count} mod{s}",
+    "ERROR!", "firebrick1",
+    f"{count} mod{s} could not be loaded. Please recreate with updated settings.",
+    "The save file has NOT been modified",
+    ["ok"],
+    formatted_errors,
+  )
+
+def _show_mods_popup(title: str, highlighted_text: str, color: str, message: str, prompt: str, button_names: list[str], formatted_list: list[str]) -> None:
+  longest_line = max(formatted_list, key=len)
+  width = min(len(longest_line) + 1, 110)
+  height = min(len(formatted_list), 20)
+  layout = [[
+    sg.Column([
+      [sg.T(highlighted_text, text_color=color),
+       sg.T(message, p=(0,0))],
+      [sg.Listbox(formatted_list, size=(width, height), expand_x=True, expand_y=True)],
+      [sg.T(prompt)],
+      generate_buttons(button_names)
+    ], expand_x=True, expand_y=True)
+  ]]
+  choice,_ = sg.Window(title, layout, icon=logo.value, modal=True, resizable=True, finalize=True).read(close=True)
+  return choice
 
 def _move_mods(selected_mods: dict, listbox: sg.Listbox, direction: int) -> dict:
   selected_mod_indices = sorted(list(listbox.get_indexes()), reverse=(direction == 1))  # reverse if moving down the list
@@ -259,12 +316,12 @@ def _delete_mods(selected_mods: dict, listbox: sg.Listbox) -> dict:
 
 def main() -> None:
   sg.theme("DarkAmber")
-  sg.set_options({ "font": DEFAULT_FONT })
+  sg.set_options(font=DEFAULT_FONT)
 
   selected_mods = {}
   loaded_mod_list_name = ""
-  mod_options = _get_mod_options()
   change_path_text = "(change path)" if mods.get_dropzone() else "(set path)"
+  loading_text = " Loading mods. Please wait... "
 
   layout = [
     [
@@ -284,12 +341,12 @@ def main() -> None:
         sg.Tab("Add Modification", [
           [
             sg.Column([
-              [sg.T("Mod:", p=((18, 10), (10,0)), font="_ 14 underline", text_color="orange"), sg.Combo(MOD_NAMES, k="modification", metadata=mods.list_mod_files(), enable_events=True, p=((0, 0), (10, 0)))],
-              [sg.Column(mod_options, p=(0,0), k="options", expand_y=True, expand_x=True, scrollable=True, vertical_scroll_only=True)],
+              [sg.T("Mod:", p=((18, 10), (10,0)), font="_ 14 underline", text_color="orange"), sg.Combo([loading_text], default_value=loading_text, k="modification", metadata=[], enable_events=True, p=((0, 0), (10, 0)))],
+              [sg.Column([], p=(0,0), k="options", expand_x=True, expand_y=True, scrollable=True, vertical_scroll_only=True)],
               [sg.Button("Add Modification", k="add_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True, expand_x=True)]
-            ], k="mod_col", expand_y=True, expand_x=True, p=((0,0), (10,0))),
+            ], k="add_mod_col", expand_x=True, expand_y=True, p=((0,0), (10,0))),
           ],
-        ]),
+        ], k="add_mod_tab"),
         sg.Tab("Build Modifications (0)", [
           [
             sg.Column([
@@ -303,10 +360,10 @@ def main() -> None:
                   sg.Button("Remove", k="remove_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True)
                 ],
                 [sg.Button("Build Modifications", k="build_mod", button_color=f"{sg.theme_element_text_color()} on brown", expand_x=True, disabled=True)]
-            ], k="selected_col", expand_x=True, expand_y=True, p=((0,0), (0,0))),
+            ], k="build_mod_col", expand_x=True, expand_y=True, p=((0,0), (0,0))),
           ]
-        ], k="build_tab")
-      ]], expand_x=True, expand_y=True)
+        ], k="build_mod_tab")
+      ]], k="modbuilder_tab_group", expand_x=True, expand_y=True)
     ],
     [
       sg.ProgressBar(100, orientation="h", k="build_progress", expand_x=True, s=(10,20))
@@ -314,6 +371,7 @@ def main() -> None:
   ]
 
   window = sg.Window("COTW: Mod Builder - Revived", layout, resizable=True, font=DEFAULT_FONT, icon=logo.value, size=(1300, 800), finalize=True)
+  _get_mods(window)
 
   while True:
     event, values = window.read()
@@ -392,11 +450,7 @@ def main() -> None:
         mods.apply_mod(mod, mod_options)
 
         if hasattr(mod, "merge_files"):
-          merge_params = inspect.signature(mod.merge_files).parameters
-          if len(merge_params) == 2:
-            mod.merge_files(modded_files, mod_options)
-          else:
-            mod.merge_files(modded_files)
+          mod.merge_files(modded_files, mod_options)
         step_progress = math.floor(step * progress_step)
         window["build_progress"].update(step_progress)
         step += 1
@@ -418,7 +472,7 @@ def main() -> None:
     elif event == "load":
       merge, loaded_mods, loaded_mod_list_name = _show_load_mod_list()
       if loaded_mods:
-        selected_mods = selected_mods | loaded_mods if merge else loaded_mods
+        selected_mods = always_merger.merge(selected_mods, loaded_mods) if merge else loaded_mods
         formatted_mods_list = _format_selected_mods(selected_mods)
         window["selected_mods"].update(formatted_mods_list)
         _enable_mod_button(window)

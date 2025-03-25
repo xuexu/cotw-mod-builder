@@ -85,3 +85,17 @@ def valid_option_value(mod_option: dict, mod_value: any) -> str:
     except:
         pass
     return f"Invalid Value: {mod_value} \n\nMust be between {min_value} and {max_value}"
+
+
+def generate_buttons(button_names: list[str]) -> list[sg.Button]:
+    button_map = {
+        "yes": sg.Yes,
+        "no": sg.No,
+        "ok": sg.OK,
+        "cancel": sg.Cancel,
+        "exit": sg.Exit,
+        "submit": sg.Submit,
+        "quit": sg.Quit,
+        "save": sg.Save
+    }
+    return [button_map[name.lower()]() if name.lower() in button_map else sg.Button(name) for name in button_names]

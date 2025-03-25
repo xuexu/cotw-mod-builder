@@ -64,25 +64,25 @@ PropType_names = [
     'unk_15',
     'unk_16',
 ]
+# These hashes are not used by Mod Builder and commenting them out saves ~1s when importing this file
+# h_prop_class = hash32_func('_class')
+# h_prop_class_hash = hash32_func('_class_hash')
+# h_prop_name = hash32_func('name')
+# h_prop_world = hash32_func('world')
+# h_prop_script = hash32_func('script')
+# h_prop_border = hash32_func('border')
+# h_prop_object_id = hash32_func('_object_id')
+# h_prop_label_key = hash32_func('label_key')
+# h_prop_note = hash32_func('note')
+# h_prop_spline = hash32_func('spline')
+# h_prop_spawn_tags = hash32_func('spawn_tags')
+# h_prop_model_skeleton = hash32_func('model_skeleton')
+# h_prop_skeleton = hash32_func('skeleton')
+# h_prop_need_type = hash32_func('need_type')
+# h_prop_start_time = hash32_func('start_time')
 
-h_prop_class = hash32_func('_class')
-h_prop_class_hash = hash32_func('_class_hash')
-h_prop_name = hash32_func('name')
-h_prop_world = hash32_func('world')
-h_prop_script = hash32_func('script')
-h_prop_border = hash32_func('border')
-h_prop_object_id = hash32_func('_object_id')
-h_prop_label_key = hash32_func('label_key')
-h_prop_note = hash32_func('note')
-h_prop_spline = hash32_func('spline')
-h_prop_spawn_tags = hash32_func('spawn_tags')
-h_prop_model_skeleton = hash32_func('model_skeleton')
-h_prop_skeleton = hash32_func('skeleton')
-h_prop_need_type = hash32_func('need_type')
-h_prop_start_time = hash32_func('start_time')
-
-h_prop_item_item_id = hash32_func('[Item]  Item ID')
-h_prop_ref_apex_identifier = hash32_func('[ref] apex identifier')
+# h_prop_item_item_id = hash32_func('[Item]  Item ID')
+# h_prop_ref_apex_identifier = hash32_func('[ref] apex identifier')
 
 # guess at naming these fields
 h_prop_deca_crafting_type = 0xa949bc65

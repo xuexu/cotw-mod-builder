@@ -1,0 +1,21 @@
+{
+  "version": "2.2.4",
+  "mod_options": {
+    "modify_weapon_type_bow": {
+      "type": "bow",
+      "disable_bullet_drop": true
+    },
+    "modify_weapon_type_handgun": {
+      "type": "handgun",
+      "disable_bullet_drop": true
+    },
+    "modify_weapon_type_rifle": {
+      "type": "rifle",
+      "disable_bullet_drop": true
+    },
+    "modify_weapon_type_shotgun": {
+      "type": "shotgun",
+      "disable_bullet_drop": true
+    }
+  }
+}

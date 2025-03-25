@@ -23,9 +23,8 @@ class Optics:
   def _map_name(self) -> None:
     split_file = self.file.split("/")
     filename = split_file[-1].replace(".sighttunec","")  # filename without "".sighttunec" extension
-    self.name, _v = mods.clean_equipment_name(filename, "optic")
-    mapped_eqipment = mods.map_equipment(self.name, "optic")
-    if mapped_eqipment:
+    self.name = mods.clean_equipment_name(filename, "optic")
+    if (mapped_eqipment := mods.map_equipment(self.name, "optic")):
       self.display_name = mapped_eqipment["name"]
     else:
       self.display_name = self.name
@@ -95,7 +94,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def format(options: dict) -> str:
-  return f"Modify Optics: {options['name']} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
+  return f"Modify Optics: {options.get('display_name', options['name'])} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_optics")
@@ -138,10 +137,11 @@ def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
   )
   if not selected_optics:
     raise ValueError(f"Unable to match optics {mod_options['name']}")
-  # 2.2.1 and prior saved display_name as the key and name
+
   updated_mod_key = f"modify_optics_{selected_optics.name}"
   updated_mod_options = mod_options
   updated_mod_options["name"] = selected_optics.name
+  updated_mod_options["display_name"] = selected_optics.display_name
   updated_mod_options["file"] = selected_optics.file
   updated_mod_options["bundle_file"] = selected_optics.bundle_file
   return updated_mod_key, updated_mod_options

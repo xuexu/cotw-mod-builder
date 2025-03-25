@@ -39,9 +39,8 @@ class Scope:
   def _map_name(self) -> None:
     split_file = self.file.split("/")
     filename = split_file[-1].removesuffix(".sighttunec")  # filename without "".sighttunec" extension
-    self.name, _v = mods.clean_equipment_name(filename, "sight")
-    mapped_eqipment = mods.map_equipment(self.name, "sight")
-    if mapped_eqipment:
+    self.name = mods.clean_equipment_name(filename, "sight")
+    if (mapped_eqipment := mods.map_equipment(self.name, "sight")):
       self.display_name = mapped_eqipment["name"]
     else:
       self.display_name = self.name

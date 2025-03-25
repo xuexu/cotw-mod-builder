@@ -1,17 +1,25 @@
-import os, sys, struct, shutil, json, importlib.util
+import importlib.util
+import io
+import json
+import os
+import re
+import shutil
+import struct
+import sys
 from pathlib import Path
-from deca.file import ArchiveFile
-from deca.ff_adf import Adf
-from deca.ff_rtpc import rtpc_from_binary, RtpcNode
-from deca.ff_sarc import FileSarc, EntrySarc
-from modbuilder.adf_profile import *
-from modbuilder import mods2, __version__
-import FreeSimpleGUI as sg
 from types import ModuleType
+
+import FreeSimpleGUI as sg
 import yaml
 
+from deca.ff_adf import Adf
+from deca.ff_rtpc import RtpcNode, rtpc_from_binary
+from deca.ff_sarc import EntrySarc, FileSarc
+from deca.file import ArchiveFile
+from modbuilder import __version__, adf_profile, mods2
+
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
-MOD_PATH = APP_DIR_PATH / "mod" / "dropzone"
+MOD_PATH = APP_DIR_PATH / "mod/dropzone"
 LOOKUP_PATH = APP_DIR_PATH / "org/lookups"
 PLUGINS_FOLDER = "plugins"
 GLOBAL_SRC_PATH = "gdc/global.gdcc"
@@ -23,15 +31,52 @@ ELMER_MOVEMENT_NETWORK_PATH = APP_DIR_PATH / "org" / ELMER_MOVEMENT_NETWORK_SRC_
 GLOBAL_ANIMALS_SRC_PATH = "global/global_animal_types.bl"
 GLOBAL_ANIMALS_PATH = APP_DIR_PATH / "org" / GLOBAL_ANIMALS_SRC_PATH
 GAME_PATH_FILE = APP_DIR_PATH / "game_path.txt"
-
+EQUIPMENT_DATA_FILE = "settings/hp_settings/equipment_data.bin"
+EQUIPMENT_UI_FILE = "settings/hp_settings/equipment_stats_ui.bin"
+MODS_EQUIPMENT_UI_DATA = None
+MODS_LIST = DEBUG_MODS_LIST = None
+GLOBAL_FILES = LOCAL_PLAYER_FILES = NETWORK_PLAYER_FILES = GLOBAL_ANIMAL_FILES = None
 with open(APP_DIR_PATH / "name_map.yaml", "r") as file:
     NAME_MAP = yaml.safe_load(file)
 
-def _load_mod(filename: str) -> ModuleType:
-  spec = importlib.util.spec_from_file_location(filename, str(APP_DIR_PATH / PLUGINS_FOLDER / f"{filename}.py"))
-  py_mod = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(py_mod)
-  return py_mod
+GLOBAL_FILES: dict
+LOCAL_PLAYER_FILES: dict
+NETWORK_PLAYER_FILES: dict
+GLOBAL_ANIMAL_FILES: dict
+MODS_LIST: dict[str, ModuleType]
+DEBUG_MODS_LIST: dict[str, ModuleType]
+MODS_EQUIPMENT_UI_DATA: Adf
+NAME_MAP: dict[str, dict]
+
+
+def load_mods() -> None:
+  load_global_files()
+  load_equipment_ui_data()
+  get_mods()
+
+def load_global_files() -> None:
+  global GLOBAL_FILES, LOCAL_PLAYER_FILES, NETWORK_PLAYER_FILES, GLOBAL_ANIMAL_FILES
+  GLOBAL_FILES = get_global_file_info()
+  LOCAL_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_LOCAL_PATH)
+  NETWORK_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_NETWORK_PATH)
+  GLOBAL_ANIMAL_FILES = get_global_animal_info(GLOBAL_ANIMALS_PATH)
+
+def load_equipment_ui_data() -> Adf:
+  global EQUIPMENT_UI_DATA
+  EQUIPMENT_UI_DATA = mods2.deserialize_adf(APP_DIR_PATH / "org" / EQUIPMENT_UI_FILE)
+
+def get_mods() -> None:
+  mod_filenames = _get_mod_filenames()
+  global MODS_LIST, DEBUG_MODS_LIST
+  MODS_LIST = {}
+  DEBUG_MODS_LIST = {}
+  clear_mod()
+  for mod_filename in mod_filenames:
+    loaded_mod = _load_mod(mod_filename)
+    if getattr(loaded_mod, "DEBUG", True):
+      DEBUG_MODS_LIST[mod_filename] = loaded_mod
+    else:
+      MODS_LIST[mod_filename] = loaded_mod
 
 def _get_mod_filenames() -> list[str]:
   mod_filenames = []
@@ -41,17 +86,11 @@ def _get_mod_filenames() -> list[str]:
       mod_filenames.append(file_name)
   return mod_filenames
 
-def get_mods() -> tuple[dict[str, ModuleType], dict[str, ModuleType]]:
-  mod_filenames = _get_mod_filenames()
-  active_mods = {}
-  disabled_mods = {}
-  for mod_filename in mod_filenames:
-    loaded_mod = _load_mod(mod_filename)
-    if getattr(loaded_mod, "DEBUG", True):  # DEBUG == True or mod doesn't have DEBUG
-      disabled_mods[mod_filename] = loaded_mod
-    else:
-      active_mods[mod_filename] = loaded_mod
-  return active_mods, disabled_mods
+def _load_mod(filename: str) -> ModuleType:
+  spec = importlib.util.spec_from_file_location(filename, str(APP_DIR_PATH / PLUGINS_FOLDER / f"{filename}.py"))
+  py_mod = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(py_mod)
+  return py_mod
 
 def get_mod_keys() -> list[str]:
   return _get_mod_filenames()
@@ -69,11 +108,11 @@ def get_mod(mod_key: str) -> ModuleType:
 def format_mod_display_name(mod_key:str, mod_options) -> str:
   mod = get_mod(mod_key)
   if mod is None:
-    formatted_name = get_mod_name_from_key(mod_key)
+    formatted_name = get_mod_name_from_key(mod_key).title()
   elif hasattr(mod, "format"):
     formatted_name = mod.format(mod_options)
   else:
-    formatted_name = get_mod_full_name_from_key(mod_key)
+    formatted_name = get_mod_full_name_from_key(mod_key).title()
   return formatted_name
 
 def delegate_event(event: str, window: sg.Window, values: dict) -> None:
@@ -216,41 +255,48 @@ def apply_updates_to_file(src_filename: str, updates: list[dict]):
       transform = update.get("transform")
       format = update.get("format")
       # print(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
-      fp.seek(offset)
-      if format:
-        if format == "sint08":
-          fp.write(struct.pack("h", value))
+      if transform == "insert":
+        insert_bytearray(fp, update)
       else:
-        if isinstance(value, str):
-          fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
-        elif isinstance(value, float):
-          new_value = value
-          if transform == "multiply":
-            existing_value = struct.unpack('f', fp.read(4))[0]
-            new_value = value * existing_value
+        fp.seek(offset)
+        if format:
+          if format == "sint08":
+            fp.write(struct.pack("h", value))
+          if format == "uint08":
+            fp.write(struct.pack("B", value))
+        else:
+          if isinstance(value, str):
+            fp.write(struct.pack(f"{len(value)}s", value.encode("utf-8")))
+          elif isinstance(value, bytes):
+            fp.write(struct.pack(f"{len(value)}s", value))
+          elif isinstance(value, float):
+            new_value = value
+            if transform == "multiply":
+              existing_value = struct.unpack('f', fp.read(4))[0]
+              new_value = value * existing_value
+              fp.seek(offset)
+            fp.write(struct.pack("f", new_value))
+          elif isinstance(value, int):
+            new_value = value
+            if transform == "add":
+              existing_value = struct.unpack("i", fp.read(4))[0]
+              new_value = value + existing_value
+            elif transform == "multiply":
+              existing_value = struct.unpack("i", fp.read(4))[0]
+              new_value = round(value * existing_value)
             fp.seek(offset)
-          fp.write(struct.pack("f", new_value))
-        elif isinstance(value, int):
-          new_value = value
-          if transform == "add":
-            existing_value = struct.unpack("i", fp.read(4))[0]
-            new_value = value + existing_value
-          elif transform == "multiply":
-            existing_value = struct.unpack("i", fp.read(4))[0]
-            new_value = round(value * existing_value)
-          fp.seek(offset)
-          fp.write(struct.pack("i", new_value))
+            fp.write(struct.pack("i", new_value))
       fp.flush()
 
 def apply_mod(mod: any, options: dict) -> None:
   if hasattr(mod, "update_values_at_offset"):
     updates = mod.update_values_at_offset(options)
     if updates:
-      apply_updates_to_file(Path(mod.FILE), updates)
+      apply_updates_to_file(mod.FILE, updates)
   elif hasattr(mod, "update_values_at_coordinates"):
     updates = mod.update_values_at_coordinates(options)
     if updates:
-      mods2.apply_coordinate_updates_to_file(Path(mod.FILE), updates)
+      mods2.apply_coordinate_updates_to_file(mod.FILE, updates)
   else:
     mod.process(options)
 
@@ -362,10 +408,10 @@ def expand_into_archive(filename: str, merge_path: str) -> None:
 
   merge_bytes = bytearray(mod_merge_path.read_bytes())
   for file_to_update in offsets_to_update:
-    merge_bytes[file_to_update[1]:file_to_update[1]+4] = create_u32(file_to_update[2])
+    merge_bytes[file_to_update[1]:file_to_update[1]+4] = adf_profile.create_u32(file_to_update[2])
 
   filename_bytes = bytearray(src_path.read_bytes())
-  merge_bytes[file_length_offset:file_length_offset+4] = create_u32(new_file_size)
+  merge_bytes[file_length_offset:file_length_offset+4] = adf_profile.create_u32(new_file_size)
   del merge_bytes[file_offset:file_offset+old_file_size]
   merge_bytes[file_offset:file_offset] = filename_bytes
   mod_merge_path.write_bytes(merge_bytes)
@@ -410,7 +456,7 @@ def delete_saved_mod_list(name: str) -> None:
 def load_saved_mod_list(name: str) -> dict:
   return json.load(Path(APP_DIR_PATH / "saves"/ f"{name}.json").open())
 
-def validate_and_update_mod(mod_key: str, mod_options: dict) -> dict[str, any]:
+def validate_and_update_mod(mod_key: str, mod_options: dict) -> tuple[str, dict[str, dict]]:
   mod = get_mod(mod_key)
   if not _is_mod_valid(mod):
     return ("invalid", None)
@@ -534,67 +580,142 @@ def lookup_column(
     result.append((c["cell_index_offset"], cell_index))
   return result
 
-def update_non_instance_offsets(data: bytearray, profile: dict, added_size: int) -> None:
-  offsets_to_update = [
-    (profile["header_instance_offset"], profile["instance_header_start"]),
-    (profile["header_typedef_offset"], profile["typedef_start"]),
-    (profile["header_stringhash_offset"], profile["stringhash_start"]),
-    (profile["header_nametable_offset"], profile["nametable_start"]),
-    (profile["header_total_size_offset"], profile["total_size"]),
-    (profile["instance_header_start"]+12, profile["details"]["instance_offsets"]["instances"][0]["size"])
+def create_bytearray(values: any, data_format: str) -> bytearray:
+  result = bytearray()
+  if not isinstance(values, list):
+    values = [values]
+  if data_format == "bytes":
+    for v in values:
+      result += v
+  if data_format == "uint08":
+    for v in values:
+      result += adf_profile.create_u8(v)
+  if data_format == "uint32":
+    for v in values:
+      result += adf_profile.create_u32(v)
+  if data_format == "float32":
+    for v in values:
+      result += adf_profile.create_f32(v)
+  if data_format == "string":
+    for v in values:
+      if isinstance(v, str):
+        v = v.encode("utf-8")
+      # strings must be padded to a multiple of 8 bytes and end in a null character
+      v += b'\00'
+      padding = (8 - len(v) % 8) % 8
+      result += v + (b'\x00' * padding)
+  if data_format == "cell_definition":
+    for v in values:
+      result += adf_profile.create_u16(v.value["Type"].value)
+      result += adf_profile.create_u16(0)
+      result += adf_profile.create_u32(v.value["DataIndex"].value)
+      result += adf_profile.create_u32(v.value["AttributeIndex"].value)
+  return result
+
+def update_non_instance_offsets(extracted_adf: Adf, added_size: int, verbose: bool = False) -> list[dict]:
+  updates = []
+  if verbose:
+    print(f"  Updateing file header offsets by {added_size}")
+  offsets_and_values = [
+    (extracted_adf.header_profile["instance_offset_offset"], extracted_adf.instance_offset),
+    (extracted_adf.header_profile["typedef_offset_offset"], extracted_adf.typedef_offset),
+    (extracted_adf.header_profile["stringhash_offset_offset"], extracted_adf.stringhash_offset),
+    (extracted_adf.header_profile["nametable_offset_offset"], extracted_adf.nametable_offset),
+    (extracted_adf.header_profile["total_size_offset"], extracted_adf.total_size),
+    (extracted_adf.table_instance[0].header_profile["size_offset"], extracted_adf.table_instance[0].size),
   ]
-  for offset in offsets_to_update:
-    new_value = offset[1] + added_size
-    if (new_value < 0):
-      new_value = 0
-    write_value(data, create_u32(new_value), offset[0])
 
-def insert_array_data(file: Path, new_data: bytearray, header_offset: int, data_offset: int, array_length: int, old_array_length: int = None) -> None:
-  modded_file = get_modded_file(file)
-  profile = create_profile(modded_file)
-  data = bytearray(modded_file.read_bytes())
-  update_non_instance_offsets(data, profile, array_length-old_array_length)
-  write_value(data, create_u32(array_length), header_offset+8)
-  if old_array_length:
-    del data[data_offset:data_offset+old_array_length]
-  data[data_offset:data_offset] = new_data
-  modded_file.write_bytes(data)
+  # Add offsets and values to updates list
+  for offset, value in offsets_and_values:
+    if value > 0:  # do not add to offsets of 0
+      new_value = max(value + added_size, 0)
+      updates.append({"offset": offset, "value": new_value})
 
-def clean_equipment_name(name: str, equipment_type: str) -> tuple[str, str]:
+  # Update values in the extractd ADF
+  extracted_adf.instance_offset += added_size
+  extracted_adf.typedef_offset += added_size
+  if extracted_adf.stringhash_offset:  # ADF that extracts to XLSX don't have `stringhash_offset`
+    extracted_adf.stringhash_offset += added_size
+  extracted_adf.nametable_offset += added_size
+  extracted_adf.total_size += added_size
+  extracted_adf.table_instance[0].size += added_size
+  # Update offsets in header_profile
+  for k, v in extracted_adf.table_instance[0].header_profile.items():
+    extracted_adf.table_instance[0].header_profile[k] = v + added_size
+
+  return updates
+
+def update_array_data(file: Path, new_array: bytearray, data_offset: int, bytes_to_remove: int = 0) -> list[dict]:
+  updates = []
+  extracted_adf = mods2.deserialize_adf(file)
+  added_size = len(new_array) - bytes_to_remove
+  if added_size != 0:
+    updates.extend(update_non_instance_offsets(extracted_adf, added_size))
+  array_update = {
+    "offset": data_offset,
+    "value": new_array,
+    "transform": "insert",
+    "bytes_to_remove": bytes_to_remove,
+  }
+  updates.append(array_update)
+  return updates
+
+def insert_bytearray(fp: io.BufferedRandom, update: dict) -> None:
+  # Read data after the section to delete
+  bytes_to_delete = update.get("bytes_to_remove", 0)
+  fp.seek(update["offset"] + bytes_to_delete)
+  remaining_data = fp.read()
+  # Write new data at the original offset
+  fp.seek(update["offset"])
+  fp.write(update["value"])
+  # Write back the remaining data and truncate to remove extra bytes if the new array is smaller
+  fp.write(remaining_data)
+  fp.truncate()
+
+def clean_equipment_name(name: str, equipment_type: str) -> str:
   name = name.removeprefix("equipment_").removeprefix(f"{equipment_type}_")
-  cleaned_name = name
-  variant_key = None
-  if equipment_type == "misc":
-      cleaned_name = name
-      backpack_colors = ["blaze", "evergreen", "glacier"]
-      for color in backpack_colors:
-        if name.endswith(color):
-          variant_key = color
-          cleaned_name = cleaned_name.removesuffix(f"_{color}")
   if equipment_type == "optic":
-      cleaned_name = name.removeprefix("optics_")
+    name = name.removeprefix("optics_")
   if equipment_type == "sight":
-      cleaned_name = name.removeprefix("scope_")
-  # some equipments have multiple variants that end in an identifier eg. _01, _02, etc
-  # parse out the item name to group all variants as a single key in name_map.yaml
-  # return the variant id if it exists in case we need the specific variant
+    name = name.removeprefix("scope_")
+  if equipment_type == "weapon":
+    name = name.removesuffix("_slugs")
+  return name
+
+def parse_variant_key(name: str, equipment_type: str) -> tuple[str, str]:
+  # some equipments have multiple variants that end in an identifier (eg. _01, _02, etc)
+  # parsing the name and variant ID separately lets us group variants under a single entry in name_map.yaml
+  base_name = name
+  variant_key = ""
+  if equipment_type == "misc":
+    for color in ["blaze", "evergreen", "glacier"]:  # backpacks have color names as their variant identifiers
+      if name.endswith(color):
+        variant_key = color
+        base_name = name.removesuffix(f"_{color}")
   if equipment_type in ["weapon", "structure", "lure"]:
-      pattern = r'^([a-zA-Z_0-9]+?)(?:_(0\d))?$'
-      matches = re.match(pattern, name)
-      if matches:
-        cleaned_name = matches.group(1)
-        variant_key = str(matches.group(2))
-      else:
-        cleaned_name = name
-  return cleaned_name, variant_key
+    pattern = r'^([a-zA-Z_0-9]+?)(?:_(0\d))?$'
+    matches = re.match(pattern, name)
+    if matches:
+      base_name = matches.group(1)
+      variant_key = str(matches.group(2))
+  return base_name, variant_key
 
 def map_equipment(name: str, equipment_type: str) -> dict:
-  mapped_equipment = NAME_MAP[equipment_type].get(name, {})
-  return mapped_equipment
+  clean_name = clean_equipment_name(name, equipment_type)
+  if (mapped_equipment := NAME_MAP[equipment_type].get(clean_name)):
+    mapped_equipment["map_name"] = clean_name
+    return mapped_equipment
+  base_name, variant_key = parse_variant_key(clean_name, equipment_type)
+  if (mapped_equipment := NAME_MAP[equipment_type].get(base_name)):
+    mapped_equipment["variant_key"] = variant_key
+    mapped_equipment["map_name"] = base_name
+    return mapped_equipment
+  return {}
 
-def format_variant_name(mapped_equipment: dict, variant_key: str) -> str:
+def format_variant_name(mapped_equipment: dict) -> str:
   formatted_name = mapped_equipment["name"]
-  if variant_key:
+  if "variant_key" in mapped_equipment:
+    variant_key = mapped_equipment["variant_key"]
     if "variant" in mapped_equipment:
       variant_name = mapped_equipment["variant"].get(variant_key)
       if variant_name:
@@ -609,27 +730,3 @@ def format_variant_name(mapped_equipment: dict, variant_key: str) -> str:
         formatted_name = f"{mapped_equipment["name"]} - {variant_key}"  # unknown style
   return formatted_name
 
-def get_equipment_name(name: str, equipment_type: str, variant: bool = False) -> str:
-  clean_name, variant_key = clean_equipment_name(name, equipment_type)
-  mapped_equipment = map_equipment(clean_name, equipment_type)
-  if mapped_equipment:
-    if variant:
-      return format_variant_name(mapped_equipment, variant_key)
-    return mapped_equipment["name"]
-  else:
-    if variant_key:
-      return f"{clean_name}_{variant_key}"
-    else:
-      return clean_name
-
-# def map_equipment_hash(hash: str, equipment_type: str) -> str:
-#     equipment_hash_map = json.load((LOOKUP_PATH / "settings/hp_settings/equipment_data.json").open())
-#     equipment_name = equipment_hash_map[equipment_type].get(str(hash), "")
-#     return equipment_name if equipment_name else ""
-
-# TODO: more flexible way to handle packaged files
-GLOBAL_FILES = get_global_file_info()
-LOCAL_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_LOCAL_PATH)
-NETWORK_PLAYER_FILES = get_player_file_info(ELMER_MOVEMENT_NETWORK_PATH)
-GLOBAL_ANIMAL_FILES = get_global_animal_info(GLOBAL_ANIMALS_PATH)
-MODS_LIST, DEBUG_MODS_LIST = get_mods()

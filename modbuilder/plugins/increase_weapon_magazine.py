@@ -1,13 +1,16 @@
-from modbuilder import mods
-from pathlib import Path
-from deca.ff_rtpc import RtpcNode
-import FreeSimpleGUI as sg
-import re
+# from modbuilder import mods
+# from pathlib import Path
+# from deca.ff_rtpc import RtpcNode
+# import FreeSimpleGUI as sg
+# import re
 
-DEBUG = False
+# Disabled and commented out to ensure old versions are overwritten
+DEBUG = True
 NAME = "Increase Weapon Magazine"
-DESCRIPTION = "Increase the magazine size of weapons. All variants of a selected weapon will be updated."
+DESCRIPTION = "DISABLED - Merged into Modify Weapon. Save files will be automatically updated when Loaded"
 FILE = "settings/hp_settings/equipment_data.bin"
+
+'''
 
 class Weapon:
   __slots__ = (
@@ -178,3 +181,5 @@ def handle_update(mod_key: str, mod_options: dict) -> dict:
   return updated_mod_key, updated_mod_options
 
 WEAPON_LIST = load_weapons()
+
+'''
