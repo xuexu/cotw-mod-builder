@@ -73,7 +73,7 @@ class WeaponZeroing:
             self.level_3_angle: float = data[2].value["angle"].value
             self.level_3_angle_offset: int = data[2].value["angle"].data_offset
         except:
-            raise ValueError("failed to load zeroing")
+            raise ValueError("Failed to load zeroing")
 
         self.bullet_overrides: dict[str, dict] = {}
         for i, zeroing_setting in enumerate(data):
@@ -152,7 +152,7 @@ class WeaponTuning:
             self.zeroing = WeaponZeroing(extracted_adf)
             self.ui_data = WEAPON_UI_DATA.get(self.weapon_display_name, None)
             self.magazine = WEAPON_MAGAZINE_DATA.get(self.weapon_display_name, None)
-        except Exception as e:
+        except (ValueError, KeyError) as e:
             raise ValueError(f"Unable to load game data for {self.display_name}: {e}")
 
     def _parse_name_and_type(self) -> None:
@@ -210,8 +210,11 @@ def load_weapon_type(type_key: str) -> list[WeaponTuning]:
         name_match = name_pattern.match(file.name)
         if name_match and not file.name.startswith("weapon_sway"):
             relative_file = mods.get_relative_path(file)
-            weapon = WeaponTuning(relative_file)
-            weapons.append(weapon)
+            try:
+                weapon = WeaponTuning(relative_file)
+                weapons.append(weapon)
+            except ValueError as e:
+                continue
     weapons.sort(key=lambda weapon: weapon.display_name)
     return weapons
 
@@ -309,12 +312,12 @@ def get_option_elements() -> sg.Column:
                          sg.Slider((0,100), 0, 1, orientation="h", p=((10,0),(0,5)), k="modify_weapon_recoil_percent")],
                         [sg.T("Decrease Wobble Percentage:", p=((10,0),(0,0))),
                          sg.Slider((0,100), 0, 1, orientation="h", p=((10,0),(0,5)), k="modify_weapon_wobble_percent")],
+                        [sg.Checkbox("Disable Bullet Drop", p=((10,0),(10,10)), k="modify_weapon_disable_bullet_drop", default=False, enable_events=True),
+                         sg.T('"Perfect" zeroing at all ranges. NOT HITSCAN! Bullets still have travel time - you need to lead a moving target.', font="_ 12", text_color="orange", p=((10,0),(10,10)))],
                     ])],
                 ], k="modify_weapon_settings_tab_ammo_handling", ),
                 sg.Tab("Zeroing", [
                     [sg.Column([
-                        [sg.Checkbox("Disable Bullet Drop", p=((10,0),(10,10)), k="modify_weapon_disable_bullet_drop", default=False, enable_events=True),
-                         sg.T('"Perfect" zeroing at all ranges. NOT HITSCAN! Bullets still have travel time - you need to lead a moving target.', font="_ 12", text_color="orange", p=((10,0),(10,10)))],
                         [sg.T("Zeroing Settings:", p=((10,0),(0,0))),
                          sg.T('(distance, angle)', font="_ 12", p=((10,0),(0,0))),
                          sg.T('Level 1 is default. Levels 2 and 3 require the "Zeroing" perk', font="_ 12", text_color="orange", p=((10,0),(0,0)))],
@@ -330,7 +333,7 @@ def get_option_elements() -> sg.Column:
                          sg.Input("0", size=4, p=((10,0),(0,0)), k="modify_weapon_level_3_distance"),
                          sg.Input("0", p=((10,10),(0,0)), k="modify_weapon_level_3_angle")],
                     ])],
-                ], k="modify_weapon_settings_tab_zeroing", ),
+                ], k="modify_weapon_settings_tab_zeroing"),
                 sg.Tab("Scope Offsets", [
                     [sg.T("Scope Settings:", p=((10,0),(15,0))),
                      sg.T('Modify horizontal and vertical alignment of sights.', font="_ 12", text_color="orange", p=((10,0),(15,0)))],
@@ -408,10 +411,6 @@ def update_zeroing(selected_weapon: WeaponTuning, window: sg.Window) -> None:
 
 
 def update_scope_settings(selected_weapon: WeaponTuning, event: str, window: sg.Window, values: dict) -> None:
-    if get_selected_settings_tab(window) == "scope_offsets":
-        window["add_mod_group_weapon"].update(disabled=True)  # cannot apply Scope Offsets mods to a category
-    else:
-        window["add_mod_group_weapon"].update(disabled=False)
     scope_dropdown = window["modify_weapon_scope_list"]
     if selected_weapon and (weapon_scopes := selected_weapon.scopes):
         h_offset = values["modify_weapon_scope_horizontal_offset"]
@@ -447,6 +446,8 @@ def toggle_error_messages(selected_weapon: WeaponTuning, window: sg.Window) -> N
 
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
     if event.startswith("modify_weapon"):
+        group_mod_disabled_tabs = ["zeroing", "scope_offsets"]
+        window["add_mod_group_weapon"].update(disabled=(get_selected_settings_tab(window) in group_mod_disabled_tabs))
         selected_weapon = get_selected_weapon(window, values)
         update_magazine_settings(selected_weapon, window, values)
         update_zeroing(selected_weapon, window)
@@ -459,24 +460,29 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     selected_weapon = get_selected_weapon(window, values)
     if not selected_weapon:
         return {
-            "invalid": "Please select weapon first"
+            "invalid": "Please select a weapon first"
         }
 
-    selected_scope = get_selected_scope(window, values)
-    if selected_scope:  # scope changes are applied separately on a per-scope basis
-        return {
-            "key": f"weapon_scope_{selected_weapon.name}_{selected_scope.name}",
-            "invalid": None,
-            "options": {
-                "name": selected_scope.name,
-                "display_name": selected_scope.display_name,
-                "weapon_name": selected_weapon.name,
-                "weapon_display_name": selected_weapon.display_name,
-                "file": selected_weapon.file,
-                "horizontal_offset": float(values["modify_weapon_scope_horizontal_offset"]),
-                "vertical_offset": float(values["modify_weapon_scope_vertical_offset"]),
+    if get_selected_settings_tab(window) == "scope_offsets":
+        selected_scope = get_selected_scope(window, values)
+        if not selected_scope:
+            return {
+                "invalid": "Please select a scope first"
             }
-        }
+        if selected_scope:  # scope changes are applied separately on a per-scope basis
+            return {
+                "key": f"weapon_scope_{selected_weapon.name}_{selected_scope.name}",
+                "invalid": None,
+                "options": {
+                    "name": selected_scope.name,
+                    "display_name": selected_scope.display_name,
+                    "weapon_name": selected_weapon.name,
+                    "weapon_display_name": selected_weapon.display_name,
+                    "file": selected_weapon.file,
+                    "horizontal_offset": float(values["modify_weapon_scope_horizontal_offset"]),
+                    "vertical_offset": float(values["modify_weapon_scope_vertical_offset"]),
+                }
+            }
 
     # base modify_weapon options should always include "Ammo + Handling" tab plus some zeroing setting
     mod_options = {
@@ -648,14 +654,36 @@ def process(options: dict) -> None:
             mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates)
 
 
-def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
     if mod_key.startswith("weapon_magazine"):  # convert "Increase Weapon Magazine" saves
         return update_weapon_magazine_options(mod_key, mod_options)
     if mod_key.startswith("weapon_scope"):  # update "Modify Weapon Scope" saves
-        return update_scope_options(mod_key, mod_options)
+        return update_scope_options(mod_key, mod_options, version)
     if "file" in mod_options:  # update "Modify Weapon" saves
-        return update_weapon_options(mod_key, mod_options)
+        return update_weapon_options(mod_key, mod_options, version)
     return mod_key, mod_options
+
+
+def _update_rapid_hunt_name_swap(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+    """
+    2.2.5
+    - Fix name swap between Hansson .30-06 and Quist Reaper 7.62x39 from Rapid Hunt Rifle Pack
+    - This cannot be done for scope offset changes. Return an error for scope changes
+    """
+    if mod_key.startswith("weapon_scope_") and mod_options.get("weapon_display_name") in ["Hansson .30-06", "Quist Reaper 7.62x39"]:
+        raise ValueError(f"Cannot load scope {mod_options["display_name"]} for weapon {mod_options["weapon_display_name"]}. Please recreate this mod.")
+    if mod_options.get("display_name") == "Hansson .30-06":
+        mod_key = "modify_weapon_sa_rifle_30_06"
+        mod_options["name"] = "sa_rifle_30_06"
+        mod_options["file"] = "editor/entities/hp_weapons/weapon_rifles_01/tuning/weapon_sa_rifle_30_06.wtunec"
+    if mod_options.get("display_name") == "Quist Reaper 7.62x39":
+        mod_key = "modify_weapon_sa_rifle_7_62"
+        mod_options["name"] = "sa_rifle_7_62"
+        mod_options["file"] = "editor/entities/hp_weapons/weapon_rifles_01/tuning/weapon_sa_rifle_7_62.wtunec"
+    # Must remove specific zeroing settings
+    keys_to_remove = ["one_distance", "one_angle", "two_distance", "two_angle", "three_distance", "three_angle"]
+    cleaned_mod_options = {k: v for k, v in mod_options.items() if k not in keys_to_remove}
+    return mod_key, cleaned_mod_options
 
 
 def update_weapon_magazine_options(mod_key: str, mod_options: dict) -> tuple[str, dict]:
@@ -703,12 +731,16 @@ def update_weapon_magazine_options(mod_key: str, mod_options: dict) -> tuple[str
     raise ValueError(f"Unable to match weapon {mod_options.get("weapon_display_name", mod_options["weapon_name"])}")
 
 
-def update_scope_options(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def update_scope_options(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
     """
+    2.2.5
+    - Fix name swap between Hansson .30-06 and Quist Reaper 7.62x39 from Rapid Hunt Rifle Pack
     2.2.4
     - Remove hard-coded scope offsets from JSON save file
     - Fix names for very old save files
     """
+    if version == "2.2.4" or version.startswith("2.2.4.dev"):
+        mod_key, mod_options = _update_rapid_hunt_name_swap(mod_key, mod_options)
     def _match_saved_scope(mod_options: dict, scopes: list[WeaponScopeSettings]):
         # try to match old scope data to fix names and remove offsets from save files
         # 1: direct match on internal name
@@ -764,7 +796,13 @@ def update_scope_options(mod_key: str, mod_options: dict) -> tuple[str, dict]:
     return updated_mod_key, updated_mod_options
 
 
-def update_weapon_options(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def update_weapon_options(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
+    """
+    2.2.5
+    - Fix name swap between Hansson .30-06 and Quist Reaper 7.62x39 from Rapid Hunt Rifle Pack
+    """
+    if version == "2.2.4" or version.startswith("2.2.4.dev"):
+        mod_key, mod_options = _update_rapid_hunt_name_swap(mod_key, mod_options)
     # no scope selected - handle all other weapon updates
     weapon = WeaponTuning(mod_options["file"])
     updated_mod_key = f"modify_weapon_{weapon.name}"

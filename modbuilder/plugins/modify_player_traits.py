@@ -11,11 +11,11 @@ DESCRIPTION = "Change the character's default attributes. These settings can ena
 WARNING = 'If you are also using "Modify Skills" then move this mod higher on the build list to ensure changes are not overridden.'
 FILE = "settings/hp_settings/player_skills.bin"
 OPTIONS = [
-  { "name": "Base Health", "min": 100, "max": 10000, "default": 1000, "initial": 1000, "increment": 100, "note": '"Hardened" skill' },
-  { "name": "Fall Damage Reduction Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 10, "note": '"Impact Resistance" skill' },
-  { "name": "Carry Capacity", "min": 10, "max": 1000, "default": 20, "initial": 20, "increment": 10, "note": '"Pack Mule" skill. Capped at 999.9 in-game.' },
+  { "name": "Base Health", "min": 10, "max": 10000, "default": 1000, "initial": 1000, "increment": 10, "note": '"Hardened" skill' },
+  { "name": "Fall Damage Reduction Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 1, "note": '"Impact Resistance" skill' },
+  { "name": "Carry Capacity", "min": 1, "max": 1000, "default": 20, "initial": 20, "increment": 1, "note": '"Pack Mule" skill. Capped at 999.9 in-game.' },
   { "name": "Reduce Recoil Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 1, "note": '"Recoil Management" shotgun perk' },
-  { "name": "Recoil Recovery Speed", "min": 1.0, "max": 9.9, "default": 1.0, "initial": 1.0, "increment": 0.1, "note": '"Recoil Management" shotgun perk' },
+  { "name": "Recoil Recovery Speed", "min": 0.1, "max": 9.9, "default": 1.0, "initial": 1.0, "increment": 0.1, "note": '"Recoil Management" shotgun perk' },
   { "name": "Raise Weapon Speed", "min": 0.05, "max": 10.0, "default": 0.75, "initial": 0.75, "increment": 0.05, "note": '"Fast Shouldering" shotgun perk' },
   { "name": "Clue Detection Range", "min": 1, "max": 100, "default": 20, "initial": 20, "increment": 1, "note": '"Locate Tracks" skill' },
   { "name": "Clue Direction Angle", "min": 1, "max": 90, "default": 90, "initial": 90, "increment": 1, "note": 'Locate Tracks" skill. Smaller size = more accurate indicator.' },

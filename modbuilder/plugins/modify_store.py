@@ -381,21 +381,22 @@ def match_old_item(options: dict) -> StoreItem:
     )), None)
   return selected_item
 
-def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """
+  2.2.5
+  - Fix name swap between Hansson .30-06 and Quist Reaper 7.62x39 from Rapid Hunt Rifle Pack
   2.2.2
   - Parse exact prop data from each node for name, price, and quantity (do not save offsets)
   - Use formatted name from 'name_map.yaml' as display_name
   - Attempt to match items from imported save files by old display name or by matching offsets
   """
   if "quantity" in mod_options:  # single item
+    mod_key, mod_options = _update_rapid_hunt_name_swap(mod_key, mod_options, version)
     selected_item = next((i for i in ALL_STORE_ITEMS[mod_options["type"]] if mod_options["name"] == i.name), None)
     if not selected_item:
-      # Try to parse the old item names/offsets to match with a StoreItem object
-      selected_item = match_old_item(mod_options)
+      selected_item = match_old_item(mod_options)  # Try to parse the old item names/offsets to match with a StoreItem object
     if not selected_item:
       raise ValueError(f"Unable to match item \"{mod_options["name"]}\"")
-
     updated_mod_key = f"modify_store_{selected_item.name}"
     updated_mod_options = {
       "type": selected_item.type,
@@ -419,5 +420,15 @@ def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
   else:
     raise ValueError(f"Unable to parse config: {mod_options}")
   return updated_mod_key, updated_mod_options
+
+def _update_rapid_hunt_name_swap(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
+  if version == "2.2.4" or version.startswith("2.2.4.dev"):
+    if mod_options["display_name"] == "Rifle: Hansson .30-06":
+      mod_key = "modify_store_equipment_weapon_sa_rifle_30_06_01"
+      mod_options["name"] = "equipment_weapon_sa_rifle_30_06_01"
+    if mod_options["display_name"] == "Rifle: Quist Reaper 7.62x39":
+      mod_key = "modify_store_equipment_weapon_sa_rifle_7_62_01"
+      mod_options["name"] = "equipment_weapon_sa_rifle_7_62_01"
+  return mod_key, mod_options
 
 ALL_STORE_ITEMS = load_store_items()

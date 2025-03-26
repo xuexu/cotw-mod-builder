@@ -120,7 +120,7 @@ def process(options: dict) -> None:
   mods.update_file_at_offset(file, 112, level_4)
   mods.update_file_at_offset(file, 116, level_5)
 
-def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """
   2.2.2
   - Replace full filepath with just optics name in mod_key

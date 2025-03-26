@@ -456,13 +456,13 @@ def delete_saved_mod_list(name: str) -> None:
 def load_saved_mod_list(name: str) -> dict:
   return json.load(Path(APP_DIR_PATH / "saves"/ f"{name}.json").open())
 
-def validate_and_update_mod(mod_key: str, mod_options: dict) -> tuple[str, dict[str, dict]]:
+def validate_and_update_mod(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict[str, dict]]:
   mod = get_mod(mod_key)
   if not _is_mod_valid(mod):
     return ("invalid", None)
   elif hasattr(mod, "handle_update"):
     try:
-      new_key, new_options = mod.handle_update(mod_key, mod_options)
+      new_key, new_options = mod.handle_update(mod_key, mod_options, version)
       if new_key != mod_key or new_options != mod_options:
         return ("update", {new_key: new_options})
     except ValueError as update_error:
@@ -472,14 +472,6 @@ def validate_and_update_mod(mod_key: str, mod_options: dict) -> tuple[str, dict[
 def _is_mod_valid(mod: ModuleType) -> bool:
   # make sure mod exists and is not set to DEBUG mode (default to True if mod.DEBUG doesn't exist)
   return mod is not None and not getattr(mod, "DEBUG", True)
-
-def update_saved_mod_configuration(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
-  selected_mod = get_mod(mod_key)
-  try:
-      updated_key, updated_options = selected_mod.handle_update(mod_key, mod_options)
-      return updated_key, updated_options
-  except Exception as e:
-    raise ValueError(e)
 
 def read_dropzone() -> Path:
   return Path(GAME_PATH_FILE.read_text())
@@ -596,6 +588,11 @@ def create_bytearray(values: any, data_format: str) -> bytearray:
   if data_format == "float32":
     for v in values:
       result += adf_profile.create_f32(v)
+  if data_format == "classes":
+    # class arrays are a list of uint08 padded to a multiple of 4 bytes
+    result = create_bytearray(values, "uint08")
+    padding = (4 - len(result) % 4) % 4
+    result += b'\x00' * padding
   if data_format == "string":
     for v in values:
       if isinstance(v, str):
@@ -643,21 +640,6 @@ def update_non_instance_offsets(extracted_adf: Adf, added_size: int, verbose: bo
   for k, v in extracted_adf.table_instance[0].header_profile.items():
     extracted_adf.table_instance[0].header_profile[k] = v + added_size
 
-  return updates
-
-def update_array_data(file: Path, new_array: bytearray, data_offset: int, bytes_to_remove: int = 0) -> list[dict]:
-  updates = []
-  extracted_adf = mods2.deserialize_adf(file)
-  added_size = len(new_array) - bytes_to_remove
-  if added_size != 0:
-    updates.extend(update_non_instance_offsets(extracted_adf, added_size))
-  array_update = {
-    "offset": data_offset,
-    "value": new_array,
-    "transform": "insert",
-    "bytes_to_remove": bytes_to_remove,
-  }
-  updates.append(array_update)
   return updates
 
 def insert_bytearray(fp: io.BufferedRandom, update: dict) -> None:

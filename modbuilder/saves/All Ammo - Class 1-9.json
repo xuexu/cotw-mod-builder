@@ -1,5 +1,5 @@
 {
-  "version": "2.2.4",
+  "version": "2.2.5",
   "mod_options": {
     "modify_ammo_type_bow": {
       "type": "bow",

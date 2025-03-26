@@ -494,7 +494,7 @@ def update_array_offsets(extracted_adf: Adf, added_size: int, array_name: str, v
     # StringData stores strings of arbitrary length in AdfValue objects that have separate info offsets
     if array_name == "StringData":
       file_updates.extend(update_stringdata_offsets(extracted_adf, added_size, verbose=verbose))
-    #  Attribute array contains AdfValues with nested dictionaries of AdfValues
+    # Attribute array contains AdfValues with nested dictionaries of AdfValues
     # These just point to offsets in other arrays. Update the extracted Adf but don't write anything back to the file
     if array_name == "Attribute":
       for i in adf_values[array_name].value:

@@ -832,13 +832,13 @@ weapon:
     name: _PLACEHOLDER Single-Action 30-60 Rifle  # not available in-game
     type: Rifle
   sa_rifle_30_06:
-    name: Quist Reaper 7.62x39
+    name: Hansson .30-06
     type: Rifle
   sa_rifle_308:
     name: Perry .308
     type: Rifle
   sa_rifle_7_62:
-    name: Hansson .30-06
+    name: Quist Reaper 7.62x39
     type: Rifle
   sxs_rifle_470ne:
     name: King 470DB

@@ -59,7 +59,7 @@ pip install pyinstaller
 ```shell
 .\scripts\pack.bat
 ```
-6. Alternatively, build + pack the application with an automated version number tag from `setup.cfg` (eg. `modbuilder_2.2.4.7z`)
+6. Alternatively, build + pack the application with an automated version number tag from `setup.cfg` (eg. `modbuilder_2.2.5.7z`)
 ```shell
 .\scripts\build.bat && .\scripts\version.bat
 ```

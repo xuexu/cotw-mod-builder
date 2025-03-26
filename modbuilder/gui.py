@@ -187,13 +187,13 @@ def _validate_saved_mod_list(loaded_mods_json: dict, version: str, window: sg.Wi
   step = 1
   progress_step = 100 / len(loaded_saved_mods)
   for mod_key, mod_options in loaded_saved_mods.items():
-    result, output_mods = mods.validate_and_update_mod(mod_key, mod_options)
+    result, output = mods.validate_and_update_mod(mod_key, mod_options, version)
     if result == "invalid":
       mods_to_remove[mod_key] = mod_options
     elif result == "update":
-      updated_mods = always_merger.merge(updated_mods, output_mods)
+      updated_mods = always_merger.merge(updated_mods, output)
     elif result == "error":
-      update_errors[mods.format_mod_display_name(mod_key, mod_options)] = output_mods
+      update_errors[mods.format_mod_display_name(mod_key, mod_options)] = output
     elif result == "valid":
       mods_to_keep[mod_key] = mod_options
     else:

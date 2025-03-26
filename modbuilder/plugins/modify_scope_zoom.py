@@ -173,7 +173,7 @@ def process(options: dict) -> None:
     mods.update_file_at_offset(file, 172, options["level_5_h_speed"])
     mods.update_file_at_offset(file, 176, options["level_5_v_speed"])
 
-def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """
   2.2.2
   - Replace full filepath with just scope name in mod_key

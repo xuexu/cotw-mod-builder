@@ -56,8 +56,9 @@ class Ammo:
     ammo_data = extracted_adf.table_instance_full_values[0].value
     offsets = {}
     if ammo_data["ammunition_class"].data_offset == ammo_data["ammunition_class"].info_offset:
-      # ammo has no classes array - set offsets to add data in the correct position
+      # ammo has no classes array. Set a flag to insert data in the correct position
       offsets["classes"] = extracted_adf.table_instance[0].offset + extracted_adf.table_instance[0].size - 4
+      offsets["missing_class_data"] = True
     else:
       offsets["classes"] = ammo_data["ammunition_class"].data_offset
     offsets["classes_info"] = ammo_data["ammunition_class"].info_offset
@@ -321,14 +322,30 @@ def merge_files(files: list[str], options: dict) -> None:
 def update_classes_array(ammo: Ammo, classes: list[int]) -> None:
   updates = []
   if classes:
-    # Enforce info/data offsets. This lets us modify "_PLACEHOLDER" ammos that have no class data
-    added_offset = ammo.offsets["classes"] - ammo.offsets["classes_info"]
-    updates.append({"offset": ammo.offsets["classes_info"], "value": added_offset})
+    # Update classes length value
     updates.append({"offset": ammo.offsets["classes_length"], "value": len(classes)})
-    # Add class data array
-    data_offset = ammo.offsets["classes"]
-    classes_array = mods.create_bytearray(classes, "uint08")
-    updates.extend(mods.update_array_data(ammo.file, classes_array, data_offset, bytes_to_remove=len(ammo.classes)))
+    # Create arrays
+    old_classes_array = mods.create_bytearray(ammo.classes, "classes")
+    classes_array = mods.create_bytearray(classes, "classes")
+    # Increase offsets
+    extracted_adf = mods2.deserialize_adf(ammo.file)
+    added_size = len(classes_array) - len(old_classes_array)
+    if added_size != 0:
+      updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size))
+    # Remove the old array and insert the new array
+    updates.append({
+      "offset": ammo.offsets["classes"],
+      "value": classes_array,
+      "transform": "insert",
+      "bytes_to_remove": len(old_classes_array),
+    })
+    if ammo.offsets.get("missing_class_data"):
+      # Enforce info/data offsets. This lets us modify "_PLACEHOLDER" ammos that have no class data
+      added_offset = ammo.offsets["classes"] - ammo.offsets["classes_info"]
+      updates.append({"offset": ammo.offsets["classes_info"], "value": added_offset})
+      # Add missing separator after classes before  (uint32 "4" - 04 00 00 00)
+      updates.append({"offset": ammo.offsets["classes"] + len(classes_array), "value": mods.create_bytearray(4, "uint32"), "transform": "insert"})
+      updates.extend(mods.update_non_instance_offsets(extracted_adf, 4))
   return updates
 
 def process(options: dict) -> None:
@@ -385,7 +402,7 @@ def process(options: dict) -> None:
       mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates)
     mods.apply_updates_to_file(ammo.file, updates)
 
-def handle_update(mod_key: str, mod_options: dict) -> tuple[str, dict]:
+def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """
   2.2.2
   - Replace full filepath with just ammo name in mod_key
