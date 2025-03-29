@@ -87,17 +87,18 @@ def format_soft_feet(options: dict) -> str:
     sound = options['soft_feet_percent']
     return f"Enhanced Soft Feet (-{int(sound)}%)"
 def process_soft_feet(options: dict) -> list[dict]:
-    updated_value = round(1.0 - options['soft_feet_percent'] / 100,1)
+    footstep_noise_value = round(1.0 - options.get('footstep_noise_reduction', options.get('soft_feet_percent', 20)) / 100, 1)
+    vegetation_noise_value = round(1.0 - options.get('vegetation_noise_reduction', options.get('soft_feet_percent', 20)) / 100, 1)
     return [
         {
             "sheet": "skills_active",
             "coordinates": "G7",
-            "value": f"set_material_noise_multiplier({updated_value})"
+            "value": f"set_material_noise_multiplier({footstep_noise_value})"
         },
         {
             "sheet": "skills_active",
             "coordinates": "I7",
-            "value": f"set_material_noise_multiplier({updated_value}), set_vegetation_noise_multiplier({updated_value})"
+            "value": f"set_material_noise_multiplier({footstep_noise_value}), set_vegetation_noise_multiplier({vegetation_noise_value})"
         }
     ]
 

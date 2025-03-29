@@ -380,22 +380,23 @@ def process(options: dict) -> None:
     updates.extend(update_classes_array(ammo, classes))
 
     if ammo.ui_data:
-      ui_penetration = max(min(int(ammo.ui_data["penetration"] * (1 + options["penetration"] / 100)), 100), 1)
-      ui_expansion = max(min(int(ammo.ui_data["expansion"] * expansion_rate), 100), 1)
       ui_updates = [
         {
-          "coordinates": f"F{ammo.ui_data["row"]}",
-          "value": ";".join(map(str,classes))
+          "coordinates": f"C{ammo.ui_data["row"]}",  # penetration
+          "value": max(min(int(ammo.ui_data["penetration"] * (1 + options["penetration"] / 100)), 100), 1),
         },
         {
-          "coordinates": f"C{ammo.ui_data["row"]}",
-          "value": ui_penetration
+          "coordinates": f"D{ammo.ui_data["row"]}",  # expansion
+          "value": max(min(int(ammo.ui_data["expansion"] * expansion_rate), 100), 1),
         },
-        {
-          "coordinates": f"D{ammo.ui_data["row"]}",
-          "value": ui_expansion
-        }
       ]
+      if classes:
+        ui_updates.append(
+          {
+            "coordinates": f"F{ammo.ui_data["row"]}",  # classes
+            "value": ";".join(map(str,classes)),
+          }
+        )
       for update in ui_updates:
         update["sheet"] = "ammo"
         update["allow_new_data"] = True
