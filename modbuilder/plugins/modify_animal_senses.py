@@ -97,12 +97,15 @@ def process(options: dict) -> list[dict]:
   defensive_duration_percent = 1 - options.get('reduce_defensive_duration_percent', 0) / 100
   mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B14", "B15", "B16", "B17"], defensive_duration_percent, transform="multiply", skip_add_data=True)
 
+  ai_data = mods2.deserialize_adf(AI_FILE)
+  ai_data_ranges = ai_data.table_instance_full_values[0].value["Perception"].value["EventRanges"].value
   tent_distance = options.get("tent_detection_distance")
   if tent_distance is not None:
-    mods.update_file_at_offset(AI_FILE, 800, tent_distance)
+    mods.update_file_at_offset(AI_FILE, ai_data_ranges["SpookInRadius"].data_offset, tent_distance)
 
   weapon_fire_distance = options.get("weapon_fire_detection_distance")
   if weapon_fire_distance is not None:
     weapon_fire_distance_multiplier = weapon_fire_distance / 300  # default range
     weapon_fire_coordinates = mods2.get_coordinates_range_from_file(ANIMAL_SENSES_FILE, "weapon_data", rows=(3, 4), cols=("B", None))
     mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "weapon_data", weapon_fire_coordinates, weapon_fire_distance_multiplier, transform="multiply", skip_add_data=True)
+    mods.update_file_at_offset(AI_FILE, ai_data_ranges["WeaponFire"].data_offset, weapon_fire_distance)

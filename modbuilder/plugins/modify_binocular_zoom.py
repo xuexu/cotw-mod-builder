@@ -1,4 +1,4 @@
-from modbuilder import mods
+from modbuilder import mods, mods2
 from pathlib import Path
 import FreeSimpleGUI as sg
 
@@ -11,11 +11,13 @@ class Optics:
     self.file = mods.get_relative_path(file)
     self.bundle_file = mods.get_relative_path(bundle_file)
     self._map_name()
-    self.optics_level_1 = mods.read_file_at_offset(file, 100, "f32")
-    self.optics_level_2 = mods.read_file_at_offset(file, 104, "f32")
-    self.optics_level_3 = mods.read_file_at_offset(file, 108, "f32")
-    self.optics_level_4 = mods.read_file_at_offset(file, 112, "f32")
-    self.optics_level_5 = mods.read_file_at_offset(file, 116, "f32")
+    tuning_file = mods2.deserialize_adf(self.file, modded=False)
+    tuning_values = tuning_file.table_instance_full_values[0].value
+    self.optics_level_1 = tuning_values["zoom_multiplier_level_0"].value
+    self.optics_level_2 = tuning_values["zoom_multiplier_level_1"].value
+    self.optics_level_3 = tuning_values["zoom_multiplier_level_2"].value
+    self.optics_level_4 = tuning_values["zoom_multiplier_level_3"].value
+    self.optics_level_5 = tuning_values["zoom_multiplier_level_4"].value
 
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
@@ -107,18 +109,17 @@ def merge_files(files: list[str], options: dict) -> None:
   mods.merge_into_archive(options["file"].replace("\\", "/"), options["bundle_file"], lookup)
 
 def process(options: dict) -> None:
-  level_1 = options["level_1"]
-  level_2 = options["level_2"]
-  level_3 = options["level_3"]
-  level_4 = options["level_4"]
-  level_5 = options["level_5"]
   file = options["file"]
-
-  mods.update_file_at_offset(file, 100, level_1)
-  mods.update_file_at_offset(file, 104, level_2)
-  mods.update_file_at_offset(file, 108, level_3)
-  mods.update_file_at_offset(file, 112, level_4)
-  mods.update_file_at_offset(file, 116, level_5)
+  tuning_file = mods2.deserialize_adf(file)
+  tuning_values = tuning_file.table_instance_full_values[0].value
+  updates = [
+    {"offset": tuning_values["zoom_multiplier_level_0"].data_offset, "value": options["level_1"]},
+    {"offset": tuning_values["zoom_multiplier_level_1"].data_offset, "value": options["level_2"]},
+    {"offset": tuning_values["zoom_multiplier_level_2"].data_offset, "value": options["level_3"]},
+    {"offset": tuning_values["zoom_multiplier_level_3"].data_offset, "value": options["level_4"]},
+    {"offset": tuning_values["zoom_multiplier_level_4"].data_offset, "value": options["level_5"]},
+  ]
+  mods.apply_updates_to_file(file, updates)
 
 def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """

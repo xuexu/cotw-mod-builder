@@ -1,4 +1,4 @@
-from modbuilder import mods
+from modbuilder import mods, mods2
 from pathlib import Path
 import FreeSimpleGUI as sg
 import re, os
@@ -12,26 +12,28 @@ class Scope:
     self.file = mods.get_relative_path(file)
     self.bundle_file = mods.get_relative_path(bundle_file)
     self._map_name()
-    self.scope_level_1 = mods.read_file_at_offset(file, 100, "f32")
-    self.scope_level_2 = mods.read_file_at_offset(file, 104, "f32")
-    self.scope_level_3 = mods.read_file_at_offset(file, 108, "f32")
-    self.scope_level_4 = mods.read_file_at_offset(file, 112, "f32")
-    self.scope_level_5 = mods.read_file_at_offset(file, 116, "f32")
-    self.scope_level_1_sensitivity = round(mods.read_file_at_offset(file, 120, "f32"), 2)
-    self.scope_level_2_sensitivity = round(mods.read_file_at_offset(file, 124, "f32"), 2)
-    self.scope_level_3_sensitivity = round(mods.read_file_at_offset(file, 128, "f32"), 2)
-    self.scope_level_4_sensitivity = round(mods.read_file_at_offset(file, 132, "f32"), 2)
-    self.scope_level_5_sensitivity = round(mods.read_file_at_offset(file, 136, "f32"), 2)
-    self.scope_level_1_h_speed = mods.read_file_at_offset(file, 140, "f32")
-    self.scope_level_1_v_speed = mods.read_file_at_offset(file, 144, "f32")
-    self.scope_level_2_h_speed = mods.read_file_at_offset(file, 148, "f32")
-    self.scope_level_2_v_speed = mods.read_file_at_offset(file, 152, "f32")
-    self.scope_level_3_h_speed = mods.read_file_at_offset(file, 156, "f32")
-    self.scope_level_3_v_speed = mods.read_file_at_offset(file, 160, "f32")
-    self.scope_level_4_h_speed = mods.read_file_at_offset(file, 164, "f32")
-    self.scope_level_4_v_speed = mods.read_file_at_offset(file, 168, "f32")
-    self.scope_level_5_h_speed = mods.read_file_at_offset(file, 172, "f32")
-    self.scope_level_5_v_speed = mods.read_file_at_offset(file, 176, "f32")
+    tuning_file = mods2.deserialize_adf(self.file, modded=False)
+    tuning_values = tuning_file.table_instance_full_values[0].value
+    self.scope_level_1 = tuning_values["zoom_multiplier_level_0"].value
+    self.scope_level_2 = tuning_values["zoom_multiplier_level_1"].value
+    self.scope_level_3 = tuning_values["zoom_multiplier_level_2"].value
+    self.scope_level_4 = tuning_values["zoom_multiplier_level_3"].value
+    self.scope_level_5 = tuning_values["zoom_multiplier_level_4"].value
+    self.scope_level_1_sensitivity = round(tuning_values["sensitivity_modifier_zoom_0"].value, 2)
+    self.scope_level_2_sensitivity = round(tuning_values["sensitivity_modifier_zoom_1"].value, 2)
+    self.scope_level_3_sensitivity = round(tuning_values["sensitivity_modifier_zoom_2"].value, 2)
+    self.scope_level_4_sensitivity = round(tuning_values["sensitivity_modifier_zoom_3"].value, 2)
+    self.scope_level_5_sensitivity = round(tuning_values["sensitivity_modifier_zoom_4"].value, 2)
+    self.scope_level_1_h_speed = tuning_values["max_h_angular_speed_zoom_0"].value
+    self.scope_level_1_v_speed = tuning_values["max_v_angular_speed_zoom_0"].value
+    self.scope_level_2_h_speed = tuning_values["max_h_angular_speed_zoom_1"].value
+    self.scope_level_2_v_speed = tuning_values["max_v_angular_speed_zoom_1"].value
+    self.scope_level_3_h_speed = tuning_values["max_h_angular_speed_zoom_2"].value
+    self.scope_level_3_v_speed = tuning_values["max_v_angular_speed_zoom_2"].value
+    self.scope_level_4_h_speed = tuning_values["max_h_angular_speed_zoom_3"].value
+    self.scope_level_4_v_speed = tuning_values["max_v_angular_speed_zoom_3"].value
+    self.scope_level_5_h_speed = tuning_values["max_h_angular_speed_zoom_4"].value
+    self.scope_level_5_v_speed = tuning_values["max_v_angular_speed_zoom_4"].value
 
   def __repr__(self) -> str:
     return f"{self.name}, {self.file}, {self.bundle_file}"
@@ -150,28 +152,34 @@ def merge_files(files: list[str], options: dict) -> None:
 
 def process(options: dict) -> None:
   file = options["file"]
-
-  mods.update_file_at_offset(file, 100, options["level_1"])
-  mods.update_file_at_offset(file, 104, options["level_2"])
-  mods.update_file_at_offset(file, 108, options["level_3"])
-  mods.update_file_at_offset(file, 112, options["level_4"])
-  mods.update_file_at_offset(file, 116, options["level_5"])
+  tuning_file = mods2.deserialize_adf(file)
+  tuning_values = tuning_file.table_instance_full_values[0].value
+  updates = [
+    {"offset": tuning_values["zoom_multiplier_level_0"].data_offset, "value": options["level_1"]},
+    {"offset": tuning_values["zoom_multiplier_level_1"].data_offset, "value": options["level_2"]},
+    {"offset": tuning_values["zoom_multiplier_level_2"].data_offset, "value": options["level_3"]},
+    {"offset": tuning_values["zoom_multiplier_level_3"].data_offset, "value": options["level_4"]},
+    {"offset": tuning_values["zoom_multiplier_level_4"].data_offset, "value": options["level_5"]},
+  ]
   if options.get("advanced_sensitivity"):
-    mods.update_file_at_offset(file, 120, options["level_1_sensitivity"])
-    mods.update_file_at_offset(file, 124, options["level_2_sensitivity"])
-    mods.update_file_at_offset(file, 128, options["level_3_sensitivity"])
-    mods.update_file_at_offset(file, 132, options["level_4_sensitivity"])
-    mods.update_file_at_offset(file, 136, options["level_5_sensitivity"])
-    mods.update_file_at_offset(file, 140, options["level_1_h_speed"])
-    mods.update_file_at_offset(file, 144, options["level_1_v_speed"])
-    mods.update_file_at_offset(file, 148, options["level_2_h_speed"])
-    mods.update_file_at_offset(file, 152, options["level_2_v_speed"])
-    mods.update_file_at_offset(file, 156, options["level_3_h_speed"])
-    mods.update_file_at_offset(file, 160, options["level_3_v_speed"])
-    mods.update_file_at_offset(file, 164, options["level_4_h_speed"])
-    mods.update_file_at_offset(file, 168, options["level_4_v_speed"])
-    mods.update_file_at_offset(file, 172, options["level_5_h_speed"])
-    mods.update_file_at_offset(file, 176, options["level_5_v_speed"])
+    updates.extend([
+      {"offset": tuning_values["sensitivity_modifier_zoom_0"].data_offset, "value": options["level_1_sensitivity"]},
+      {"offset": tuning_values["sensitivity_modifier_zoom_1"].data_offset, "value": options["level_2_sensitivity"]},
+      {"offset": tuning_values["sensitivity_modifier_zoom_2"].data_offset, "value": options["level_3_sensitivity"]},
+      {"offset": tuning_values["sensitivity_modifier_zoom_3"].data_offset, "value": options["level_4_sensitivity"]},
+      {"offset": tuning_values["sensitivity_modifier_zoom_4"].data_offset, "value": options["level_5_sensitivity"]},
+      {"offset": tuning_values["max_h_angular_speed_zoom_0"].data_offset, "value": options["level_1_h_speed"]},
+      {"offset": tuning_values["max_v_angular_speed_zoom_0"].data_offset, "value": options["level_1_v_speed"]},
+      {"offset": tuning_values["max_h_angular_speed_zoom_1"].data_offset, "value": options["level_2_h_speed"]},
+      {"offset": tuning_values["max_v_angular_speed_zoom_1"].data_offset, "value": options["level_2_v_speed"]},
+      {"offset": tuning_values["max_h_angular_speed_zoom_2"].data_offset, "value": options["level_3_h_speed"]},
+      {"offset": tuning_values["max_v_angular_speed_zoom_2"].data_offset, "value": options["level_3_v_speed"]},
+      {"offset": tuning_values["max_h_angular_speed_zoom_3"].data_offset, "value": options["level_4_h_speed"]},
+      {"offset": tuning_values["max_v_angular_speed_zoom_3"].data_offset, "value": options["level_4_v_speed"]},
+      {"offset": tuning_values["max_h_angular_speed_zoom_4"].data_offset, "value": options["level_5_h_speed"]},
+      {"offset": tuning_values["max_v_angular_speed_zoom_4"].data_offset, "value": options["level_5_v_speed"]},
+    ])
+  mods.apply_updates_to_file(file, updates)
 
 def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """

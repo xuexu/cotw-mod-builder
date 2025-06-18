@@ -122,71 +122,57 @@ def get_files(options: dict) -> list[str]:
   return atv_files
 
 def _update_gears(values: list[float], start_offset: int) -> None:
+  updates = []
   for i, value in enumerate(values):
-      mods.update_file_at_offset(TRANSMISSION_FILE, start_offset + (i * 4), float(value))
+    updates.append({"offset": start_offset + (i * 4), "value": float(value)})
+  return updates
 
-def process(options: dict) -> None:
-  options = map_options(options)
-  top_speed = options["top_speed"]
-  acceleration = options["acceleration"]
-  traction = options["traction"]
-  noise = options["noise_distance"]
-  vision = options["vision_distance"]
+def update_transmission_file(speed_options: dict) -> None:
+  transmission = mods2.deserialize_adf(TRANSMISSION_FILE).table_instance_full_values[0].value
+  updates = [
+    {"offset": transmission["nitrous_gears"].data_offset, "value": 1},
+    {"offset": transmission["top_speed"].data_offset, "value": 250.0},
+    {"offset": transmission["reverse_gear_ratio"].data_offset, "value": 3.0},
+  ]
+  updates.extend(_update_gears(speed_options["gears"], transmission["gear_ratios"].data_offset))
+  updates.extend(_update_gears(speed_options["upshift"], transmission["upshift_rpm"].data_offset))
+  updates.extend(_update_gears(speed_options["downshift"], transmission["downshift_rpm"].data_offset))
+  mods.apply_updates_to_file(TRANSMISSION_FILE, updates)
 
-  if top_speed == "90":
-    speed_options = SPEED_90
-  elif top_speed == "120":
-    speed_options = SPEED_120
-  elif top_speed == "150":
-    speed_options = SPEED_150
-  elif top_speed == "170":
-    speed_options = SPEED_170
-  else:
-    speed_options = SPEED_70
+def update_landengine_file(speed_options: dict, torque_option: dict) -> None:
+  landengine = mods2.deserialize_adf(LANDENGINE_FILE).table_instance_full_values[0].value
+  updates = [
+    {"offset": landengine["resistance_at_max_rpm"].data_offset, "value": 0.05},
+    {"offset": landengine["max_rpm"].data_offset, "value": speed_options["max_rpm"]},
+    {"offset": landengine["optimal_rpm"].data_offset, "value": speed_options["optimal_rpm"]},
+    {"offset": landengine["torque_factor_at_max_rpm"].data_offset, "value": torque_option["max"]},
+    {"offset": landengine["torque_factor_at_min_rpm"].data_offset, "value": torque_option["min"]},
+    {"offset": landengine["torque_factor_at_optimal_rpm"].data_offset, "value": torque_option["optimal"]},
+  ]
+  mods.apply_updates_to_file(LANDENGINE_FILE, updates)
 
-  if acceleration == "medium":
-    torque_option = TORQUE_MEDIUM
-  elif acceleration == "high":
-    torque_option = TORQUE_HIGH
-  else:
-    torque_option = TORQUE_DEFAULT
+def update_landglobal_file(traction_option: dict) -> None:
+  landglobal = mods2.deserialize_adf(LANDGLOBAL_FILE).table_instance_full_values[0].value
+  updates = [
+    {"offset": landglobal["front_wheels"].value["arcade_friction_multiplier"].data_offset, "value": traction_option["front_friction"]},
+    {"offset": landglobal["front_wheels"].value["arcade_drag_multiplier"].data_offset, "value": 0.0},
+    {"offset": landglobal["rear_wheels"].value["arcade_friction_multiplier"].data_offset, "value": traction_option["rear_friction"]},
+    {"offset": landglobal["rear_wheels"].value["arcade_drag_multiplier"].data_offset, "value": 0.0},
+    {"offset": landglobal["front_wheels"].value["use_shape_cast"].data_offset, "value": 0, "format": "sint08"},
+    {"offset": landglobal["rear_wheels"].value["use_shape_cast"].data_offset, "value": 0, "format": "sint08"},
+  ]
+  mods.apply_updates_to_file(LANDGLOBAL_FILE, updates)
 
-  if traction == "medium":
-    traction_option = TRACTION_MEDIUM
-  elif traction == "high":
-    traction_option = TRACTION_HIGH
-  else:
-    traction_option = TRACTION_DEFAULT
+def update_aerodynamics_file() -> None:
+  aerodynamics = mods2.deserialize_adf(AERODYNAMICS_FILE).table_instance_full_values[0].value
+  updates = [
+    {"offset": aerodynamics["frontal_area"].data_offset, "value": 1.25},
+    {"offset": aerodynamics["drag_coefficient"].data_offset, "value": 0.3},
+    {"offset": aerodynamics["top_speed_drag_coefficient"].data_offset, "value": 0.3},
+  ]
+  mods.apply_updates_to_file(AERODYNAMICS_FILE, updates)
 
-  gears = speed_options["gears"]
-  upshift = speed_options["upshift"]
-  downshift = speed_options["downshift"]
-
-  _update_gears([gears[0], gears[1], gears[2], gears[3], gears[4], gears[5], gears[6], gears[7]], 196)
-  _update_gears([upshift[0], upshift[1], upshift[2], upshift[3], upshift[4], upshift[5], upshift[6], upshift[7]], 228)
-  _update_gears([downshift[0], downshift[1], downshift[2], downshift[3], downshift[4], downshift[5], downshift[6], downshift[7]], 260)
-
-  mods.update_file_at_offset(TRANSMISSION_FILE, 192, 1)
-  mods.update_file_at_offset(TRANSMISSION_FILE, 316, 250.0)
-  mods.update_file_at_offset(TRANSMISSION_FILE, 332, 3.0)
-
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 236, traction_option["front_friction"])
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 240, 0.0)
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 268, traction_option["rear_friction"])
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 272, 0.0)
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 228, 0, format="sint08")
-  mods.update_file_at_offset(LANDGLOBAL_FILE, 260, 0, format="sint08")
-  mods.update_file_at_offset(LANDENGINE_FILE, 196, 0.05)
-  mods.update_file_at_offset(LANDENGINE_FILE, 208, speed_options["max_rpm"])
-  mods.update_file_at_offset(LANDENGINE_FILE, 216, speed_options["optimal_rpm"])
-  mods.update_file_at_offset(LANDENGINE_FILE, 220, torque_option["max"])
-  mods.update_file_at_offset(LANDENGINE_FILE, 224, torque_option["min"])
-  mods.update_file_at_offset(LANDENGINE_FILE, 228, torque_option["optimal"])
-
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 192, 1.25)
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 196, 0.3)
-  mods.update_file_at_offset(AERODYNAMICS_FILE, 200, 0.3)
-
+def update_noise_file(noise: float, vision: float) -> None:
   if noise != 500.0:
     mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B4", "C4"], int(noise))
     if noise < 150:
@@ -195,6 +181,32 @@ def process(options: dict) -> None:
     mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B9", "C9"], int(vision))
     if vision < 50:
       mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B8", "C8"], int(noise))
+
+def process(options: dict) -> None:
+  options = map_options(options)
+
+  speed_options = {
+    "90": SPEED_90,
+    "120": SPEED_120,
+    "150": SPEED_150,
+    "170": SPEED_170,
+  }.get(options["top_speed"], SPEED_70)
+
+  torque_option = {
+    "medium": TORQUE_MEDIUM,
+    "high": TORQUE_HIGH,
+  }.get(options["acceleration"], TORQUE_DEFAULT)
+
+  traction_option = {
+    "medium": TRACTION_MEDIUM,
+    "high": TRACTION_HIGH,
+  }.get(options["traction"], TRACTION_DEFAULT)
+
+  update_transmission_file(speed_options)
+  update_landengine_file(speed_options, torque_option)
+  update_landglobal_file(traction_option)
+  update_aerodynamics_file()
+  update_noise_file(options["noise_distance"], options["vision_distance"])
 
 def merge_files(files: list[str], options: dict) -> None:
   for bundle_file in [RED_MERGE_PATH, SILVER_MERGE_PATH, JADE_MERGE_PATH]:

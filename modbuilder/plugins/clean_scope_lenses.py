@@ -27,7 +27,7 @@ def format(options: dict) -> str:
 def get_files(options: dict) -> list[str]:
   night_vision = options.get("remove_night_vision_tint")
   if night_vision:
-    return [NIGHT_VISION_FILE, NIGHT_VISION_WHITE_FILE]
+    return [NIGHT_VISION_FILE]
   return []
 
 def merge_files(files: list[str], options: dict) -> None:
@@ -41,7 +41,7 @@ def merge_files(files: list[str], options: dict) -> None:
 def process(options: dict) -> None:
   night_vision = options.get("remove_night_vision_tint")
   if night_vision:
-    white_adf = mods2.deserialize_adf(NIGHT_VISION_WHITE_FILE)
+    white_adf = mods2.deserialize_adf(NIGHT_VISION_WHITE_FILE, modded=False)
     tint_index = white_adf.table_instance_full_values[0].value["Hashes"].value.index(2219558163)
     tint_value_1 = white_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Keys"].value[0]
     tint_value_2 = white_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Values"].value[0]

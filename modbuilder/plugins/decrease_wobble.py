@@ -1,4 +1,4 @@
-from typing import List
+from modbuilder import mods2
 
 DEBUG = False
 NAME = "Decrease Wobble"
@@ -28,24 +28,21 @@ def format(options: dict) -> str:
   prone_percent = options['reduce_prone_percent']
   return f"Decrease Wobble (-{int(stand_percent)}% stand, -{int(crouch_percent)}% crouch, -{int(prone_percent)}% prone)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
-  stand_percent = options['reduce_stand_percent']
-  crouch_percent = options['reduce_crouch_percent']
-  prone_percent = options['reduce_prone_percent']
-  stand_value = round(1.0 - stand_percent / 100, 1)
-  crouch_value = round(1.0 - crouch_percent / 100, 1)
-  prone_value = round(1.0 - prone_percent / 100, 1)
-  return [
+def update_values_at_offset(options: dict) -> None:
+  movement_file = mods2.deserialize_adf(FILE)
+  weapon_settings = movement_file.table_instance_full_values[0].value["FpsSettings"].value["WeaponSkillSettings"].value
+  updates = [
     {
-      "offset": 444,
-      "value": stand_value
+      "offset": weapon_settings["StandingWoobleModifier"].data_offset,
+      "value": round(1.0 - options['reduce_stand_percent'] / 100, 1),
     },
     {
-      "offset": 448,
-      "value": crouch_value
+      "offset": weapon_settings["CrouchWoobleModifier"].data_offset,
+      "value": round(1.0 - options['reduce_crouch_percent'] / 100, 1),
     },
     {
-      "offset": 452,
-      "value": prone_value
-    }
+      "offset": weapon_settings["CrawlWoobleModifier"].data_offset,
+      "value": round(1.0 - options['reduce_prone_percent'] / 100, 1),
+    },
   ]
+  return updates

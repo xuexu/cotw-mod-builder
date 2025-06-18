@@ -9,10 +9,10 @@ from deca.file import ArchiveFile
 from modbuilder import mods
 
 
-def deserialize_adf(filename: str) -> Adf:
-  modded_file = mods.get_modded_file(filename)
+def deserialize_adf(filename: str, modded: bool = True) -> Adf:
+  file = mods.get_modded_file(filename) if modded else mods.get_org_file(filename)
   adf = Adf()
-  with ArchiveFile(open(modded_file, 'rb')) as f:
+  with ArchiveFile(open(file, 'rb')) as f:
     adf.deserialize(f)
   return adf
 

@@ -1,4 +1,4 @@
-from modbuilder import mods
+from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Increase Weapon FOV"
@@ -28,5 +28,9 @@ def get_files(options: dict) -> list[str]:
 
 def process(options: dict) -> None:
   weapon_fov = options["first-person_weapon_fov"]
-  mods.update_file_at_offset(FIRST_PERSON_FOV_FILE, 248, weapon_fov)
-  mods.update_file_at_offset(PRONE_FOV_FILE, 248, weapon_fov)
+  first_person_file = mods2.deserialize_adf(FIRST_PERSON_FOV_FILE)
+  first_person_fov = first_person_file.table_instance_full_values[0].value["ForeGroundFOV"]
+  prone_file = mods2.deserialize_adf(FIRST_PERSON_FOV_FILE)
+  prone_fov = prone_file.table_instance_full_values[0].value["ForeGroundFOV"]
+  mods.update_file_at_offset(FIRST_PERSON_FOV_FILE, first_person_fov.data_offset, weapon_fov)
+  mods.update_file_at_offset(PRONE_FOV_FILE, prone_fov.data_offset, weapon_fov)

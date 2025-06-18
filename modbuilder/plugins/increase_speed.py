@@ -1,4 +1,4 @@
-from typing import List
+from modbuilder import mods2
 
 DEBUG = False
 NAME = "Increase Speed"
@@ -23,7 +23,9 @@ def format(options: dict) -> str:
   prone_sprint_multiplier = options['prone_sprint_speed_multiplier']
   return f"Increase Speed ({round(stand_multiplier, 1)}/{round(stand_sprint_multiplier, 1)}x, {round(crouch_multiplier, 1)}/{round(crouch_sprint_multiplier, 1)}x, {round(prone_multiplier, 1)}/{round(prone_sprint_multiplier, 1)}x)"
 
-def update_values_at_offset(options: dict) -> List[dict]:
+def update_values_at_offset(options: dict) -> None:
+  movement_file = mods2.deserialize_adf(FILE)
+  fps_settings = movement_file.table_instance_full_values[0].value["FpsSettings"].value
   stand_multiplier = options['stand_speed_multiplier']
   crouch_multiplier = options['crouch_speed_multiplier']
   prone_multiplier = options['prone_speed_multiplier']
@@ -32,70 +34,75 @@ def update_values_at_offset(options: dict) -> List[dict]:
   prone_sprint_multiplier = options['prone_sprint_speed_multiplier']
   jump_multiplier = options['jump_speed_multiplier']
 
-  return [
+  updates = [
+    # Gamepad settings
     {
-      "offset": 176,
+      "offset": fps_settings["GamepadStanceStandSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": stand_multiplier
     },
     {
-      "offset": 180,
+      "offset": fps_settings["GamepadStanceStandSprintSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": stand_sprint_multiplier
     },
     {
-      "offset": 200,
+      "offset": fps_settings["GamepadStanceCrouchSpeedModifier"].data_offset,
+      "transform": "multiply",
+      "value": crouch_multiplier
+    },
+    {
+      "offset": fps_settings["GamepadStanceCrouchSprintModifier"].data_offset,
+      "transform": "multiply",
+      "value": crouch_sprint_multiplier
+    },
+    {
+      "offset": fps_settings["GamepadStanceProneSpeedModifier"].data_offset,
+      "transform": "multiply",
+      "value": prone_multiplier
+    },
+    {
+      "offset": fps_settings["GamepadStanceProneSprintModifier"].data_offset,
+      "transform": "multiply",
+      "value": prone_sprint_multiplier
+    },
+    # Keyboard settings
+    {
+      "offset": fps_settings["KeyboardStanceStandSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": stand_multiplier
     },
     {
-      "offset": 204,
+      "offset": fps_settings["KeyboardStanceStandSprintSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": stand_sprint_multiplier
     },
     {
-      "offset": 184,
+      "offset": fps_settings["KeyboardStanceCrouchSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": crouch_multiplier
     },
     {
-      "offset": 188,
+      "offset": fps_settings["KeyboardStanceCrouchSprintModifier"].data_offset,
       "transform": "multiply",
       "value": crouch_sprint_multiplier
     },
     {
-      "offset": 208,
-      "transform": "multiply",
-      "value": crouch_multiplier
-    },
-    {
-      "offset": 212,
-      "transform": "multiply",
-      "value": crouch_sprint_multiplier
-    },
-    {
-      "offset": 192,
+      "offset": fps_settings["KeyboardStanceProneSpeedModifier"].data_offset,
       "transform": "multiply",
       "value": prone_multiplier
     },
     {
-      "offset": 196,
+      "offset": fps_settings["KeyboardStanceProneSprintModifier"].data_offset,
       "transform": "multiply",
       "value": prone_sprint_multiplier
     },
+    # Jump settings
     {
-      "offset": 216,
-      "transform": "multiply",
-      "value": prone_multiplier
-    },
-    {
-      "offset": 220,
-      "transform": "multiply",
-      "value": prone_sprint_multiplier
-    },
-    {
-      "offset": 228,
+      "offset": fps_settings["JumpSpeed"].data_offset,
       "transform": "multiply",
       "value": jump_multiplier
     }
   ]
+
+  return updates
