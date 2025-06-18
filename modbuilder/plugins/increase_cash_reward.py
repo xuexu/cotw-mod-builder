@@ -5,7 +5,7 @@ NAME = "Increase Cash Reward"
 DESCRIPTION = "Increase the cash reward when harvesting kills, completing missions, and finishing competitions."
 FILE = "settings/hp_settings/player_rewards.bin"
 OPTIONS = [
-  { "name": "Cash Reward Multiplier", "min": 2, "max": 20, "default": 1, "increment": 1 }
+  { "name": "Cash Reward Multiplier", "min": 0.1, "max": 20.0, "default": 1.0, "initial": 1.0, "increment": 0.1 }
 ]
 
 def format(options: dict) -> str:
@@ -67,42 +67,42 @@ def update_values_at_coordinates(options: dict) -> List[dict]:
     },
     {
       # reward_competition_bronze
-      "coordinates": "B30",
-      "sheet": "custom_rewards",
-      "transform": "multiply",
-      "value": cash_reward_multiplier
-    },
-    {
-      # reward_competition_silver
       "coordinates": "B31",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier
     },
     {
-      # reward_competition_gold
+      # reward_competition_silver
       "coordinates": "B32",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier
     },
     {
-      # reward_halloween_200
-      "coordinates": "B34",
+      # reward_competition_gold
+      "coordinates": "B33",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier
     },
     {
-      # reward_halloween_500
+      # reward_halloween_200
       "coordinates": "B35",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier
     },
     {
-      # reward_halloween_1000
+      # reward_halloween_500
       "coordinates": "B36",
+      "sheet": "custom_rewards",
+      "transform": "multiply",
+      "value": cash_reward_multiplier
+    },
+    {
+      # reward_halloween_1000
+      "coordinates": "B37",
       "sheet": "custom_rewards",
       "transform": "multiply",
       "value": cash_reward_multiplier

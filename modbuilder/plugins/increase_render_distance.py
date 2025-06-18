@@ -1,6 +1,5 @@
-from typing import List
 from modbuilder import mods
-from deca.ff_rtpc import rtpc_from_binary, RtpcNode, RtpcProperty
+from deca.ff_rtpc import RtpcNode, RtpcProperty
 from pathlib import Path
 
 DEBUG = False
@@ -9,10 +8,10 @@ DESCRIPTION = "Increase the render distance of animals. There are two settings: 
 FILE = "global/global_animal_types.blo"
 WARNING = "Increasing the render distance too much can cause the game to crash or behave strangely. I personally do not go beyond 750m."
 OPTIONS = [
-  { "name": "Spawn Distance", "min": 385, "max": 1000, "default": 384, "increment": 5, "initial": 384 },
-  { "name": "Despawn Distance", "min": 420, "max": 1000, "default": 416, "increment": 5, "initial": 416 },
-  { "name": "Bird Spawn Distance", "min": 470, "max": 1000, "default": 470, "increment": 5, "initial": 470 },
-  { "name": "Bird Despawn Distance", "min": 500, "max": 1000, "default": 500, "increment": 5, "initial": 500 }
+  { "name": "Spawn Distance", "min": 1, "max": 1000, "default": 384, "increment": 1, "initial": 384 },
+  { "name": "Despawn Distance", "min": 1, "max": 1000, "default": 416, "increment": 1, "initial": 416 },
+  { "name": "Bird Spawn Distance", "min": 1, "max": 1000, "default": 470, "increment": 1, "initial": 470 },
+  { "name": "Bird Despawn Distance", "min": 1, "max": 1000, "default": 500, "increment": 1, "initial": 500 }
 ]
 PRESETS = [
   {
@@ -40,12 +39,12 @@ def format(options: dict) -> str:
   despawn_distance = int(options['despawn_distance'])
   return f"Increase Render Distance ({spawn_distance}m, {despawn_distance}m)"
 
-def find_prop_offset(value: float, props: List[RtpcProperty]) -> int:
+def find_prop_offset(value: float, props: list[RtpcProperty]) -> int:
   for prop in props:
     if prop.data == value:
       return prop.data_pos
   return None
-    
+
 def get_animal_props(animal_list: RtpcNode) -> RtpcNode:
   animal_props = []
   for animal in animal_list.child_table:
@@ -67,23 +66,23 @@ def process(options: dict) -> None:
   for animal in animal_props:
     bird_spawn_offset = None
     bird_despawn_offset = None
-    
+
     spawn_offset = find_prop_offset(384.0, animal)
     if not spawn_offset:
       bird_spawn_offset = find_prop_offset(470.0, animal)
     despawn_offset = find_prop_offset(416.0, animal)
     if not despawn_offset:
       bird_despawn_offset = find_prop_offset(500.0, animal)
-      
+
     if spawn_offset:
-      spawn_offsets.append(spawn_offset)    
+      spawn_offsets.append(spawn_offset)
     if bird_spawn_offset:
       bird_spawn_offsets.append(bird_spawn_offset)
     if despawn_offset:
-      despawn_offsets.append(despawn_offset)      
+      despawn_offsets.append(despawn_offset)
     if bird_despawn_offset:
-      bird_despawn_offsets.append(bird_despawn_offset)      
-  
+      bird_despawn_offsets.append(bird_despawn_offset)
+
   mods.update_file_at_offsets(Path(FILE), spawn_offsets, spawn_distance)
   mods.update_file_at_offsets(Path(FILE), bird_spawn_offsets, bird_spawn_distance)
   mods.update_file_at_offsets(Path(FILE), despawn_offsets, despawn_distance)

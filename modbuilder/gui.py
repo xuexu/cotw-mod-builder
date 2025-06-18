@@ -302,6 +302,31 @@ def _move_mods(selected_mods: dict, listbox: sg.Listbox, direction: int) -> dict
   listbox.TKListbox.yview_moveto(scroll_position[0])
   return selected_mods
 
+def _sort_mods(selected_mods: dict, listbox: sg.Listbox) -> dict:
+    listbox_values = listbox.get_list_values()
+    selected_indices = listbox.get_indexes()
+    if not selected_indices:
+        return selected_mods  # Nothing to do
+    # Get the selected values and their original indices
+    selected_items = [(i, listbox_values[i]) for i in selected_indices]
+    # Sort selected items by display value (case-insensitive)
+    selected_items_sorted = sorted(selected_items, key=lambda pair: pair[1].lower())
+    # Build new listbox values with only the selected items reordered
+    new_listbox_values = listbox_values[:]
+    for (new_index, (_, value)) in zip(selected_indices, selected_items_sorted):
+        new_listbox_values[new_index] = value
+    # Create a mapping of listbox values to original mod keys (in order)
+    mod_keys = list(selected_mods.keys())
+    value_to_key = {listbox_values[i]: mod_keys[i] for i in range(len(listbox_values))}
+    # Build new mod key order based on reordered listbox
+    new_mod_keys = [value_to_key[val] for val in new_listbox_values]
+    new_selected_mods = {k: selected_mods[k] for k in new_mod_keys}
+    # Update the listbox with reordered values
+    scroll_position = listbox.TKListbox.yview()
+    listbox.update(values=new_listbox_values, set_to_index=selected_indices)
+    listbox.TKListbox.yview_moveto(scroll_position[0])
+    return new_selected_mods
+
 def _delete_mods(selected_mods: dict, listbox: sg.Listbox) -> dict:
   selected_mod_indicies = list(listbox.get_indexes())
   if not selected_mod_indicies:
@@ -356,6 +381,7 @@ def main() -> None:
                   sg.Button("Load", k="load", button_color=f"{sg.theme_element_text_color()} on brown"),
                   sg.Button("▲", k="move_up", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
                   sg.Button("▼", k="move_down", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
+                  sg.Button("A-Z", k="sort_mods", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
                   sg.Push(),
                   sg.Button("Remove", k="remove_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True)
                 ],
@@ -426,13 +452,17 @@ def main() -> None:
       if len(values["selected_mods"]) == 0:
         continue
       window["remove_mod"].update(disabled=False)
+      window["sort_mods"].update(disabled=False)
     elif event == "move_up":
       selected_mods = _move_mods(selected_mods, window["selected_mods"], -1)
     elif event == "move_down":
       selected_mods = _move_mods(selected_mods, window["selected_mods"], 1)
+    elif event == "sort_mods":
+      selected_mods = _sort_mods(selected_mods, window["selected_mods"])
     elif event == "remove_mod":
       selected_mods = _delete_mods(selected_mods, window["selected_mods"])
       window["remove_mod"].update(disabled=True)
+      window["sort_mods"].update(disabled=True)
       _enable_mod_button(window)
     elif event == "build_mod":
       window["build_mod"].update(disabled=True)
@@ -461,6 +491,7 @@ def main() -> None:
       window["selected_mods"].update(formatted_mods_list)
       _enable_mod_button(window)
       window["remove_mod"].update(disabled=True)
+      window["sort_mods"].update(disabled=True)
       window["build_progress"].update(100)
       _create_party()
       window["build_progress"].update(0)

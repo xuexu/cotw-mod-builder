@@ -3,8 +3,8 @@ NAME = "Increase XP Reward"
 DESCRIPTION = "Increase the player experience and weapon score rewards when harvesting kills, completing missions, and finding points of interest."
 FILE = "settings/hp_settings/player_rewards.bin"
 OPTIONS = [
-  { "name": "XP Reward Multiplier", "min": 1, "max": 20, "default": 1, "increment": 1 },
-  { "name": "Weapon Score Multiplier", "min": 1, "max": 20, "default": 1, "increment": 1 }
+  { "name": "XP Reward Multiplier", "min": 0.1, "max": 20.0, "default": 1.0, "initial": 1.0, "increment": 0.1 },
+  { "name": "Weapon Score Multiplier", "min": 0.1, "max": 20.0, "default": 1.0, "initial": 1.0, "increment": 0.1 },
 ]
 
 def format(options: dict) -> str:
@@ -103,21 +103,21 @@ def update_values_at_coordinates(options: dict) -> list[dict]:
     },
     {
       # reward_achievement_small
-      "coordinates": "C25",
-      "sheet": "custom_rewards",
-      "value": xp_reward_multiplier,
-      "transform": "multiply",
-    },
-    {
-      # reward_achievement_medium
       "coordinates": "C26",
       "sheet": "custom_rewards",
       "value": xp_reward_multiplier,
       "transform": "multiply",
     },
     {
-      # reward_achievement_large
+      # reward_achievement_medium
       "coordinates": "C27",
+      "sheet": "custom_rewards",
+      "value": xp_reward_multiplier,
+      "transform": "multiply",
+    },
+    {
+      # reward_achievement_large
+      "coordinates": "C28",
       "sheet": "custom_rewards",
       "value": xp_reward_multiplier,
       "transform": "multiply",

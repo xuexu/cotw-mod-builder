@@ -1,4 +1,4 @@
-from modbuilder import mods
+from modbuilder import mods, mods2
 import os
 
 DEBUG = False
@@ -15,6 +15,7 @@ OPTIONS = [
   }
 ]
 NIGHT_VISION_FILE = "environment/weather/night_vision.environc"
+NIGHT_VISION_WHITE_FILE = "environment/weather/night_vision_white.environc"
 
 def format(options: dict) -> str:
   text = "Clean Scope Lenses"
@@ -26,7 +27,7 @@ def format(options: dict) -> str:
 def get_files(options: dict) -> list[str]:
   night_vision = options.get("remove_night_vision_tint")
   if night_vision:
-    return [NIGHT_VISION_FILE]
+    return [NIGHT_VISION_FILE, NIGHT_VISION_WHITE_FILE]
   return []
 
 def merge_files(files: list[str], options: dict) -> None:
@@ -40,10 +41,17 @@ def merge_files(files: list[str], options: dict) -> None:
 def process(options: dict) -> None:
   night_vision = options.get("remove_night_vision_tint")
   if night_vision:
+    white_adf = mods2.deserialize_adf(NIGHT_VISION_WHITE_FILE)
+    tint_index = white_adf.table_instance_full_values[0].value["Hashes"].value.index(2219558163)
+    tint_value_1 = white_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Keys"].value[0]
+    tint_value_2 = white_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Values"].value[0]
+    green_adf = mods2.deserialize_adf(NIGHT_VISION_FILE)
+    tint_offset_1 = green_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Keys"].data_offset
+    tint_offset_2 = green_adf.table_instance_full_values[0].value["Parameters"].value[tint_index].value["Values"].data_offset
     mods.update_file_at_offsets_with_values(
       NIGHT_VISION_FILE,
       [
-        (944, 0.22018349170684814),
-        (952, 25.22058868408203),
+        (tint_offset_1, tint_value_1),
+        (tint_offset_2, tint_value_2),
       ]
     )

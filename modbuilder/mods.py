@@ -612,7 +612,7 @@ def create_bytearray(values: any, data_format: str) -> bytearray:
 def update_non_instance_offsets(extracted_adf: Adf, added_size: int, verbose: bool = False) -> list[dict]:
   updates = []
   if verbose:
-    print(f"  Updateing file header offsets by {added_size}")
+    print(f"  Updating file header offsets by {added_size}")
   offsets_and_values = [
     (extracted_adf.header_profile["instance_offset_offset"], extracted_adf.instance_offset),
     (extracted_adf.header_profile["typedef_offset_offset"], extracted_adf.typedef_offset),

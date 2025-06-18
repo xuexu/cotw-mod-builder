@@ -1,5 +1,5 @@
 {
-  "version": "2.2.6",
+  "version": "2.2.7",
   "mod_options": {
     "remove_intro_logos": {},
     "clean_scope_lenses": {
@@ -49,6 +49,9 @@
       "prone_sprint_speed_multiplier": 1.5,
       "jump_speed_multiplier": 1.0
     },
+    "increase_weapon_fov": {
+      "first-person_weapon_fov": 50.0
+    },
     "modify_player_traits": {
       "base_health": 10000.0,
       "fall_damage_reduction_percent": 100.0,
@@ -69,9 +72,6 @@
       "reduce_skill_tier_cost": true,
       "name": "Skill Tier Cost",
       "key": "skill_tier_cost"
-    },
-    "increase_weapon_fov": {
-      "first-person_weapon_fov": 50.0
     },
     "modify_scope_rifle_scope_4-12x_33mm_01": {
       "name": "rifle_scope_4-12x_33mm_01",
@@ -113,20 +113,6 @@
       "scent_range": 500.0,
       "decoy_range": 500.0
     },
-    "modify_store_structure": {
-      "type": "structure",
-      "file": "settings/hp_settings/equipment_data.bin",
-      "discount": 90,
-      "free_price": 0,
-      "bulk_quantity": 0
-    },
-    "modify_store_skin": {
-      "type": "skin",
-      "file": "settings/hp_settings/equipment_data.bin",
-      "discount": 90,
-      "free_price": 0,
-      "bulk_quantity": 0
-    },
     "modify_respec_cost": {
       "modify_respec_cost": "Cheap",
       "cost": 1.0
@@ -141,6 +127,22 @@
     "modify_reticle_cost": {
       "modify_reticle_cost": "Free",
       "cost": 0.0
+    },
+    "modify_store_structure": {
+      "type": "structure",
+      "file": "settings/hp_settings/equipment_data.bin",
+      "discount": 90,
+      "free_price": 0,
+      "bulk_quantity": 0,
+      "bulk_weight": -1
+    },
+    "modify_store_skin": {
+      "type": "skin",
+      "file": "settings/hp_settings/equipment_data.bin",
+      "discount": 90,
+      "free_price": 0,
+      "bulk_quantity": 0,
+      "bulk_weight": -1
     }
   }
 }

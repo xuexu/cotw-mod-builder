@@ -10,6 +10,15 @@ DEBUG = False
 NAME = "Modify Ammo"
 DESCRIPTION = "Modify ammo attributes. It is easy to over-adjust these settings and create unrealistic ammo. Class changes do not show in the UI but will affect harvest integrity. Changes to a category may conflict with individual ammo changes."
 
+# These variables can be modified and paired with custom classes in "Modify Animals" to widen the class range beyond 1-9
+# Some UI elements are not fully supported without custom .gfx files such as "Recommended Classes" on the weapon wheel
+MAX_SUPPORTED_CLASS = 9  # change the max supported class (can be more than 9)
+CLASS_0 = False  # enable a class "0" below class 1
+
+AMMO_CLASS_BUTTONS_STATE = [True] * (MAX_SUPPORTED_CLASS + 1)
+AMMO_UI_DATA: dict[str, dict] = {}
+ALL_AMMO: dict[str, list['Ammo']] = {}
+
 class Ammo:
   __slots__ = (
     'file',
@@ -95,27 +104,26 @@ def load_ammo_type(ammo_type: str) -> list[Ammo]:
   ammo_list.sort(key=lambda x: x.display_name)
   return ammo_list
 
-def load_all_ammo() -> dict[str, list[Ammo]]:
-  all_ammo = {
-      "bow": load_ammo_type("bows"),
-      "handgun": load_ammo_type("handguns"),
-      "rifle": load_ammo_type("rifles"),
-      "shotgun": load_ammo_type("shotguns"),
-    }
+def load_all_ammo() -> None:
+  global ALL_AMMO
+  ALL_AMMO = {
+    "bow": load_ammo_type("bows"),
+    "handgun": load_ammo_type("handguns"),
+    "rifle": load_ammo_type("rifles"),
+    "shotgun": load_ammo_type("shotguns"),
+  }
   # print("Loaded ammo")
-  return all_ammo
 
-def load_ammo_ui_data() -> dict:
+def load_ammo_ui_data() -> None:
+  global AMMO_UI_DATA
   ammo_sheet, _i = mods2.get_sheet(mods.EQUIPMENT_UI_DATA, "ammo")
-  ammo_ui_data = {}
   for i in range(2,ammo_sheet["Rows"].value + 1): # skip header row
     name_cell = mods2.XlsxCell(mods.EQUIPMENT_UI_FILE, mods.EQUIPMENT_UI_DATA, {"sheet": "ammo", "coordinates": f"A{i}"})
     penetration_cell = mods2.XlsxCell(mods.EQUIPMENT_UI_FILE, mods.EQUIPMENT_UI_DATA, {"sheet": "ammo", "coordinates": f"C{i}"})
     expansion_cell = mods2.XlsxCell(mods.EQUIPMENT_UI_FILE, mods.EQUIPMENT_UI_DATA, {"sheet": "ammo", "coordinates": f"D{i}"})
     if name_cell.data_array_name == "StringData":  # file contains "blank" rows with True values as placeholders
       ammo_name = mods.clean_equipment_name(name_cell.value.decode("utf-8"), "ammo")
-      ammo_ui_data[ammo_name] = {"row": i, "penetration": penetration_cell.value, "expansion": expansion_cell.value}
-  return ammo_ui_data
+      AMMO_UI_DATA[ammo_name] = {"row": i, "penetration": penetration_cell.value, "expansion": expansion_cell.value}
 
 def build_tab(ammo_type: str) -> sg.Tab:
   ammo_list = ALL_AMMO[ammo_type]
@@ -124,7 +132,10 @@ def build_tab(ammo_type: str) -> sg.Tab:
   ], k=f"modify_ammo_tab_{ammo_type}")
 
 def get_option_elements() -> sg.Column:
-  buttons_row = [sg.Button(str(i), k=f"modify_ammo_class_button_{i}", enable_events=True,) for i in range(1, 10)]
+  buttons_row = [sg.Button(str(i), k=f"modify_ammo_class_button_{i}", enable_events=True) for i in range(len(AMMO_CLASS_BUTTONS_STATE))]
+  if not CLASS_0:  # disable and hide the class 0 button
+    buttons_row[0] = sg.Button("0", k="modify_ammo_class_button_0", enable_events=False, visible=False)
+    AMMO_CLASS_BUTTONS_STATE[0] = False
 
   layout = [[
       sg.TabGroup([[
@@ -188,19 +199,19 @@ def handle_event(event: str, window: sg.Window, values: dict) -> None:
       if selected_ammo is None:  # no ammo selected = reset class buttons
         reset_ammo_class_buttons()
       else:  # ammo selected = update class buttons to match ammo's default
-        for i in range(1,10):
+        for i in range(len(AMMO_CLASS_BUTTONS_STATE)):
           if i in selected_ammo.classes:
-            AMMO_CLASS_BUTTONS_STATE[i - 1] = True
+            AMMO_CLASS_BUTTONS_STATE[i] = True
           else:
-            AMMO_CLASS_BUTTONS_STATE[i - 1] = False
+            AMMO_CLASS_BUTTONS_STATE[i] = False
     # show projectiles options if shotgun tab is selected, hide if non-shotgun tab is selected
     window["modify_ammo_projectiles_label"].update(visible=(active_tab == "modify_ammo_tab_shotgun"))
     window["modify_ammo_projectiles"].update(visible=(active_tab == "modify_ammo_tab_shotgun"))
     window["options"].contents_changed()
   # press a class button = toggle that button
   if event.startswith("modify_ammo_class_button_"):
-    selected_class = int(event[-1])
-    AMMO_CLASS_BUTTONS_STATE[selected_class - 1] = not AMMO_CLASS_BUTTONS_STATE[selected_class - 1]
+    selected_class = int(event[-2:].removeprefix("_"))
+    AMMO_CLASS_BUTTONS_STATE[selected_class] = not AMMO_CLASS_BUTTONS_STATE[selected_class]
   if event.startswith("modify_ammo_"):
     update_ammo_class_buttons(window)
 
@@ -209,19 +220,21 @@ def toggle_ui_error(selected_ammo: Ammo, window: sg.Window) -> None:
   window["modify_ammo_ui_error"].update(visible=show_error)
 
 def reset_ammo_class_buttons() -> None:
-  for i in range(9):
+  for i in range(len(AMMO_CLASS_BUTTONS_STATE)):
     AMMO_CLASS_BUTTONS_STATE[i] = True
+  if not CLASS_0:  # keep the button disabled
+    AMMO_CLASS_BUTTONS_STATE[0] = False
 
 def update_ammo_class_buttons(window: sg.Window) -> None:
-  for i in range(1,10):
-    if AMMO_CLASS_BUTTONS_STATE[i - 1]:
+  for i in range(len(AMMO_CLASS_BUTTONS_STATE)):
+    if AMMO_CLASS_BUTTONS_STATE[i]:
       window[f"modify_ammo_class_button_{i}"].update(button_color=sg.theme_button_color())
     else:
       window[f"modify_ammo_class_button_{i}"].update(button_color=("orange", "black"))
 
 def format_class_selection() -> list[int]:
   # convert the list of True/False values from the buttons into a list of class numbers
-  return [index + 1 for index, value in enumerate(AMMO_CLASS_BUTTONS_STATE) if value]
+  return [i for i, v in enumerate(AMMO_CLASS_BUTTONS_STATE) if v]
 
 def add_mod(window: sg.Window, values: dict) -> dict:
   selected_ammo = get_selected_ammo(window, values)
@@ -400,7 +413,7 @@ def process(options: dict) -> None:
       for update in ui_updates:
         update["sheet"] = "ammo"
         update["allow_new_data"] = True
-      mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates)
+      mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates, verbose=bool(classes == [6,7,8,9,10,11,12]))
     mods.apply_updates_to_file(ammo.file, updates)
 
 def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
@@ -437,6 +450,5 @@ def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, d
 
   return updated_mod_key, updated_mod_options
 
-AMMO_UI_DATA = load_ammo_ui_data()
-ALL_AMMO = load_all_ammo()
-AMMO_CLASS_BUTTONS_STATE = [True] * 9
+load_ammo_ui_data()
+load_all_ammo()

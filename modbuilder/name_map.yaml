@@ -358,6 +358,9 @@ misc:
     name: Backpack - Small  # TrailScout Mini Daypack
     type: Upgrade
     <<: *backpack_colors
+  clothing_alberta_outfit_01:
+    name: Buffalo Plaid Outfit
+    type: Clothing
   clothing_olive_outfit_01:
     name: Olive Outfit
     type: Clothing
@@ -781,6 +784,10 @@ weapon:
     name: Gandhare Rifle
     type: Rifle
   rifles_577_450: *la_rifle_577_450  # tuning file
+  rifles_3030_type2: &rifles_3030_type2  #equipment_data.bin
+    name: Laperriere Outrider .30-30
+    type: Rifle
+  la_rifle_3030_type2: *rifles_3030_type2  # tuning file
   sa_rifle_22lr:
     name: Virant .22LR
     type: Rifle
@@ -827,7 +834,7 @@ weapon:
     type: Rifle
     variant:
       "01": Rangemaster 338
-      "02": Rangemaster 338 Chanmpionship
+      "02": Rangemaster 338 Championship
   sa_rifle_30-60:
     name: _PLACEHOLDER Single-Action 30-60 Rifle  # not available in-game
     type: Rifle
@@ -1014,8 +1021,11 @@ lure:
   caller_moose:
     name: Moose Caller
     type: Caller
+  caller_northern_pintail:
+    name: Northern Pintail Caller
+    type: Caller
   caller_predator_distressed_deer:
-    name: Predator "Distressed Deer" Caller
+    name: Predator "Distressed Fawn" Caller
     type: Caller
   caller_predator_jackrabbit:
     name: Predator "Jackrabbit" Caller
@@ -1035,6 +1045,9 @@ lure:
   caller_snort_wheeze:
     name: Buck "Snort Wheeze" Caller
     type: Caller
+  caller_snow_goose:
+    name: Snow Goose Caller
+    type: Caller
   caller_turkey_locator:
     name: Wild Turkey Crow Caller
     type: Caller
@@ -1043,6 +1056,9 @@ lure:
     type: Caller
   caller_wild_boar:
     name: Wild Boar Caller
+    type: Caller
+  caller_wood_duck:
+    name: Wood Duck Caller
     type: Caller
   remote_caller:
     name: FOXPRO X360 Remote Caller
@@ -1065,7 +1081,7 @@ lure:
     type: Decoy
     <<: *duck_styles
   eurasian_wigeon_decoy:
-    name: Eurasian Teal Decoy
+    name: Eurasian Wigeon Decoy
     type: Decoy
     <<: *duck_styles
   ferruginous_duck_decoy:
@@ -1100,6 +1116,14 @@ lure:
     name: Magpie Goose Decoy
     type: Decoy
     <<: *goose_styles
+  northern_pintail_decoy:
+    name: Northern Pintail Decoy
+    type: Decoy
+    <<: *duck_styles
+  snow_goose_decoy:
+    name: Snow Goose Decoy
+    type: Decoy
+    <<: *goose_styles
   tufted_duck_decoy:
     name: Tufted Duck Decoy
     type: Decoy
@@ -1110,6 +1134,10 @@ lure:
     style:
       "01": Female Sentry
       "02": Male Strutting
+  wood_duck_decoy:
+    name: Wood Duck Decoy
+    type: Decoy
+    <<: *duck_styles
   # Scent
   scent_blacktail_deer:
     name: Blacktail Deer Scent

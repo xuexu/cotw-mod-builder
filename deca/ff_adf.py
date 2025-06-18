@@ -8,7 +8,7 @@ from deca.errors import *
 from deca.file import ArchiveFile
 from deca.fast_file import *
 from deca.hashes import hash32_func
-from deca.ff_types import FTYPE_ADF_BARE, FTYPE_ADF0, FTYPE_ADF5
+# from deca.ff_types import FTYPE_ADF_BARE, FTYPE_ADF0, FTYPE_ADF5
 
 # https://github.com/tim42/gibbed-justcause3-tools-fork/blob/master/Gibbed.JustCause3.FileFormats/AdfFile.cs
 
@@ -449,7 +449,7 @@ def adf_format(v, type_map, indent=0):
             s = s + '  ' * indent + '# ' + value_info + '\n'
             s = s + '  ' * indent + '[\n'
             for iv in v.value:
-                s = s + adf_format(iv, vfs, type_map, indent + 1)
+                s = s + adf_format(iv, type_map, indent + 1)
             s = s + '  ' * indent + ']\n'
         elif type_def.metatype == MetaType.String:
             s = s + '  ' * indent + '{}  # {}\n'.format(v.value, value_info)
@@ -488,7 +488,7 @@ def adf_format(v, type_map, indent=0):
                 #         if len(name64):
                 #             hash_string = 'DB:H6:"{}"'.format(name64[0][1].decode('utf-8'))
                 #         else:
-                #             hash_string = 'Hash8:0x{:016x}'.format(v.value)
+                hash_string = 'Hash8:0x{:016x}'.format(v.value)
             else:
                 vp = v.value
                 hash_string = v.hash_string
