@@ -1,5 +1,9 @@
 import struct
 from pathlib import Path
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 typedef_s8 = 1477249634
 typedef_u8 = 211976733
@@ -205,7 +209,7 @@ def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type
     value = f"Primitive ({primitive_size}, {pos})"
     pointer += primitive_size
   elif type_id == ADF_VALUE:
-    # print(f"AdfValue string! OFFSET: {offset}   POINTER: {pointer}   POS: {pos}")
+    # logger.debug(f"AdfValue string! OFFSET: {offset}   POINTER: {pointer}   POS: {pos}")
     None
   elif type_id in type_map:
     type_def = type_map[type_id]
@@ -253,14 +257,14 @@ def read_instance(data: bytearray, offset: int, pointer: int, type_id: int, type
         value = f"String Hash (4, {pos})"
         pointer += 4
     else:
+      # logger.debug(f"Unknown metatype: {type_def['metatype']}")
       None
-      # print(f"Unknown metatype: {type_def['metatype']}")
   else:
     # ADFs that extract to XLSX have two typedefs that don't have any instance data in the file
     # 2240023889 - A[String]
     # 3238441815 - A[XLSCell]
+    # logger.debug(f"Unknown typedef: {type_id}")
     None
-    # print(f"Unknown typedef: {type_id}")
 
 
   return (value, pointer)

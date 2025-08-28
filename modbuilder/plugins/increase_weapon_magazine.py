@@ -1,8 +1,13 @@
-# from modbuilder import mods
-# from pathlib import Path
-# from deca.ff_rtpc import RtpcNode
-# import FreeSimpleGUI as sg
 # import re
+# from pathlib import Path
+
+# import FreeSimpleGUI as sg
+
+# from deca.ff_rtpc import RtpcNode
+# from modbuilder import mods
+# from modbuilder.logging_config import get_logger
+
+# logger = get_logger(__name__)
 
 # Disabled and commented out to ensure old versions are overwritten
 DEBUG = True
@@ -62,7 +67,7 @@ def load_weapons() -> list[Weapon]:
     elif weapon.type is not None:  # Skip non-player weapons like Salzwiesen Clay Pigeon Launcher
       weapons.append(weapon)
   weapons.sort(key=lambda weapon: (weapon.type, weapon.display_name))
-  # print("Loaded weapons")
+  logger.debug("Loaded weapons")
   return weapons
 
 def get_option_elements() -> sg.Column:
@@ -122,7 +127,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     }
   }
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
  # safely handle old save files without display_name
   display_name = options.get("weapon_display_name", options.get("weapon_name"))
   return f"Increase Magazine: {display_name} ({options["weapon_mag_size"]})"

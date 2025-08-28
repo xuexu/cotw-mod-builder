@@ -58,7 +58,7 @@ def load_reticles() -> list[Reticle]:
       continue  # safely ignore the error and skip the item
   return reticles
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   cost = int(options['cost'])
   return f"Modify Reticle Cost (${cost})"
 

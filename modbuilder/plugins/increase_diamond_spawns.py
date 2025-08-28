@@ -27,7 +27,7 @@ PRESETS = [
   { "name": "Extreme", "options": [ {"name": "weight_bias", "value": 0.5} ] }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Increase Diamond Spawns ({options['weight_bias']} weight bias)"
 
 def get_animal_scoring_table_index(animal: RtpcNode) -> int:

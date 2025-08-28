@@ -8,7 +8,7 @@ OPTIONS = [
   { "name": "Vegetation Camoflauge Percent", "max": 890, "min": 50, "default": 50, "initial": 890, "increment": 1 }
 ]
   
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   camo = options["vegetation_camoflauge_percent"]
   return f"Enhanced Improvised Blind ({int(camo)}%)"
 

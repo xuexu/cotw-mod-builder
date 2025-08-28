@@ -17,7 +17,7 @@ OPTIONS = [
 NIGHT_VISION_FILE = "environment/weather/night_vision.environc"
 NIGHT_VISION_WHITE_FILE = "environment/weather/night_vision_white.environc"
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   text = "Clean Scope Lenses"
   night_vision = options.get("remove_night_vision_tint")
   if night_vision:

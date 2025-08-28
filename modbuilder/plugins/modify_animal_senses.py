@@ -19,7 +19,7 @@ OPTIONS = [
   { "name": "Reduce Sound Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   senses_details = []
 
   tent_distance = options.get("tent_detection_distance")

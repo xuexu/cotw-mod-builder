@@ -24,7 +24,7 @@ def get_option_elements() -> sg.Column:
 def add_mod(window: sg.Window, values: dict) -> dict:
   None
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   None
 
 def handle_key(mod_key: str) -> bool:

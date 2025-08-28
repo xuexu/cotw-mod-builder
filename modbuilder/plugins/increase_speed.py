@@ -14,7 +14,7 @@ OPTIONS = [
   { "name": "Jump Speed Multiplier", "min": 1.0, "max": 20.0, "default": 1, "increment": 0.1, "note": "TIP: Use the Impact Resistance skill to reduce falling damage" }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   stand_multiplier = options['stand_speed_multiplier']
   stand_sprint_multiplier = options['stand_sprint_speed_multiplier']
   crouch_multiplier = options['crouch_speed_multiplier']

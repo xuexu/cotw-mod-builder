@@ -16,7 +16,7 @@ OPTIONS = [
   { "name": "Red and Black Pigmented", "style": "list", "initial": ["Baked Issabella", "Brown and White", "Charred Brindle", "Merle", "Silver Fawn", "Wolfdog"] },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Modify Dog Furs"
 
 def get_files(options: dict) -> List[str]:

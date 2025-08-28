@@ -2,6 +2,9 @@ from deca.ff_rtpc import rtpc_from_binary, RtpcProperty, RtpcNode
 from pathlib import Path
 from modbuilder import mods
 from enum import Enum
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 DEBUG = False
 NAME = "Increase Deployables"
@@ -11,7 +14,7 @@ OPTIONS = [
   { "name": "Deployable Multiplier", "min": 2, "max": 20, "default": 1, "increment": 1 }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Increase Deployables ({int(options['deployable_multiplier'])}x)"
 
 class Deployable(str, Enum):
@@ -63,7 +66,7 @@ def update_reserve_deployables(root: RtpcNode, f_bytes: bytearray, multiply: int
     for deployable_value in deployable_values:
       update_uint(f_bytes, deployable_value.offset, deployable_value.value * multiply)
   except Exception as ex:
-     print(f"received error: {ex}")
+     logger.exception(f"received error: {ex}")
 
 def save_file(filename: str, data: bytearray) -> None:
     base_path = mods.APP_DIR_PATH / "mod/dropzone/settings/hp_settings"

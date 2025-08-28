@@ -25,7 +25,7 @@ OPTIONS = [
   }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   decrease_pressure_radius = int(options['decrease_pressure_radius'])
   decrease_pressure_amount_percent = int(options['decrease_pressure_amount_percent'])
   return f"Decrease Hunting Pressure ({decrease_pressure_radius}m, {decrease_pressure_amount_percent}%)"

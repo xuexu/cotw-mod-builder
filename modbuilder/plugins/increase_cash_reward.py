@@ -8,7 +8,7 @@ OPTIONS = [
   { "name": "Cash Reward Multiplier", "min": 0.1, "max": 20.0, "default": 1.0, "initial": 1.0, "increment": 0.1 }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   cash_reward_multiplier = int(options['cash_reward_multiplier'])
   return f"Increase Cash Reward ({cash_reward_multiplier}x)"
 

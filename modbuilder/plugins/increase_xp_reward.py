@@ -7,7 +7,7 @@ OPTIONS = [
   { "name": "Weapon Score Multiplier", "min": 0.1, "max": 20.0, "default": 1.0, "initial": 1.0, "increment": 0.1 },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   xp_reward_multiplier = int(options['xp_reward_multiplier'])
   weapon_score_multiplier = int(options.get('weapon_score_multiplier', xp_reward_multiplier))
   return f"Increase XP Reward ({xp_reward_multiplier}x XP, {weapon_score_multiplier}x weapon score)"

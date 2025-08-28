@@ -2,6 +2,9 @@ from deca.ff_rtpc import rtpc_from_binary, RtpcProperty, RtpcNode
 from pathlib import Path
 from modbuilder import mods
 from functools import reduce
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 DEBUG = False
 NAME = "Increase Reserve Population"
@@ -12,7 +15,7 @@ OPTIONS = [
   { "name": "Population Multiplier", "min": 1.1, "max": 8, "default": 1, "increment": 0.1 }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   multiply = options["population_multiplier"]
   return f"Increase Reserve Population ({multiply}x)"
 
@@ -87,7 +90,7 @@ def update_reserve_population(root: RtpcNode, f_bytes: bytearray, multiply: floa
       new_value = round(reserve_value.value * multiply)
       _update_uint(f_bytes, reserve_value.offset, new_value)
   except Exception as ex:
-     print(f"received error: {ex}")
+     logger.exception(f"received error: {ex}")
 
 def _open_reserve(filename: Path) -> tuple[RtpcNode, bytearray]:
   with(filename.open("rb") as f):

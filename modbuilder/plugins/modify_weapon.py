@@ -534,7 +534,7 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     }
 
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
     # need to match old keys if reading from an old save file
     if "horizontal_offset" in options:  # scope offsets
         scope_name = options.get("display_name", options.get("name"))

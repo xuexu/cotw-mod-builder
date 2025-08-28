@@ -42,7 +42,7 @@ PRESETS = [
   },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   max_depth = int(options["max_depth"])
   player_movement = int(options["player_movement"])
   return f"Water ({max_depth} depth, {player_movement} speed)"

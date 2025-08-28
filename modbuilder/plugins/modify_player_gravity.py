@@ -54,7 +54,7 @@ PRESETS = [
     }    
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Modify Player Gravity ({options['gravity']})"
 
 def update_values_at_offset(options: dict) -> List[dict]:

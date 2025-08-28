@@ -1,5 +1,6 @@
 import FreeSimpleGUI as sg
 
+
 def create_option(mod_option: dict, key: str) -> list[list]:
     mod_details = []
     if "title" in mod_option:

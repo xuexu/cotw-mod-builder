@@ -5,6 +5,9 @@ import FreeSimpleGUI as sg
 
 from deca.ff_adf import Adf
 from modbuilder import mods, mods2
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 DEBUG = False
 NAME = "Modify Ammo"
@@ -112,7 +115,7 @@ def load_all_ammo() -> None:
     "rifle": load_ammo_type("rifles"),
     "shotgun": load_ammo_type("shotguns"),
   }
-  # print("Loaded ammo")
+  logger.debug("Loaded ammo")
 
 def load_ammo_ui_data() -> None:
   global AMMO_UI_DATA
@@ -288,7 +291,7 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     }
   }
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   penetration = int(options.get("penetration", 0))
   penetration_text = f'+{penetration}% pen.' if penetration else ""
   expansion = int(options.get("expansion", 0))
@@ -413,7 +416,7 @@ def process(options: dict) -> None:
       for update in ui_updates:
         update["sheet"] = "ammo"
         update["allow_new_data"] = True
-      mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates, verbose=bool(classes == [6,7,8,9,10,11,12]))
+      mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates)
     mods.apply_updates_to_file(ammo.file, updates)
 
 def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:

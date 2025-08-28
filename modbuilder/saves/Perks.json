@@ -1,5 +1,5 @@
 {
-  "version": "2.2.7",
+  "version": "2.2.9",
   "mod_options": {
     "modify_skills_breath_control": {
       "heart_rate_multiplier": 0.0,
@@ -20,27 +20,32 @@
       "name": "Steady Hands",
       "key": "steady_hands"
     },
-    "modify_skills_quick_feet": {
-      "steady": 9.9,
-      "name": "Quick Feet",
-      "key": "quick_feet"
-    },
-    "modify_skills_survival_instinct": {
-      "duration": 99.0,
-      "damage_reduction": 0.0,
-      "name": "Survival Instinct",
-      "key": "survival_instinct"
-    },
-    "modify_skills_ranger": {
-      "accuracy": 0.0,
-      "name": "Ranger",
-      "key": "ranger"
+    "modify_skills_windage": {
+      "cooldown": 1.0,
+      "name": "Windage",
+      "key": "windage"
     },
     "modify_skills_quick_draw": {
       "speed_multiplier": 99.0,
       "accuracy_multiplier": 0.0,
       "name": "Quick Draw",
       "key": "quick_draw"
+    },
+    "modify_skills_quick_feet": {
+      "steady": 9.9,
+      "name": "Quick Feet",
+      "key": "quick_feet"
+    },
+    "modify_skills_ranger": {
+      "accuracy": 0.0,
+      "name": "Ranger",
+      "key": "ranger"
+    },
+    "modify_skills_survival_instinct": {
+      "duration": 99.0,
+      "damage_reduction": 0.0,
+      "name": "Survival Instinct",
+      "key": "survival_instinct"
     },
     "modify_skills_body_control": {
       "speed_multiplier": 9.9,
@@ -83,7 +88,7 @@
       "key": "full_draw"
     },
     "modify_skills_move_n_shoot": {
-      "steady_multiplier": 9.0,
+      "steady_multiplier": 1.0,
       "name": "Move N Shoot",
       "key": "move_n_shoot"
     },

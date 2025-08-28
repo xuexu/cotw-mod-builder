@@ -1,3 +1,8 @@
+# This file is part of the original MIT-licensed project:
+# https://github.com/kk49/deca
+# Copyright (c) 2018–2019 Krzysztof Kamieniecki
+# Licensed under the MIT License. See LICENSE file for details.
+
 from typing import List
 import numpy as np
 from numba import njit, jit

@@ -105,7 +105,7 @@ def map_options(options: dict) -> dict:
   }
 
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   options = map_options(options)
   top_speed = options["top_speed"]
   acceleration = options["acceleration"]

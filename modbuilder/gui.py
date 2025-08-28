@@ -1,28 +1,32 @@
 import math
 import textwrap
+from importlib.metadata import version
 
 import FreeSimpleGUI as sg
 from deepmerge import always_merger
 
-from modbuilder import __version__, logo, mods, party
-from modbuilder.widgets import create_option, valid_option_value, generate_buttons
+from modbuilder import logo, mods, party
+from modbuilder.logging_config import get_logger
+from modbuilder.widgets import create_option, generate_buttons, valid_option_value
+
+logger = get_logger(__name__)
+
+__version__ = version("modbuilder-revived")
 
 DEFAULT_FONT = "_ 14"
 TEXT_WRAP = 142
-MOD_NAMES = []
 
 def _get_mods(window: sg.Window) -> None:
   window.refresh()
   height = window["options"].Widget.winfo_height()  # column sometimes shrinks after window.extend_layout()
   mods.load_mods()
-  global MOD_NAMES
-  MOD_NAMES = [m.NAME for m in mods.MODS_LIST.values()]
-  window["modification"].update(values=MOD_NAMES)
-  window["modification"].metadata=MOD_NAMES
+  mod_names = [m.NAME for m in mods.MODS_LIST.values()]
+  window["modification"].update(values=mod_names)
+  window["modification"].metadata=mod_names
   window.extend_layout(window["options"], _get_mod_options())
   window['options'].Widget.config(height=height)  # reset column height to preserve layout
-  window.refresh()
   window.set_icon(logo.value)  # fix taskbar icon if it didn't load properly
+  window.refresh()
 
 def _mod_name_to_key(name: str) -> str:
   if name is None:
@@ -63,7 +67,7 @@ def _get_mod_options() -> list[dict]:
   return options
 
 def _show_mod_options(mod_name: str, window: sg.Window) -> None:
-  for mod in MOD_NAMES:
+  for mod in window["modification"].metadata:
     if mod == mod_name:
       window[_mod_name_to_key(mod)].update(visible=True)
     else:
@@ -75,9 +79,9 @@ def _format_selected_mods(selected_mods: dict) -> list[str]:
     mod = mods.get_mod(mod_key)
     if mod is not None:
       try:
-        formatted_mod_options.append(mod.format(mod_options))
+        formatted_mod_options.append(mod.format_options(mod_options))
       except Exception as e:
-        print(f"ERROR! {mod_key} : {e}")
+        logger.error(f"ERROR! {mod_key} : {e}")
   return formatted_mod_options
 
 def _valid_option_value(mod_option: dict, mod_value: any) -> str:
@@ -401,7 +405,7 @@ def main() -> None:
 
   while True:
     event, values = window.read()
-    # print(event)
+    #logger.debug(event)
     if event == sg.WIN_CLOSED:
       break
     if event == "modification":

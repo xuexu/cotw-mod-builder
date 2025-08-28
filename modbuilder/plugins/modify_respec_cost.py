@@ -30,7 +30,7 @@ PRESETS = [
   },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   cost = int(options['cost'])
   return f"Modify Respec Cost (${cost})"
 

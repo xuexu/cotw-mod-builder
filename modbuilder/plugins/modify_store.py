@@ -1,19 +1,19 @@
-from modbuilder import mods
-from deca.ff_rtpc import RtpcNode
-import FreeSimpleGUI as sg
 import re
 from dataclasses import dataclass
+
+import FreeSimpleGUI as sg
+
+from deca.ff_rtpc import RtpcNode
+from modbuilder import mods
+from modbuilder.logging_config import get_logger
+from modbuilder.mods import StatWithOffset
+
+logger = get_logger(__name__)
 
 DEBUG = False
 NAME = "Modify Store"
 DESCRIPTION = "Modify prices and quantites of store items or apply bulk changes to an entire category. Individual and bulk changes in the same category can cause unintended results."
 EQUIPMENT_FILE = mods.EQUIPMENT_DATA_FILE
-
-
-@dataclass
-class StatWithOffset:
-  value: int | float
-  offset: int
 
 class StoreItem:
   __slots__ = (
@@ -51,9 +51,9 @@ class StoreItem:
     return f"{self.type}, {self.name} ({self.price.value}, {self.price.offset}, {self.quantity.value}, {self.quantity.offset})"
 
   def _parse_prop_table(self, equipment_node: RtpcNode) -> None:
-    self.price = StatWithOffset(0, 0)
-    self.quantity = StatWithOffset(0, 0)  # some items do not have quantity
-    self.weight = StatWithOffset(-1, 0)  # some items do not have weight, -1 allows for legitimate items with 0 weight
+    self.price = StatWithOffset(value=0, offset=0)
+    self.quantity = StatWithOffset(value=0, offset=0)  # some items do not have quantity
+    self.weight = StatWithOffset(value=-1, offset=0)  # some items do not have weight, -1 allows for legitimate items with 0 weight
     for prop in equipment_node.prop_table:
       name_hash = prop.name_hash
       data = prop.data
@@ -70,15 +70,15 @@ class StoreItem:
           self.internal_name = decoded
 
       if name_hash == 870267695:  # 0x33df3b2f
-        self.price = StatWithOffset(data, offset)
+        self.price = StatWithOffset(prop)
 
       if name_hash == 1025589510:  # 0x3d214106
-        self.weight = StatWithOffset(data, offset)
+        self.weight = StatWithOffset(prop)
 
       if name_hash == 2979948800 and data != 4294967295:  # 0xb19e6900
           # some items in categories with quantity have no individual quantity (callers in "lures", backpacks in "misc")
           # those items will have a "quantity" of 4294967295 (max 32-bit integer) that we can ignore
-          self.quantity = StatWithOffset(data, offset)
+          self.quantity = StatWithOffset(prop)
 
   def _parse_skin_name(self) -> None:
     skin_types = {
@@ -149,7 +149,7 @@ def load_store_items() -> dict[str, list[StoreItem]]:
   store_items["weapon"] = load_equipment_data(equipment.child_table[6].child_table, "weapon")
   store_items["structure"] = load_equipment_data(equipment.child_table[7].child_table, "structure")
   store_items["lure"] = load_equipment_data(equipment.child_table[8].child_table, "lure")
-  # print("Loaded store items")
+  logger.debug("Loaded store items")
   return store_items
 
 def build_tab(item_type: str) -> sg.Tab:
@@ -242,21 +242,21 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     }
 
   try:
-    item_price = int(values[f"store_item_price"])
+    item_price = int(values["store_item_price"])
   except ValueError:
     return {
       "invalid": "Provide a valid item price"
     }
 
   try:
-    item_quantity = int(values[f"store_item_quantity"])
+    item_quantity = int(values["store_item_quantity"])
   except ValueError:
     return {
       "invalid": "Provide a valid item quantity"
     }
 
   try:
-    item_weight = float(values[f"store_item_weight"])
+    item_weight = float(values["store_item_weight"])
   except ValueError:
     return {
       "invalid": "Provide a valid item weight"
@@ -277,28 +277,28 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def add_mod_group(window: sg.Window, values: dict) -> dict:
-  bulk_discount = int(values[f"store_bulk_discount"])
+  bulk_discount = int(values["store_bulk_discount"])
 
   try:
-    bulk_free_price = int(values[f"store_bulk_free_price"])
+    bulk_free_price = int(values["store_bulk_free_price"])
   except ValueError:
     return {
       "invalid": "Provide a valid bulk free price"
     }
 
   if window["store_bulk_quantity"].Disabled or not values["store_bulk_quantity"]:
-    values[f"store_bulk_quantity"] = "0"
+    values["store_bulk_quantity"] = "0"
   try:
-    bulk_quantity = int(values[f"store_bulk_quantity"])
+    bulk_quantity = int(values["store_bulk_quantity"])
   except ValueError:
     return {
       "invalid": "Provide a valid bulk quantity"
     }
 
   if window["store_bulk_weight"].Disabled or not values["store_bulk_weight"]:
-    values[f"store_bulk_weight"] = "-1"
+    values["store_bulk_weight"] = "-1"
   try:
-    bulk_weight = int(values[f"store_bulk_weight"])
+    bulk_weight = int(values["store_bulk_weight"])
   except ValueError:
     return {
       "invalid": "Provide a valid bulk weight"
@@ -318,7 +318,7 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     }
   }
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   details = []
   if "free_price" in options:  # category - some pre-2.1.0 version didn't have "bulk_quantity"
     details.append(f"-{options['discount']}% discount")

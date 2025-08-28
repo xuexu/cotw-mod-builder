@@ -1,4 +1,5 @@
 import copy
+import logging
 import math
 
 from openpyxl.utils import column_index_from_string, get_column_letter
@@ -7,6 +8,9 @@ from openpyxl.utils.cell import coordinate_from_string
 from deca.ff_adf import Adf, AdfValue
 from deca.file import ArchiveFile
 from modbuilder import mods
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def deserialize_adf(filename: str, modded: bool = True) -> Adf:
@@ -128,60 +132,53 @@ def get_sheet(extracted_adf: Adf, sheet_name: str) -> tuple[AdfValue, int]:
   return None, None
 
 
-def process_cell_update(cell: XlsxCell, extracted_adf: Adf, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False, verbose: bool = False) -> list[dict]:
+def process_cell_update(cell: XlsxCell, extracted_adf: Adf, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False) -> list[dict]:
   # skip_add_data = completely skip attempts to data to the file - just re-use existing values. This can be slow on large spreadsheets (animal_senses.bin)
   # allow_new_data = enablie adding new String/Value data and cell definitions. Some files will cause crashes with added data
   adf_values = extracted_adf.table_instance_full_values[0].value
-  if verbose:
-    print()
-    print(f'Cell = Coordinates: {cell.coordinates}   Sheet: {cell.sheet_name}   Value: {cell.value}   Data Type: {cell.data_type}   Value Index: {cell.value_index}')
-    print(f'Definition = Index: {cell.definition_index}   AttributeIndex: {cell.attribute_index}')
-    print(f'Desired = Value: {cell.desired_value}   Data Type: {cell.desired_data_type}')
+  logger.debug("")
+  logger.debug(f'Cell = Coordinates: {cell.coordinates}   Sheet: {cell.sheet_name}   Value: {cell.value}   Data Type: {cell.data_type}   Value Index: {cell.value_index}')
+  logger.debug(f'Definition = Index: {cell.definition_index}   AttributeIndex: {cell.attribute_index}')
+  logger.debug(f'Desired = Value: {cell.desired_value}   Data Type: {cell.desired_data_type}')
 
   # 0. If current cell already has desired value and is the correct type, don't change anything
   if cell.value == cell.desired_value and cell.data_type == cell.desired_data_type:
-    if verbose:
-      print('0. Current value and data type match. No changes to apply')
+    logger.debug('0. Current value and data type match. No changes to apply')
     return []
 
   # Try to find a safe way to overwrite data or repoint cell definitions to preferred values
   # 1. Check if the desired value is already in the data array. If it is then work with it
-  if is_desired_value_in_data_array(adf_values, cell, verbose=verbose):
-    if verbose:
-      print(f'1. Desired value {cell.desired_value} is in data array {cell.desired_data_array_name}')
-    if (file_updates := use_value_from_data_array(adf_values, cell, verbose=verbose)):
+  if is_desired_value_in_data_array(adf_values, cell):
+    logger.debug(f'1. Desired value {cell.desired_value} is in data array {cell.desired_data_array_name}')
+    if (file_updates := use_value_from_data_array(adf_values, cell)):
       return file_updates
 
   # 2. Desired value does not exist in the data array. See if we can write it in without conflicts
   if not skip_add_data:
-    if verbose:
-      print(f'2. Desired value {cell.desired_value} is NOT in the data array {cell.desired_data_array_name}')
-    if (file_updates := write_value_to_data_array(extracted_adf, cell, verbose=verbose)):
+    logger.debug(f'2. Desired value {cell.desired_value} is NOT in the data array {cell.desired_data_array_name}')
+    if (file_updates := write_value_to_data_array(extracted_adf, cell)):
       return file_updates
     if allow_new_data:
-      if (file_updates := add_new_value_to_data_array(extracted_adf, cell, verbose=verbose)):
+      if (file_updates := add_new_value_to_data_array(extracted_adf, cell)):
         return file_updates
 
   # 3. Cannot update the value of the specified cell to match the exact desired value without affecting other cells
-  if verbose:
-    print(f'3. Cannot update cell {cell.coordinates} to exact value {cell.desired_value} without affecting other cells')
+  logger.debug(f'3. Cannot update cell {cell.coordinates} to exact value {cell.desired_value} without affecting other cells')
   # If we were told to force the exact value then overwrite the value in the array
   if force:
-    if verbose:
-      print(f'FORCE: Overwriting {cell.data_array_name} value at index {cell.value_index} with {cell.desired_value}')
-    return overwrite_value(extracted_adf, cell, verbose=verbose)
+    logger.debug(f'FORCE: Overwriting {cell.data_array_name} value at index {cell.value_index} with {cell.desired_value}')
+    return overwrite_value(extracted_adf, cell)
 
   # Locate the closest value in the data array and see if we can work with that. This only works for ValueData cells
   if cell.data_array_name == "ValueData":
-    file_updates = use_closest_value_in_array(adf_values, cell, verbose=verbose)
-    if file_updates:
+    if (file_updates := use_closest_value_in_array(adf_values, cell)):
       return file_updates
 
   # If you got all the way down here then you're out of luck for now.
   raise NotImplementedError(f'Unable to update cell {cell.coordinates} with the desired value {cell.desired_value}. Exiting...')
 
 
-def is_desired_value_in_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell, verbose: bool = False) -> bool:
+def is_desired_value_in_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -> bool:
   if cell.data_array_name in ["BoolData", "ValueData"]:  # values stored directly in array
     return cell.desired_value in adf_values[cell.desired_data_array_name].value
   if cell.data_array_name == "StringData":  # StringData is an array of AdfValues
@@ -190,7 +187,7 @@ def is_desired_value_in_data_array(adf_values: dict[str, AdfValue], cell: XlsxCe
   return False
 
 
-def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell, verbose: bool = False) -> list[dict]:
+def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -> list[dict]:
   # Value may exist more than once in array
   if cell.desired_data_array_name == "StringData":
     desired_value_indexes = [i for i, data in enumerate(adf_values[cell.desired_data_array_name].value) if data.value == cell.desired_value]
@@ -200,33 +197,28 @@ def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell, v
   file_updates = []
   # 1a. Point current cell at a different definition that references the desired value
   #     The definition must also match our cell's attributes (text and background color)
-  cell_defs_with_matching_value = find_cell_definitions(adf_values, cell.desired_data_type, desired_value_indexes, verbose=verbose)
+  cell_defs_with_matching_value = find_cell_definitions(adf_values, cell.desired_data_type, desired_value_indexes)
   matching_definition = None
   if cell_defs_with_matching_value:
-    if verbose:
-      print(f"   Found {len(cell_defs_with_matching_value)} cells with the desired value")
+    logger.debug(f"   Found {len(cell_defs_with_matching_value)} cells with the desired value")
     cell_defs_with_matching_attribute = [def_tuple for def_tuple in cell_defs_with_matching_value if def_tuple[1]["AttributeIndex"].value == cell.attribute_index]
-    if verbose:
-      print(f"   Found {len(cell_defs_with_matching_attribute)} cells with matching attributes")
+    logger.debug(f"   Found {len(cell_defs_with_matching_attribute)} cells with matching attributes")
     if cell_defs_with_matching_attribute:
       matching_definition = cell_defs_with_matching_attribute.pop()
     if matching_definition:
       file_updates.append({"offset": cell.definition_index_offset, "value": matching_definition[0]})
       adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = matching_definition[0]
-      if verbose:
-        print(f'1a. Cell definition {matching_definition[0]} points at the desired value. Updating cell to use that definition.')
+      logger.debug(f'1a. Cell definition {matching_definition[0]} points at the desired value. Updating cell to use that definition.')
       return file_updates
 
   # 1b. Check if any other cells use the same definition as our cell
   #     If not, point current cell definition at desired value
-  cells_with_same_definition = find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose)
-  if verbose:
-      print(f'1b. {len(cells_with_same_definition)} other cells point at the same definition.')
+  cells_with_same_definition = find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell)
+  logger.debug(f'1b. {len(cells_with_same_definition)} other cells point at the same definition.')
   if not cells_with_same_definition:
     file_updates.append({"offset": cell.value_index_offset, "value": desired_value_indexes[0]})
     adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = desired_value_indexes[0]
-    if verbose:
-      print(f'1b. No other cells share the same definition. Repointing defintiion at desired value {cell.desired_value} at index {desired_value_indexes[0]}.')
+    logger.debug(f'1b. No other cells share the same definition. Repointing defintiion at desired value {cell.desired_value} at index {desired_value_indexes[0]}.')
     return file_updates
 
   # 1c. Overwrite an unused cell definition (if one exists) to point it at the desired value in the data array
@@ -234,8 +226,7 @@ def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell, v
   unused_definition_indexes = get_unused_cell_def_indexes(adf_values)
   if unused_definition_indexes:
     unused_definition_index = unused_definition_indexes.pop()
-    if verbose:
-      print(f'1c. Overwriting unused cell definition {unused_definition_index} to point at desired value {cell.desired_value} at index {desired_value_indexes[0]}')
+    logger.debug(f'1c. Overwriting unused cell definition {unused_definition_index} to point at desired value {cell.desired_value} at index {desired_value_indexes[0]}')
     unused_definition = adf_values["Cell"].value[unused_definition_index].value
     # Point unused cell definition at the desired value index
     file_updates.append({"offset": unused_definition["DataIndex"].data_offset, "value": desired_value_indexes[0]})
@@ -248,45 +239,39 @@ def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell, v
   return None
 
 
-def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: bool = False) -> list[dict]:
+def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict]:
   adf_values = extracted_adf.table_instance_full_values[0].value
   file_updates = []
-  if verbose:
-    print(f"2a. Attempting to writing value {cell.desired_value} to the data array")
+  logger.debug(f"2a. Attempting to writing value {cell.desired_value} to the data array")
   # 2a. Check if we can overwrite our current value
   #     Check if any other cells in the entire sheet point at the same value as our cell
   #     There might be a cell index that points at our cell but it could be unused
-  cells_with_shared_value = find_cells(adf_values, data_type=cell.data_type, value_index=cell.value_index, ignore_cell=cell, verbose=verbose)
-  if verbose:
-    print(f"  - {len(cells_with_shared_value)} other cells point at the same value.")
+  cells_with_shared_value = find_cells(adf_values, data_type=cell.data_type, value_index=cell.value_index, ignore_cell=cell)
+  logger.debug(f"  - {len(cells_with_shared_value)} other cells point at the same value.")
   if not cells_with_shared_value:  # if none are found then overwrite our current value in the data array
-    if verbose:
-      print(f'  - Overwriting {cell.desired_data_array_name} value at index {cell.value_index} to new value {cell.desired_value}')
-    file_updates.extend(overwrite_value(extracted_adf, cell, verbose=verbose))
+    logger.debug(f'  - Overwriting {cell.desired_data_array_name} value at index {cell.value_index} to new value {cell.desired_value}')
+    file_updates.extend(overwrite_value(extracted_adf, cell))
     return file_updates
   else:
-    if verbose:
-      print(f'  - Cannot overwrite data at index {cell.value_index} directly without affecting other cells.')
+    logger.debug(f'  - Cannot overwrite data at index {cell.value_index} directly without affecting other cells.')
 
   # 2b/c. Try to find an unused item in the data array to overwrite
   unused_values = get_unused_values(adf_values, cell.desired_data_array_name, cell.desired_data_type)
   # 2b. If one exists, check if any other cells share our definition
   #     If not, overwrite the value and point our definition at the new value
   if unused_values:
-    if verbose:
-      print(f'2b. Found {len(unused_values)} unused values in {cell.desired_data_array_name}')
+    logger.debug(f'2b. Found {len(unused_values)} unused values in {cell.desired_data_array_name}')
+    if logger.isEnabledFor(logging.DEBUG):  # skip this loop if logger is not in DEBUG mode
       for unused_value in unused_values:
-        print(f'  - Index: {unused_value["index"]}   Value: {unused_value["value"]}')
-    if not find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose):
+        logger.debug(f'  - Index: {unused_value["index"]}   Value: {unused_value["value"]}')
+    if not find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell):
       # Overwrite the unused data array item
       unused_value = unused_values.pop()
-      if verbose:
-        print(f'  - Overwriting unused {cell.desired_data_array_name} value at index {unused_value["index"]} to new value {cell.desired_value}')
-      file_updates.extend(overwrite_value(extracted_adf, cell, unused_value, verbose=verbose))
+      logger.debug(f'  - Overwriting unused {cell.desired_data_array_name} value at index {unused_value["index"]} to new value {cell.desired_value}')
+      file_updates.extend(overwrite_value(extracted_adf, cell, unused_value))
       file_updates.append({"offset": cell.value_index_offset, "value": unused_value["index"]})
       adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = unused_value["index"]
-      if verbose:
-        print(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {unused_value["index"]} with value {cell.desired_value}')
+      logger.debug(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {unused_value["index"]} with value {cell.desired_value}')
       return file_updates
 
   # 2c. There's still an unused data array item we can overwrite
@@ -299,13 +284,11 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: bool 
     unused_definition = adf_values["Cell"].value[unused_definition_index].value
 
     # Overwrite the unused data array item
-    if verbose:
-      print(f'2c. Overwriting unused {cell.desired_data_array_name} value at index {unused_value["index"]} to new value {cell.desired_value}')
-    file_updates.extend(overwrite_value(extracted_adf, cell, unused_value, verbose=verbose))
+    logger.debug(f'2c. Overwriting unused {cell.desired_data_array_name} value at index {unused_value["index"]} to new value {cell.desired_value}')
+    file_updates.extend(overwrite_value(extracted_adf, cell, unused_value))
 
     # Point the unused cell definition at the new data array item
-    if verbose:
-      print(f'  - Overwriting unused cell definition {unused_definition_index} to point at value index {unused_value["index"]}')
+    logger.debug(f'  - Overwriting unused cell definition {unused_definition_index} to point at value index {unused_value["index"]}')
     file_updates.append({"offset": unused_definition["DataIndex"].data_offset, "value": unused_value["index"]})
     adf_values["Cell"].value[unused_definition_index].value["DataIndex"].value = unused_value["index"]
     # Copy our cell definition type and attribute to the unused cell definition
@@ -314,8 +297,7 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: bool 
     adf_values["Cell"].value[unused_definition_index].value["Type"].value = cell.data_type
     adf_values["Cell"].value[unused_definition_index].value["AttributeIndex"].value = cell.attribute_index
     # Point our cell at the definition
-    if verbose:
-      print(f'  - Pointing cell {cell.coordinates} at definition {unused_definition_index} with value {cell.desired_value}')
+    logger.debug(f'  - Pointing cell {cell.coordinates} at definition {unused_definition_index} with value {cell.desired_value}')
     file_updates.append({"offset": cell.definition_index_offset, "value": unused_definition_index})
     adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = unused_definition_index
     return file_updates
@@ -324,7 +306,7 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: bool 
   return None
 
 
-def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None, verbose: bool = False) -> list[tuple[int, any]]:
+def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None) -> list[tuple[int, any]]:
   file_updates = []
   adf_values = extracted_adf.table_instance_full_values[0].value
   if not target:
@@ -346,23 +328,20 @@ def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None, ver
     old_str_bytes = target["value"] + b'\x00' * padding
     new_str_bytes = bytes(mods.create_bytearray(cell.desired_value, "string"))
     difference = len(new_str_bytes) - len(old_str_bytes)
-    if verbose:
-      print(f"OLD_STR: {old_str_bytes}   NEW_STR: {new_str_bytes}   DIFF: {difference}")
+    logger.debug(f"OLD_STR: {old_str_bytes}   NEW_STR: {new_str_bytes}   DIFF: {difference}")
     if difference <= 0:  # can overwrite in place. add extra padding to ensure old value is totally overwritten
       new_str_bytes += b'\x00' * difference
       file_updates.append({"offset": target["offset"], "value": new_str_bytes})
       stringdata.value[target["index"]].value = cell.desired_value
-      if verbose:
-        print(f"   Overwriting value '{target["value"]}' with new value {cell.desired_value} at offset {target["offset"]}")
+      logger.debug(f"   Overwriting value '{target["value"]}' with new value {cell.desired_value} at offset {target["offset"]}")
       return file_updates
     else:  # new string is too long. Insert in the new string and shift all data the comes later in the file
       # update headers and instance offsets
-      file_updates.extend(mods.update_non_instance_offsets(extracted_adf, difference, verbose=verbose))
-      file_updates.extend(update_instance_offsets(extracted_adf, difference, "StringData", verbose=verbose))
+      file_updates.extend(mods.update_non_instance_offsets(extracted_adf, difference))
+      file_updates.extend(update_instance_offsets(extracted_adf, difference, "StringData"))
       # increase offsets of all string data values later in the array
-      file_updates.extend(update_stringdata_offsets(extracted_adf, difference, index=target["index"], verbose=verbose))
-      if verbose:
-        print(f"   Overwriting value '{target["value"]}' with new value {cell.desired_value} at offset {target["offset"]}")
+      file_updates.extend(update_stringdata_offsets(extracted_adf, difference, index=target["index"]))
+      logger.debug(f"   Overwriting value '{target["value"]}' with new value {cell.desired_value} at offset {target["offset"]}")
       # add to array and increase array length in header
       file_updates.append({
         "offset": target["offset"],
@@ -374,30 +353,27 @@ def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None, ver
       return file_updates
 
 
-def add_new_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: bool = False) -> list[dict]:
+def add_new_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict]:
   adf_values = extracted_adf.table_instance_full_values[0].value
   file_updates = []
-  if verbose:
-    print(f'2d. Adding value {cell.desired_value} to the data array')
+  logger.debug(f'2d. Adding value {cell.desired_value} to the data array')
   if cell.desired_data_array_name == "ValueData":
-    file_updates.extend(add_float_to_valuedata(extracted_adf, cell.desired_value, verbose=verbose))
+    file_updates.extend(add_float_to_valuedata(extracted_adf, cell.desired_value))
     new_value_index = len(adf_values["ValueData"].value) - 1
   elif cell.desired_data_array_name == "StringData":
-    file_updates.extend(add_string_to_stringdata(extracted_adf, cell.desired_value, verbose=verbose))
+    file_updates.extend(add_string_to_stringdata(extracted_adf, cell.desired_value))
     new_value_index = len(adf_values["StringData"].value) - 1
   else:
     return []
   # Check if any other cells share our definition
-  if not find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose):
+  if not find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell):
     # Point our cell definition at new array value
-    if verbose:
-      print(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {new_value_index} with value {cell.desired_value}')
+    logger.debug(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {new_value_index} with value {cell.desired_value}')
     file_updates.append({"offset": cell.value_index_offset, "value": new_value_index})
     adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = new_value_index
   else:  # Check if there is an unused definition we can overwrite
     if unused_definition_indexes:= get_unused_cell_def_indexes(adf_values):
-      if verbose:
-        print(f"  - Found {len(unused_definition_indexes)} unused definitions: {unused_definition_indexes}")
+      logger.debug(f"  - Found {len(unused_definition_indexes)} unused definitions: {unused_definition_indexes}")
       def_index = unused_definition_indexes.pop()
       # Update the Type of the unused cell definition
       file_updates.append({"offset": adf_values["Cell"].value[def_index].value["Type"].data_offset, "value": cell.desired_data_type})
@@ -411,67 +387,57 @@ def add_new_value_to_data_array(extracted_adf: Adf, cell: XlsxCell, verbose: boo
       # Point our cell at the updated definition
       file_updates.append({"offset": cell.definition_index_offset, "value": def_index})
       adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = def_index
-      if verbose:
-        print(f'  - Overwriting unused cell definition {def_index} to point at desired value {cell.desired_value} at index {new_value_index}')
+      logger.debug(f'  - Overwriting unused cell definition {def_index} to point at desired value {cell.desired_value} at index {new_value_index}')
     else:  # Create a new one with our desired specs
       def_index = len(adf_values["Cell"].value)
-      if verbose:
-        print(f'  - Creating new cell definition at index {def_index} (Type: {cell.desired_data_type}  DataIndex: {new_value_index}  AttributeIndex: {cell.attribute_index})')
-      file_updates.extend(add_cell_definition(extracted_adf, cell, new_value_index, verbose=verbose))
+      logger.debug(f'  - Creating new cell definition at index {def_index} (Type: {cell.desired_data_type}  DataIndex: {new_value_index}  AttributeIndex: {cell.attribute_index})')
+      file_updates.extend(add_cell_definition(extracted_adf, cell, new_value_index))
     # Point our cell at the selected definition
-    if verbose:
-      print(f'  - Pointing cell {cell.coordinates} at definition {def_index} with value {cell.desired_value}')
+    logger.debug(f'  - Pointing cell {cell.coordinates} at definition {def_index} with value {cell.desired_value}')
     file_updates.append({"offset": cell.definition_index_offset, "value": def_index})
     adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = def_index
     file_updates.append({"offset": 4, "value": 3})  # ADFv3 to prevent crash on load
   return file_updates
 
 
-def use_closest_value_in_array(adf_values: dict[str, AdfValue], cell: XlsxCell, verbose: bool = False) -> list[tuple[int, int]]:
+def use_closest_value_in_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -> list[tuple[int, int]]:
   file_updates = []
   # Find the closest value in the array
   closest_value_index, closest_value = find_closest_value(adf_values["ValueData"].value, cell.desired_value)
-  if verbose:
-    print(f'  Closest value in data array is {closest_value} at index {closest_value_index}')
+  logger.debug(f'  Closest value in data array is {closest_value} at index {closest_value_index}')
   # 3a. Check if any other cells are using the same definition as our cell.
   #     If not, point our cell definition at the closest value in the array
-  cells_with_same_definition = find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell, verbose=verbose)
-  if verbose:
-    print(f'3a. {len(cells_with_same_definition)} cells point at the same definition as our cell.')
+  cells_with_same_definition = find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell)
+  logger.debug(f'3a. {len(cells_with_same_definition)} cells point at the same definition as our cell.')
   if not cells_with_same_definition:
     file_updates.append({"offset": cell.value_index_offset, "value": closest_value_index})
     adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = closest_value_index
-    if verbose:
-      print(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} with closest value {closest_value}')
+    logger.debug(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} with closest value {closest_value}')
     return file_updates
   # 3b. Check if any other definitions are pointing at the closest value
   #     If one is found then point our cell at that definition
-  defs_with_closest_value = find_cell_definitions(adf_values, cell.data_type, [closest_value_index], verbose=verbose)
-  if verbose:
-    print(f'  - {len(defs_with_closest_value)} cell definitions point at a definition with the closest value {closest_value}: {[d[0] for d in defs_with_closest_value]}')
+  defs_with_closest_value = find_cell_definitions(adf_values, cell.data_type, [closest_value_index])
+  logger.debug(f'  - {len(defs_with_closest_value)} cell definitions point at a definition with the closest value {closest_value}: {[d[0] for d in defs_with_closest_value]}')
   if defs_with_closest_value:
     defs_with_same_attributes = [(i,d) for (i,d) in defs_with_closest_value if d["AttributeIndex"].value == cell.attribute_index]
     if defs_with_same_attributes:
-      if verbose:
-        print(f'  - {len(defs_with_same_attributes)} cell definitions have the same attribute ({cell.attribute_index}): {[d[0] for d in defs_with_same_attributes]}.')
+      logger.debug(f'  - {len(defs_with_same_attributes)} cell definitions have the same attribute ({cell.attribute_index}): {[d[0] for d in defs_with_same_attributes]}.')
       chosen_definition = defs_with_same_attributes.pop()
     else:
       chosen_definition = defs_with_closest_value.pop()
     file_updates.append({"offset": cell.definition_index_offset, "value": chosen_definition[0]})
     adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = chosen_definition[0]
-    if verbose:
-      print(f'3b. Pointing cell {cell.coordinates} at definition {chosen_definition[0]} with closest value {closest_value}')
+    logger.debug(f'3b. Pointing cell {cell.coordinates} at definition {chosen_definition[0]} with closest value {closest_value}')
     return file_updates
   # 3c. Point our cell definition at the closest value
   #     This will have unintended consequences since other cells use this cell definition
   file_updates.append({"offset": cell.value_index_offset, "value": closest_value_index})
   adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = closest_value_index
-  if verbose:
-    print(f'3c. Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {closest_value_index} with closest value {closest_value}')
+  logger.debug(f'3c. Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {closest_value_index} with closest value {closest_value}')
   return file_updates
 
 
-def update_instance_offsets(extracted_adf: Adf, added_size: int, data_array_name: str, verbose: bool = False) -> list[dict]:
+def update_instance_offsets(extracted_adf: Adf, added_size: int, data_array_name: str) -> list[dict]:
   file_updates = []
   adf_values = extracted_adf.table_instance_full_values[0].value
   # only update arrays that are later in the file. Thankfully dictionaries are ordered
@@ -480,17 +446,16 @@ def update_instance_offsets(extracted_adf: Adf, added_size: int, data_array_name
     i = array_names.index(data_array_name)
     arrays_to_update = array_names[i + 1:]
   for array_name in arrays_to_update:
-    file_updates.extend(update_array_offsets(extracted_adf, added_size, array_name, verbose=verbose))
+    file_updates.extend(update_array_offsets(extracted_adf, added_size, array_name))
   return file_updates
 
 
-def update_array_offsets(extracted_adf: Adf, added_size: int, array_name: str, verbose: bool = False) -> list[dict]:
+def update_array_offsets(extracted_adf: Adf, added_size: int, array_name: str) -> list[dict]:
   file_updates = []
   instance_offset = extracted_adf.table_instance[0].offset
   adf_values = extracted_adf.table_instance_full_values[0].value
   if adf_values[array_name].data_offset != instance_offset:  # an empty array has the same offset as the instance
-    if verbose:
-      print(f"  Updating {array_name} array offsets by {added_size}")
+    logger.debug(f"  Updating {array_name} array offsets by {added_size}")
     file_updates.append({
       "offset": adf_values[array_name].info_offset,
       "value": added_size,
@@ -499,7 +464,7 @@ def update_array_offsets(extracted_adf: Adf, added_size: int, array_name: str, v
     adf_values[array_name].data_offset += added_size
     # StringData stores strings of arbitrary length in AdfValue objects that have separate info offsets
     if array_name == "StringData":
-      file_updates.extend(update_stringdata_offsets(extracted_adf, added_size, verbose=verbose))
+      file_updates.extend(update_stringdata_offsets(extracted_adf, added_size))
     # Attribute array contains AdfValues with nested dictionaries of AdfValues
     # These just point to offsets in other arrays. Update the extracted Adf but don't write anything back to the file
     if array_name == "Attribute":
@@ -514,20 +479,19 @@ def update_array_offsets(extracted_adf: Adf, added_size: int, array_name: str, v
         raise NotImplementedError("Updating DateData is not supported")
 
   else:
-    if verbose:
-      print(f"  No offset update for array {array_name}")
+    logger.debug(f"  No offset update for array {array_name}")
   return file_updates
 
 
-def update_stringdata_offsets(extracted_adf: Adf, added_size: int, index: int = -1, verbose: bool = False) -> list[dict]:
+def update_stringdata_offsets(extracted_adf: Adf, added_size: int, index: int = -1) -> list[dict]:
   # StringData values are arbitrary lengths. Their data_offsets are stored at the info_offset in StringData headers before the string array
   file_updates = []
   stringdata_array = extracted_adf.table_instance_full_values[0].value["StringData"].value
-  if verbose:
+  if logger.isEnabledFor(logging.DEBUG):  # skip this if logger is in DEBUG mode
     i_to_update = [i for i in range(len(stringdata_array)) if i > index]
     info_text = "info and " if index >= 0 else ""
-    print(f"  Updating {len(i_to_update)} StringData {info_text}data offsets by {added_size}")
-    # print(i_to_update)
+    logger.debug(f"  Updating {len(i_to_update)} StringData {info_text}data offsets by {added_size}")
+    # logger.debug(i_to_update)
   for i, s in enumerate(stringdata_array):
     if (
       index == -1  # data was added before StringData = shift all offsets
@@ -541,15 +505,14 @@ def update_stringdata_offsets(extracted_adf: Adf, added_size: int, index: int = 
   return file_updates
 
 
-def add_float_to_valuedata(extracted_adf: Adf, value: float, verbose: bool = False) -> list[dict]:
-  if verbose:
-    print(f"  Adding value {value} to ValueData array")
+def add_float_to_valuedata(extracted_adf: Adf, value: float) -> list[dict]:
+  logger.debug(f"  Adding value {value} to ValueData array")
   valuedata = extracted_adf.table_instance_full_values[0].value["ValueData"]
   value_bytes = mods.create_bytearray(value, "float32")
   file_updates = []
   # update headers and instance offsets
-  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, len(value_bytes), verbose=verbose))
-  file_updates.extend(update_instance_offsets(extracted_adf, len(value_bytes), "ValueData", verbose=verbose))
+  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, len(value_bytes)))
+  file_updates.extend(update_instance_offsets(extracted_adf, len(value_bytes), "ValueData"))
   # add to array and increase array length in header
   new_value_offset = valuedata.data_offset + (len(valuedata.value) * len(value_bytes))
   file_updates.append({
@@ -577,23 +540,21 @@ def copy_string(old_string: AdfValue, str_bytes: bytearray) -> AdfValue:
   return new_string
 
 
-def add_string_to_stringdata(extracted_adf: Adf, value: str, verbose: bool = False) -> list[dict]:
+def add_string_to_stringdata(extracted_adf: Adf, value: str) -> list[dict]:
   stringdata = extracted_adf.table_instance_full_values[0].value["StringData"]
-  if verbose:
-    print(f"  Adding value {value} to StringData Array at index {len(stringdata.value)}")
+  logger.debug(f"  Adding value {value} to StringData Array at index {len(stringdata.value)}")
   str_bytearray = mods.create_bytearray(value, "string")
   # Strings are stored as AdfValue objects. Copy the last string and update the values and offsets
   new_string = copy_string(stringdata.value[-1], value)
   file_updates = []
   # update headers and instance offsets
   added_size = len(str_bytearray) + 8  # padded byte length + info offset
-  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size, verbose=verbose))
-  file_updates.extend(update_instance_offsets(extracted_adf, added_size, "StringData", verbose=verbose))
+  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size))
+  file_updates.extend(update_instance_offsets(extracted_adf, added_size, "StringData"))
   # increase all string data offsets by 8 bytes for the new info offset in stringdata headers
-  file_updates.extend(update_stringdata_offsets(extracted_adf, 8, index=len(stringdata.value)+1, verbose=verbose))
-  if verbose:
-    print(f"  Writing string offset {new_string.data_offset} at offset {new_string.info_offset}")
-    print(f"  Writing string value {bytes(str_bytearray)} at offset {new_string.data_offset}")
+  file_updates.extend(update_stringdata_offsets(extracted_adf, 8, index=len(stringdata.value)+1))
+  logger.debug(f"  Writing string offset {new_string.data_offset} at offset {new_string.info_offset}")
+  logger.debug(f"  Writing string value {bytes(str_bytearray)} at offset {new_string.data_offset}")
   # info offsets are separated by a uint32 of "8" (08 00 00 00)
   # there are also 4 null bytes before the first string
   # add uint32 separator before the new info offset and insert it before the null padding
@@ -636,9 +597,8 @@ def copy_cell_definition(old_cell_def: AdfValue, cell: XlsxCell, value_index: in
   return cell_def
 
 
-def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int, verbose: bool = False) -> list[dict]:
-  if verbose:
-    print(f"  Adding new cell definition (Type: {cell.desired_data_type}  DataIndex: {value_index}  AttributeIndex: {cell.attribute_index})")
+def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int) -> list[dict]:
+  logger.debug(f"  Adding new cell definition (Type: {cell.desired_data_type}  DataIndex: {value_index}  AttributeIndex: {cell.attribute_index})")
   cell_def_array = extracted_adf.table_instance_full_values[0].value["Cell"]
   # Cell definitions are AdfValue objects. Copy the last cell definition and update the values and offsets
   cell_def = copy_cell_definition(cell_def_array.value[-1], cell, value_index)
@@ -646,8 +606,8 @@ def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int, ve
   added_size = len(cell_def_bytes)
   file_updates = []
   # update headers and instance offsets
-  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size, verbose=verbose))
-  file_updates.extend(update_instance_offsets(extracted_adf, added_size, "Cell", verbose=verbose))
+  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size))
+  file_updates.extend(update_instance_offsets(extracted_adf, added_size, "Cell"))
   # add to array and increase array length in header
   file_updates.append({
     "offset": cell_def.data_offset,
@@ -663,24 +623,24 @@ def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int, ve
   return file_updates
 
 
-def apply_coordinate_updates_to_file(src_filename: str, coordinate_updates: list[dict], skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False, verbose: bool = False) -> None:
+def apply_coordinate_updates_to_file(src_filename: str, coordinate_updates: list[dict], skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False) -> None:
   extracted_adf = deserialize_adf(src_filename)
   file_updates = []
   for coordinate_update in coordinate_updates:
     cell = XlsxCell(src_filename, extracted_adf, coordinate_update)
     allow_new_data = coordinate_update.get("allow_new_data", allow_new_data)
-    file_updates.extend(process_cell_update(cell, extracted_adf, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force, verbose=verbose))
+    file_updates.extend(process_cell_update(cell, extracted_adf, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force))
   mods.apply_updates_to_file(src_filename, file_updates)
 
 
-def update_file_at_coordinates(src_filename: str, coordinate_update: dict, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False, verbose: bool = False) -> None:
+def update_file_at_coordinates(src_filename: str, coordinate_update: dict, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False) -> None:
   extracted_adf = deserialize_adf(src_filename)
   cell = XlsxCell(src_filename, extracted_adf, coordinate_update)
-  file_updates = process_cell_update(cell, extracted_adf, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force, verbose=verbose)
+  file_updates = process_cell_update(cell, extracted_adf, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force)
   mods.apply_updates_to_file(src_filename, file_updates)
 
 
-def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name: str, coordinates_list: list[str], value: any, transform: str = None, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False, verbose: bool = False) -> None:
+def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name: str, coordinates_list: list[str], value: any, transform: str = None, skip_add_data: bool = False, allow_new_data: bool = False, force: bool = False) -> None:
   coordinate_updates = [{
     "sheet": sheet_name,
     "coordinates": coordinates,
@@ -690,7 +650,7 @@ def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name
     "skip_add_data": skip_add_data,
     "force": force
   } for coordinates in coordinates_list]
-  apply_coordinate_updates_to_file(src_filename, coordinate_updates, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force, verbose=verbose)
+  apply_coordinate_updates_to_file(src_filename, coordinate_updates, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force)
 
 
 def get_data_array_for_data_type(extracted_adf: AdfValue, data_type: int) -> tuple[list, int]:
@@ -709,15 +669,14 @@ def find_cells(
     data_type: int = None,
     value_index: int = None,
     ignore_cell: XlsxCell = None,
-    verbose: bool = False,
   ) -> list[tuple[int, int, int]]:  # (sheet_index, cell_index, definition_index)
   matching_cells = []
   if definition_indexes:  # find cells with same definition index
     for sheet_index, sheet in enumerate(adf_values["Sheet"].value):
       matching_cells.extend([(sheet_index, cell_index, def_index) for cell_index, def_index in enumerate(sheet.value["CellIndex"].value) if def_index in definition_indexes])
   if data_type is not None and value_index is not None:  # find cells that point at the same value index
-    defs_with_value_match = find_cell_definitions(adf_values, data_type, [value_index], verbose=verbose)
-    matching_cells.extend(find_cells(adf_values, definition_indexes=[i for (i,_d) in defs_with_value_match], verbose=verbose))
+    defs_with_value_match = find_cell_definitions(adf_values, data_type, [value_index])
+    matching_cells.extend(find_cells(adf_values, definition_indexes=[i for (i,_d) in defs_with_value_match]))
   if ignore_cell:  # don't return the cell we're trying to match
     matching_cells = [c for c in matching_cells if c != (ignore_cell.sheet_index, ignore_cell.index, ignore_cell.definition_index)]
   return matching_cells
@@ -727,7 +686,6 @@ def find_cell_definitions(
     adf_values: dict[str, AdfValue],
     data_type: int,
     value_indexes: list[int],
-    verbose: bool = False,
   ) -> list[tuple[int, dict]]:  # (definition_index, definition_object.value)
   cell_definitions = adf_values["Cell"].value
   defs_with_value_match = [
@@ -735,8 +693,7 @@ def find_cell_definitions(
     for i,d in enumerate(cell_definitions)
     if d.value["Type"].value == data_type and d.value["DataIndex"].value in value_indexes
   ]
-  if verbose:
-    print(f"  Found {len(defs_with_value_match)} definitions with data type {data_type} pointing at value indexes in {value_indexes}")
+  logger.debug(f"  Found {len(defs_with_value_match)} definitions with data type {data_type} pointing at value indexes in {value_indexes}")
   return defs_with_value_match
 
 

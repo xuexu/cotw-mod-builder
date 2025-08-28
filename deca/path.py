@@ -1,3 +1,8 @@
+# This file is part of the original MIT-licensed project:
+# https://github.com/kk49/deca
+# Copyright (c) 2018–2019 Krzysztof Kamieniecki
+# Licensed under the MIT License. See LICENSE file for details.
+
 import os
 
 class UniPath():
@@ -5,7 +10,7 @@ class UniPath():
     @staticmethod
     def abspath(path):
         return __class__.unify(os.path.abspath(path))
-    
+
     @staticmethod
     def basename(path):
         return os.path.basename(path)
@@ -37,7 +42,7 @@ class UniPath():
     @staticmethod
     def exists(path):
         return os.path.exists(path)
-    
+
     @staticmethod
     def expanduser(path):
         return os.path.expanduser(path)
@@ -77,4 +82,4 @@ class UniPath():
             sep = '\\'
             extsep = '/'
         return path.replace(sep, extsep)
-    
+

@@ -2,6 +2,9 @@ from modbuilder import mods, mods2
 from pathlib import Path
 import FreeSimpleGUI as sg
 import re, os
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 DEBUG = False
 NAME = "Modify Scope Zoom"
@@ -57,7 +60,7 @@ def load_scopes() -> list[Scope]:
       sight_file = list((base_path / folder).glob("*.sighttunec"))[0]
       ee_file = list((base_path / folder).glob("*.ee"))[0]
       scopes.append(Scope(sight_file, ee_file))
-  # print("Loaded scopes")
+  logger.debug("Loaded scopes")
   return sorted(scopes, key=lambda x: x.display_name)
 
 def get_option_elements() -> sg.Column:
@@ -135,7 +138,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     mod_settings["options"].update(advanced_settings)
   return mod_settings
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   # safely handle old save files without display_name
   display_name = options.get("display_name", options.get("name"))
   return f"Modify Scope Zoom: {display_name} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']}, Advanced Settings: {options.get('advanced_sensitivity')})"

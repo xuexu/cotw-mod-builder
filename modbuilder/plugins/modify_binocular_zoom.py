@@ -95,7 +95,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     }
   }
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Modify Optics: {options.get('display_name', options['name'])} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:

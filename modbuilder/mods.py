@@ -6,17 +6,23 @@ import re
 import shutil
 import struct
 import sys
+from importlib.metadata import version
 from pathlib import Path
 from types import ModuleType
 
 import FreeSimpleGUI as sg
 import yaml
 
-from deca.ff_adf import Adf
-from deca.ff_rtpc import RtpcNode, rtpc_from_binary
+from deca.ff_adf import Adf, AdfValue
+from deca.ff_rtpc import RtpcNode, RtpcProperty, rtpc_from_binary
 from deca.ff_sarc import EntrySarc, FileSarc
 from deca.file import ArchiveFile
-from modbuilder import __version__, adf_profile, mods2
+from modbuilder import adf_profile, mods2
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+__version__ = version("modbuilder-revived")
 
 APP_DIR_PATH = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
 MOD_PATH = APP_DIR_PATH / "mod/dropzone"
@@ -48,6 +54,33 @@ DEBUG_MODS_LIST: dict[str, ModuleType]
 MODS_EQUIPMENT_UI_DATA: Adf
 NAME_MAP: dict[str, dict]
 
+
+class StatWithOffset:
+  value: int | float
+  offset: int
+
+  def __init__(self, stat: AdfValue | RtpcProperty = None, value: any = None, offset: int = None) -> None:
+    if not stat and (value is None and offset is None):
+      raise ValueError("Cannot create object: Missing stat or value + offset")
+
+    if value is not None:
+      self.value = value
+    elif isinstance(stat, AdfValue):
+      self.value = stat.value
+    elif isinstance(stat, RtpcProperty):
+      self.value = stat.data
+    if isinstance(self.value, bytes):
+      self.value = self.value.decode("utf-8")
+
+    if offset:
+      self.offset = offset
+    elif isinstance(stat, AdfValue):
+      self.offset = stat.data_offset
+    elif isinstance(stat, RtpcProperty):
+      self.offset = stat.data_pos
+
+  def __repr__(self):
+    return f"Value: {self.value}   Offset: {self.offset}"
 
 def load_mods() -> None:
   load_global_files()
@@ -110,7 +143,7 @@ def format_mod_display_name(mod_key:str, mod_options) -> str:
   if mod is None:
     formatted_name = get_mod_name_from_key(mod_key).title()
   elif hasattr(mod, "format"):
-    formatted_name = mod.format(mod_options)
+    formatted_name = mod.format_options(mod_options)
   else:
     formatted_name = get_mod_full_name_from_key(mod_key).title()
   return formatted_name
@@ -201,7 +234,7 @@ def update_file_at_offsets(src_filename: str, offsets: list[int], value: any, tr
   dest_path = get_modded_file(src_filename)
   with open(dest_path, "r+b") as fp:
     for offset in offsets:
-      # print(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
+      # logger.debug(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
       fp.seek(offset)
       if format:
         if format == "sint08":
@@ -254,7 +287,7 @@ def apply_updates_to_file(src_filename: str, updates: list[dict]):
       offset = update["offset"]
       transform = update.get("transform")
       format = update.get("format")
-      # print(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
+      # logger.debug(f"Value: {value}   Offset: {offset}   Transform: {transform}   Format: {format}")
       if transform == "insert":
         insert_bytearray(fp, update)
       else:
@@ -444,11 +477,11 @@ def save_mod_list(selected_mods: dict, save_name: str) -> None:
   save_path.write_text(json.dumps(save_data, indent=2))
 
 def load_saved_mod_lists() -> list[str]:
-  mod_names = []
+  save_names = []
   for save in os.listdir(APP_DIR_PATH / "saves"):
     name, _ext = os.path.splitext(save)
-    mod_names.append(name)
-  return mod_names
+    save_names.append(name)
+  return save_names
 
 def delete_saved_mod_list(name: str) -> None:
   Path(APP_DIR_PATH / "saves"/ f"{name}.json").unlink()
@@ -562,10 +595,10 @@ def lookup_column(
   cell_indices = []
   for row in range(start_row, end_row + 1):
     cell_indices.append(f"{col_label}{row}")
-  # print("Cells", cell_indices)
+  # logger.debug("Cells", cell_indices)
   target_cells = list(filter(lambda x: x["cell"] in cell_indices, cells))
   target_cells = sorted(target_cells, key=lambda x: x["cell"])
-  # print("Target", [c["value"] for c in target_cells])
+  # logger.debug("Target", [c["value"] for c in target_cells])
   result = []
   for c in target_cells:
     cell_index = find_closest_lookup2(c["value"] * multiplier, data["numbers"])
@@ -609,10 +642,9 @@ def create_bytearray(values: any, data_format: str) -> bytearray:
       result += adf_profile.create_u32(v.value["AttributeIndex"].value)
   return result
 
-def update_non_instance_offsets(extracted_adf: Adf, added_size: int, verbose: bool = False) -> list[dict]:
+def update_non_instance_offsets(extracted_adf: Adf, added_size: int) -> list[dict]:
   updates = []
-  if verbose:
-    print(f"  Updating file header offsets by {added_size}")
+  logger.debug(f"  Updating file header offsets by {added_size}")
   offsets_and_values = [
     (extracted_adf.header_profile["instance_offset_offset"], extracted_adf.instance_offset),
     (extracted_adf.header_profile["typedef_offset_offset"], extracted_adf.typedef_offset),
@@ -711,4 +743,3 @@ def format_variant_name(mapped_equipment: dict) -> str:
       else:
         formatted_name = f"{mapped_equipment["name"]} - {variant_key}"  # unknown style
   return formatted_name
-

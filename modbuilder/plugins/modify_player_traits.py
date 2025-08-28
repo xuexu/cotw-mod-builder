@@ -30,7 +30,7 @@ OPTIONS = [
   { "name": "Shop Discount Percent", "min": 0, "max": 100, "default": 0, "initial": 0, "increment": 1, "note": '"Haggle" skill' },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   trait_details = []
 
   base_health = int(options.get("base_health", 1000))

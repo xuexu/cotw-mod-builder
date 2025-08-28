@@ -7,7 +7,7 @@ OPTIONS = [
   { "title": "There are no options. Just add the modification." }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return "Remove Intro Logos"
 
 def get_files(options: dict) -> list[str]:

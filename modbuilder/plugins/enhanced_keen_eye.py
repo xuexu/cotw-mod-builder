@@ -13,7 +13,7 @@ OPTIONS = [
   { "name": "Max Number of Animals", "min": 3, "max": 99, "default": 3, "increment": 1 },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   cool = options["cooldown_seconds"]
   max_zones = options["max_number_of_zones"]
   return f"Enhanced Keen Eye ({int(cool)}s, {int(max_zones)} zones)"

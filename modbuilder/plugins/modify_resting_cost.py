@@ -63,7 +63,7 @@ PRESETS = [
   },  
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   cost = int(options['cost'])
   increase_and_decrease_multiplier = int(options['increase_and_decrease_multiplier'])
   max_increase_multiplier = int(options['max_increase_multiplier'])

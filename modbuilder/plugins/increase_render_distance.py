@@ -34,7 +34,7 @@ PRESETS = [
   }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   spawn_distance = int(options['spawn_distance'])
   despawn_distance = int(options['despawn_distance'])
   return f"Increase Render Distance ({spawn_distance}m, {despawn_distance}m)"

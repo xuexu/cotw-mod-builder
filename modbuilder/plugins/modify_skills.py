@@ -1,8 +1,9 @@
 import textwrap
-from modbuilder.widgets import create_option, valid_option_value
-from modbuilder import mods2
-from math import floor
+
 import FreeSimpleGUI as sg
+
+from modbuilder import mods2
+from modbuilder.widgets import create_option, valid_option_value
 
 DEBUG = False
 NAME = "Modify Skills"
@@ -15,10 +16,12 @@ TABGROUP_PADDING = ((0,0),(10,0))
 
 
 def name_to_key(skill: str) -> str:
+    skill = format_shorthand(skill)
     return "_".join(skill.lower().split(" "))
 
 
 def key_to_name(skill: str) -> str:
+    skill = format_shorthand(skill)
     return " ".join(skill.split("_")).title()
 
 
@@ -50,6 +53,7 @@ def get_active_tab(window: sg.Window) -> str:
 
 
 def get_skill_options(skill: str) -> list[dict]:
+    skill = format_shorthand(skill)
     try:
         return globals()[f"render_{skill}"]()
     except:
@@ -81,7 +85,7 @@ def process_pack_mule(options: dict) -> list[dict]:
 
 def render_soft_feet() -> list[dict]:
     return [
-        { "name": "Soft Feet Percent", "min": 20, "max": 100, "default": 20, "initial": 100, "increment": 1 }
+        { "name": "Soft Feet Percent", "min": 0, "max": 100, "default": 20, "initial": 100, "increment": 1 }
     ]
 def format_soft_feet(options: dict) -> str:
     sound = options['soft_feet_percent']
@@ -179,25 +183,56 @@ def process_keen_eye(options: dict) -> list[dict]:
 
 def render_endurance() -> list[dict]:
     return [
-        { "name": "Reduce Heart Rate Percent", "min": 66, "max": 100, "default": 66, "initial": 100, "increment": 1 }
+        { "name": "Reduce Heart Rate Percent", "min": 0, "max": 100, "default": 66, "initial": 100, "increment": 1 }
     ]
 def format_endurance(options: dict) -> str:
     endurance = options["reduce_heart_rate_percent"]
     return f"Enhanced Endurance ({int(endurance)}%)"
 def process_endurance(options: dict) -> list[dict]:
-    endurance_percent = round(options["reduce_heart_rate_percent"] / 100, 2)
-    heart_rate_recover = 1 + endurance_percent
+    heart_rate_percent = round(options["reduce_heart_rate_percent"] / 100, 2)
+    endurance_percent = 1 - heart_rate_percent
+    heart_rate_recover = 1 + heart_rate_percent
     return [
         {
             "sheet": "skills_active",
             "coordinates": "G11",
-            "value": f"heart_rate_movement_increase_multiplier({endurance_percent:0<4.2f}), heart_rate_recovery_multiplier({heart_rate_recover:0<4.2f})"
+            "value": f"heart_rate_movement_increase_multiplier({endurance_percent}), heart_rate_recovery_multiplier({heart_rate_recover})"
+        }
+    ]
+
+def render_startle_call() -> list[dict]:
+    return [
+        # { "name": "Distance", "min": 5, "max": 1000, "default": 75, "initial": 1000, "increment": 5, "note": "meters" },
+        # { "name": "Duration", "min": 0, "max": 60, "default": 0, "initial": 60, "increment": 1, "note": "seconds" },
+        { "name": "Cooldown", "min": 1, "max": 60, "default": 30, "initial": 1, "increment": 1, "note": "seconds" },
+    ]
+def format_startle_call(options: dict) -> str:
+    # distance = int(options["distance"])
+    # duration = int(options["duration"])
+    cooldown = int(options["cooldown"])
+    # return f"Enhanced Startle Call ({distance}m, {duration}s, {cooldown}s)"
+    return f"Enhanced Startle Call ({cooldown}s)"
+def process_startle_call(options: dict) -> list[dict]:
+    # distance = int(options["distance"])
+    # duration = int(options["duration"])
+    # max_duration = duration + 5
+    cooldown = int(options["cooldown"])
+    return [
+        # {
+        #     "sheet": "skills_active",
+        #     "coordinates": "G17",
+        #     "value": f"startle_animals_within_radius({distance}, {duration}, {max_duration})"
+        # },
+        {
+            "sheet": "skills_active",
+            "coordinates": "F17",
+            "value": cooldown
         }
     ]
 
 def render_improvised_blind() -> list[dict]:
     return [
-        { "name": "Vegetation Camoflauge Percent", "max": 900, "min": 50, "default": 50, "initial": 900, "increment": 50 }
+        { "name": "Vegetation Camoflauge Percent", "min": 50, "max": 900, "default": 50, "initial": 900, "increment": 50 }
     ]
 def format_improvised_blind(options: dict) -> str:
     camo = options["vegetation_camoflauge_percent"]
@@ -210,6 +245,39 @@ def process_improvised_blind(options: dict) -> list[dict]:
         "coordinates": "G10",
         "value": f"increase_vegetation_camo({updated_value})"
     }]
+
+def render_wind_prediction() -> list[dict]:
+    return [
+        # {"name": "Levels", "min": 1, "max": 99, "default": 10, "initial": 99, "increment": 1},
+        # {"name": "Prediction Span", "min": 0.1, "max": 24 "default": 1.0, "initial": 24, "increment": 1, "note": "in-game hours"},
+        # {"name": "Duration", "min": 1, "max": 240, "default": 60, "initial": 240, "increment": 1, "note": "seconds"},
+        {"name": "Cooldown", "min": 1, "max": 999, "default": 600, "initial": 1, "increment": 1, "note": "seconds"},
+    ]
+def format_wind_prediction(options: dict) -> str:
+    # return f"Enhanced Wind Prediction ({int(options["number_of_predictions"])}x, {options["prediction_span"]} hours, {options["duration"]}s, {options["cooldown"]}s)"
+    return f"Enhanced Wind Prediction ({options["cooldown"]}s)"
+def process_wind_prediction(options: dict) -> list[dict]:
+    # predictions = int(options["number_of_predictions"])
+    # span = options["prediction_span"]
+    # duration = options["duration"]
+    cooldown = int(options["cooldown"])
+    return [
+        # {
+        #     "sheet": "skills_active",
+        #     "coordinates": "G8",
+        #     "value": f"wind_predict({predictions}, {span}, {duration})"
+        # },
+        # {
+        #     "sheet": "skills_active",
+        #     "coordinates": "I8",
+        #     "value": f"wind_predict({predictions}, {span}, {duration})"
+        # },
+        {
+            "sheet": "skills_active",
+            "coordinates": "F13",
+            "value": cooldown
+        },
+    ]
 
 def render_spotting_knowledge() -> list[dict]:
     return [
@@ -267,8 +335,8 @@ def process_track_knowledge(options: dict) -> list[dict]:
 def render_locate_tracks() -> list[dict]:
     return [
         { "name": "Angle", "min": 0.0, "max": 90.0, "default": 45.0, "initial": 0.0, "increment": 1.0 },
-        { "name": "Spawn Distance", "min": 40.0, "max": 99.0, "default": 40.0, "initial": 100.0, "increment": 1, "note": "Meters" },
-        { "name": "Despawn Distance", "min": 45.0, "max": 99.0, "default": 45.0, "initial": 100.0, "increment": 1, "note": "Meters" },
+        { "name": "Spawn Distance", "min": 1.0, "max": 99.0, "default": 40.0, "initial": 100.0, "increment": 1, "note": "Meters" },
+        { "name": "Despawn Distance", "min": 1.0, "max": 99.0, "default": 45.0, "initial": 100.0, "increment": 1, "note": "Meters" },
     ]
 def format_locate_tracks(options: dict) -> str:
     angle = options["angle"]
@@ -351,10 +419,10 @@ def process_hill_caller(options: dict) -> list[dict]:
 
 def render_hardened() -> list[dict]:
     return [
-        { "name": "Health", "min": 1150, "max": 10000, "default": 1150, "initial": 10000, "increment": 50},
+        { "name": "Health", "min": 50, "max": 10000, "default": 1150, "initial": 10000, "increment": 50},
     ]
 def format_hardened(options: dict) -> str:
-    return f"Enhaned Hardened ({int(options["health"])} HP)"
+    return f"Enhanced Hardened ({int(options["health"])} HP)"
 def process_hardened(options: dict) -> list[dict]:
     # Max Health is capped at 9999.9. We let the slider go to 10K for ease of use
     health = min(options["health"], 9999.9)
@@ -364,6 +432,39 @@ def process_hardened(options: dict) -> list[dict]:
             "coordinates": "G8",
             "value": f"set_player_max_health({health})"
         }
+    ]
+
+def render_weather_prediction() -> list[dict]:
+    return [
+        # {"name": "Number of Predictions", "min": 1, "max": 99, "default": 10, "initial": 99, "increment": 1},
+        # {"name": "Prediction Span", "min": 0.1, "max": 24 "default": 1.0, "initial": 24, "increment": 1, "note": "in-game hours"},
+        # {"name": "Duration", "min": 1, "max": 240, "default": 60, "initial": 240, "increment": 1, "note": "seconds"},
+        {"name": "Cooldown", "min": 1, "max": 999, "default": 600, "initial": 1, "increment": 1, "note": "seconds"},
+    ]
+def format_weather_prediction(options: dict) -> str:
+    # return f"Enhanced Weather Prediction ({int(options["number_of_predictions"])}x, {options["prediction_span"]} hours, {options["duration"]}s, {options["cooldown"]}s)"
+    return f"Enhanced Weather Prediction {options["cooldown"]}s)"
+def process_weather_prediction(options: dict) -> list[dict]:
+    # predictions = int(options["number_of_predictions"])
+    # span = options["prediction_span"]
+    # duration = options["duration"]
+    cooldown = int(options["cooldown"])
+    return [
+        # {
+        #     "sheet": "skills_active",
+        #     "coordinates": "G8",
+        #     "value": f"weather_predict({predictions}, {span}, {duration})"
+        # },
+        # {
+        #     "sheet": "skills_active",
+        #     "coordinates": "I8",
+        #     "value": f"weather_predict({predictions}, {span}, {duration})"
+        # },
+        {
+            "sheet": "skills_active",
+            "coordinates": "F8",
+            "value": cooldown
+        },
     ]
 
 def render_im_only_happy_when_it_rains() -> list[dict]:
@@ -396,11 +497,11 @@ def process_im_only_happy_when_it_rains(options: dict) -> list[dict]:
 
 def render_innate_triangulation() -> list[dict]:
     return [
-        { "name": "Indicator Accuracy", "min": 80.0, "max": 99.0, "default": 80.0, "initial": 99.0, "increment": 1.0},
+        {"name": "Indicator Accuracy", "min": 1, "max": 99, "default": 80, "initial": 99, "increment": 1},
     ]
 def format_innate_triangulation(options: dict) -> str:
-    indicator_accuracy = options["indicator_accuracy"]
-    return f"Enhanced Innate Triangulation ({int(indicator_accuracy)}% accuracy)"
+    indicator_accuracy = int(options["indicator_accuracy"])
+    return f"Enhanced Innate Triangulation ({indicator_accuracy}% accuracy)"
 def process_innate_triangulation(options: dict) -> list[dict]:
     indicator_accuracy = int(options["indicator_accuracy"])
     return [
@@ -509,7 +610,7 @@ def process_the_more_the_merrier(options: dict) -> list[dict]:
 
 def render_ranger() -> list[dict]:
     return [
-        { "name": "Accuracy", "min": 0.0, "max": 0.05, "default": 0.05, "initial": 0.0, "increment": 0.01},
+        { "name": "Accuracy", "min": 0.0, "max": 1.0, "default": 0.05, "initial": 0.0, "increment": 0.01},
     ]
 def format_ranger(options: dict) -> str:
     accuracy = options["accuracy"]
@@ -621,6 +722,23 @@ def process_steady_hands(options: dict) -> list[dict]:
             "sheet": "perks_rifles",
             "coordinates": "I4",
             "value": f"base_wobble({wobble_multiplier:<3.1f})"
+        }
+    ]
+
+def render_windage() -> list[dict]:
+    return [
+        { "name": "Cooldown", "min": 1, "max": 60, "default": 5, "initial": 1, "increment": 1 }
+    ]
+def format_windage(options: dict) -> str:
+    cooldown = int(options["cooldown"])
+    return f"Enhanced Windage ({cooldown}s)"
+def process_windage(options: dict) -> list[dict]:
+    cooldown = int(options["cooldown"])
+    return [
+        {
+            "sheet": "perks_bows",
+            "coordinates": "F5",
+            "value": cooldown
         }
     ]
 
@@ -897,7 +1015,7 @@ def process_full_draw(options: dict) -> list[dict]:
 
 def render_move_n_shoot() -> list[dict]:
     return [
-        { "name": "Steady Multiplier", "min": 3.0, "max": 9.0, "default": 3.0, "initial": 9.0, "increment": 1.0 },
+        { "name": "Steady Multiplier", "min": 1.0, "max": 9.0, "default": 3.0, "initial": 1.0, "increment": 1.0 },
     ]
 def format_move_n_shoot(options: dict) -> str:
     steady_multiplier = int(options["steady_multiplier"])
@@ -1021,12 +1139,15 @@ SKILLS = {
     "Stalker": [
         "Endurance",
         "Hardened",
-        "Im Only Happy When It Rains",
+        "IOHWIR",
         "Improvised Blind",
         "Innate Triangulation",
         "Locate Tracks",
         "Soft Feet",
         "Track Knowledge",
+        # "Weather Prediction",
+        # "Wind Prediction",
+        "Startle Call",
     ],
     "Ambusher": [
         "Haggle",
@@ -1047,13 +1168,14 @@ PERKS = {
         "Breath Control",
         "Focused Shot",
         "Steady Hands",
+        "Windage",
     ],
     "Handguns": [
-        "Quick Feet",
-        "Survival Instinct",
-        "Ranger",
-        "Lightning Hands",
+        # "Lightning Hands",
         "Quick Draw",
+        "Quick Feet",
+        "Ranger",
+        "Survival Instinct",
     ],
     "Shotguns": [
         "Body Control",
@@ -1072,52 +1194,96 @@ PERKS = {
 }
 
 DESCRIPTIONS = {
-    "Endurance": "Increase your endurance so that your heart rate rises slower when moving and falls faster when idle.",
-    "Hardened": "Increases your health.",
-    "Im Only Happy When It Rains": "Decreases your visibility in foggy and rainy weather.",
-    "Improvised Blind": "Further decreases your visibility when inside large bushes and shrubs.",
-    "Innate Triangulation": "Decreases the size of the animal vocalization indicator.",
+    ### Stalker
     "Locate Tracks": "The directional tracking cone becomes more accurate and narrower. Increases the distance at which tracks are visible and highlighted.",
+    "Track Knowledge": "Reveals information about an animal's gender, weight, and health.",
+    # "Connect the Dots": "Connect related clues on the map with a dotted line.",
+    "Innate Triangulation": "Decreases the size of the animal vocalization indicator.",
+    # "Disturbed Vegetation": "Enables \"disturbed vegetation\" clues that reveal the animal's fur type."
+    "IOHWIR": "I'm Only Happy When It Rains: Decreases your visibility in foggy and rainy weather.",
     "Soft Feet": "Reduces the noise generated when moving through foilage, such as grass and leaves, and larger vegetation, such as bushed and shrubs.",
-    "Track Knowledge": "Reveals information about an animal's weight and health.",
-    "Haggle": "Reduces the cost of all items in the outpost store.",
-    "Hill Caller": "Increases the attraction range of all callers when used near a lookout point or inside an elevated structure like a tree stand or tripod.",
-    "Impact Resistance": "Reduces the damage taken from falling.",
-    "Keen Eye": "Reveals need zones and animal groups near the lookout point.",
-    "Pack Mule": "Increases the base carry capacity.",
+    "Improvised Blind": "Further decreases your visibility when inside large bushes and shrubs.",
+    # "Wind Prediction": "Predict when the wind speed and direction will change",
+    "Hardened": "Increases your health.",
+    # "Weather Prediction": "Predict when the weather will change and to what state, for example when it goes from clear to rainy",
+    "Endurance": "Increase your endurance so that your heart rate rises slower when moving and falls faster when idle.",
+    "Startle Call": "Make a noise to startle nearby animals, causing them to freeze temporarily before fleeing. Higher difficulty animals will flee faster.",
+
+    ### Ambusher
     "Scent Tinkerer": "Increases scent usage, duration, range, and attraction.",
     "Spotting Knowledge": "Shows the health, rating, and weight of the spotted animal.",
+    # "Sight Spotting": "Spot animals while aiming down sights with a weapon.",
     "Tag": "Increases the duration and max number of highlighted animals.",
-    "The More the Merrier": "Increases the cash reward from completing any mission.",
+    "Keen Eye": "Reveals need zones and animal groups near the lookout point.",
+    # "Dazed and Confused": "Adds a random chance of attracting an animal that is not usually attracted by a given scent."
+    # "Fatal Attraction": "Increased chance of attracting animals and causing a vocalization response when using calllers."
     "Whos Deer": "Attracts species not normally attracted to the caller and can cause a vocalization response.",
-    "Focused Shot": "Holding your breath increases zoom when using rifles with iron, red dot, and holographic sights.",
+    "Hill Caller": "Increases the attraction range of all callers when used near a lookout point or inside an elevated structure like a tree stand or tripod.",
+    "The More the Merrier": "Increases the cash reward from completing any mission.",
+    "Impact Resistance": "Reduces the damage taken from falling.",
+    "Pack Mule": "Increases the base carry capacity.",
+    "Haggle": "Reduces the cost of all items in the outpost store.",
+
+    ### Rifles
+    # "Muscle Memory": "Ready the next shot without leaving aim mode for rifles, shotguns, and handguns."
     "Breath Control": "Steadies a weapon while in aim mode.",
+    "Focused Shot": "Holding your breath increases zoom when using rifles with iron, red dot, and holographic sights.",
+    # "Zeroing": "Switch between different zero distances on supported weapons."
     "Steady Hands": "Decreased wobble when in aim mode using any weapon.",
+    "Windage": "Gauge wind direction and speed when in aim mode.",
+
+    ### Handguns
+    # "Sprint and Load": "Reload all weapons while running."
     "Quick Feet": "Recover a steady aim faster after changing stances when using handguns.",
-    "Survival Instinct": "Damage from animal attacks is reduced for a short duration after landing a shot on an aggressive animal.",
     "Ranger": "Increases accuracy when guaging distance of spotted animals.",
     "Lightning Hands": "Decreased reload time of all weapons.",
+    "Survival Instinct": "Damage from animal attacks is reduced for a short duration after landing a shot on an aggressive animal.",
     "Quick Draw": "Increases the speed and accuracy of hipshots using any weapon except bows and crossbows.",
-    "Body Control": "Weapon sights align faster after rotating with any weapon.",
+
+    ### Shotguns
     "Both Eyes Open": "Decrease edge blur when using shotguns with iron, red dot, and holographic sights.",
     "Fast Shouldering": "Increase the speed of entering and exiting aim mode using any weapon as well as the speed of switching weapons.",
-    "Recoil Management": "Less recoil when firing any weapon and able to fire a follow-up shot sooner.",
     "Tracershot": "Ability to trigger a tracer shot when firing shotguns. Pellets will leave behind smoke trails indicating the spread of the bullet.",
-    "Increased Confidence": "Increases accuracy of all bows when shooting from the hip.",
+    # "Boomstick": "Ability to fire both chambers at the same time when using a douhle-barreled shotgun.",
+    "Body Control": "Weapon sights align faster after rotating with any weapon.",
+    "Recoil Management": "Less recoil when firing any weapon and able to fire a follow-up shot sooner.",
+
+    ### Archery
     "Full Draw": "Increases the time an arrow can be drawn in aim mode before fatigue sets in.",
     "Move n Shoot": "Decreased wobble while moving in aim mode using any weapon.",
+    "Increased Confidence": "Increases accuracy of all bows when shooting from the hip.",
+    # "Like a Pro": "Ability to enter aim mode with a bow while prone.",
+    "Recycle": "Unlocks the ability to retrieve fired arrows and bolts.",
     "Pumping Iron": "Increased arm strength means more draw length. Increases the kinetic energey of all bows which in turn means more damage, penetration, and speed using the same arrows.",
-    "Recycle": "Unlocks the ability to retrieve fired arrows and bolts."
 }
+
 NOTES = {
-    "Spotting Knowledge": "Smaller values = more accurate information",
+    ### Stalker
     "Track Knowledge": "Smaller values = more accurate information",
-    "Ranger": "Smaller value = more accurate information",
+    ### Ambusher
+    "Spotting Knowledge": "Smaller values = more accurate information",
+    ### Rifles
     "Breath Control": "Smaller values = better",
     "Steady Hands": "Smaller value = better",
+    ### Handguns
+    "Ranger": "Smaller value = more accurate information",
+    ### Shotguns
+    ### Archery
     "Increased Confidence": "Smaller value = better",
+    "Move n Shoot": "Smaller value = better",
     "Recycle": "Smaller value = better",
 }
+
+_SHORTHANDS = {
+    # Some skills have long names that mess up the tabgroup formatting
+    "IOHWIR": "Im Only Happy When It Rains",
+}
+SHORTHANDS_MAP = {**_SHORTHANDS, **{v: k for k, v in _SHORTHANDS.items()}}
+
+def format_shorthand(skill: str) -> str:
+    # Converts between shorthand names for tabs and full names for option keys
+    # Returns the default skill name for skills without shorthand names
+    return SHORTHANDS_MAP.get(skill, skill)
 
 
 def get_skill_tab(skills: list[str]) -> list[sg.Tab]:
@@ -1221,7 +1387,7 @@ def handle_event(event: str, window: sg.Window, values: dict) -> None:
     pass
 
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
     funcs = globals()
     func_name = f"format_{options['key']}"
     if func_name in funcs:

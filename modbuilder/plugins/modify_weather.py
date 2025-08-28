@@ -50,7 +50,7 @@ PRESETS = [
   }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Modify Weather ({len(options['allowed_weather_conditions'])} conditions)"
 
 def get_files(options: dict) -> list[str]:

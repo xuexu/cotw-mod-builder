@@ -8,7 +8,7 @@ OPTIONS = [
   { "name": "Reduce Heart Rate Percent", "min": 66, "max": 100, "default": 66, "initial": 100, "increment": 1 }  
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   endurance = options["reduce_heart_rate_percent"]
   return f"Enhanced Endurance ({int(endurance)}%)"
 

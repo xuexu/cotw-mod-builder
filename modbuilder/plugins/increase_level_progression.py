@@ -19,7 +19,7 @@ OPTIONS = [
   },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   points_every_level = options.get("grant_skill_and_perk_points_every_level")
   if points_every_level:
     modifier_text = "every level"

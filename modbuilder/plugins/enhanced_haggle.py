@@ -8,7 +8,7 @@ OPTIONS = [
   { "name": "Haggle Percent", "min": 5, "max": 100, "default": 5, "initial": 100, "increment": 1 }  
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   haggle = options["haggle_percent"]
   return f"Enhanced Haggle ({int(haggle)}%)"
 

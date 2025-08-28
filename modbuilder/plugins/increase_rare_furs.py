@@ -26,7 +26,7 @@ PRESETS = [
   { "name": "All Rare Furs", "options": [ {"name": "rare_fur_percentage", "value": 100.0} ] }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Increase Rare Furs ({options['rare_fur_percentage']}%)"
 
 def get_name(animal: RtpcNode) -> str:

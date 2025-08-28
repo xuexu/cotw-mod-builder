@@ -1,11 +1,19 @@
-from modbuilder import mods
+import shutil
+
 import FreeSimpleGUI as sg
+
+from modbuilder import mods
+from modbuilder.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 DEBUG = False
 NAME = "Modify Binocular Overlay"
 DESCRIPTION = "Modify the binocular overlay."
 OVERLAYS_PATH = mods.APP_DIR_PATH / "org/modded/binocular_overlay"
-OVERLAY_FILE_NAME = "hud_i470.ddsc"
+OVERLAY_FILE_NAME = "hud_i466.ddsc"
+
 
 def get_option_elements() -> sg.Column:
   return sg.Column([
@@ -33,7 +41,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     }
   }
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   return f"Modify Binocular Overlay ({options['binoculars_overlay'].title()})"
 
 def get_files(options: dict) -> list[str]:
@@ -43,8 +51,8 @@ def merge_files(files: list[str], options: dict) -> None:
   overlay = options['binoculars_overlay']
   try:
     mods.copy_file(OVERLAYS_PATH / f"{overlay}.ddsc", mods.MOD_PATH / "ui" / OVERLAY_FILE_NAME)
-  except:
-    print(f"Error: Could not copy {overlay}.ddsc")
+  except (OSError, shutil.Error):
+    logger.exception("Error: Could not copy %s.ddsc", overlay)
     pass
 
 def update_values_at_offset(options: dict) -> list[dict]:

@@ -10,7 +10,7 @@ OPTIONS = [
   { "name": "Dog XP Multiplier", "min": 1, "max": 20, "default": 1, "increment": 1 },
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   traits = options["allow_all_traits_to_be_learned"]
   xp = int(options["dog_xp_multiplier"])
   both = traits and xp != 1

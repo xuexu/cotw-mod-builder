@@ -22,7 +22,7 @@ PRESETS = [
   ]}
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   stand_percent = options['reduce_stand_percent']
   crouch_percent = options['reduce_crouch_percent']
   prone_percent = options['reduce_prone_percent']
@@ -31,18 +31,21 @@ def format(options: dict) -> str:
 def update_values_at_offset(options: dict) -> None:
   movement_file = mods2.deserialize_adf(FILE)
   weapon_settings = movement_file.table_instance_full_values[0].value["FpsSettings"].value["WeaponSkillSettings"].value
+  stand_percent = options['reduce_stand_percent']
+  crouch_percent = options['reduce_crouch_percent']
+  prone_percent = options['reduce_prone_percent']
   updates = [
     {
       "offset": weapon_settings["StandingWoobleModifier"].data_offset,
-      "value": round(1.0 - options['reduce_stand_percent'] / 100, 1),
+      "value": float(1 - stand_percent / 100),
     },
     {
       "offset": weapon_settings["CrouchWoobleModifier"].data_offset,
-      "value": round(1.0 - options['reduce_crouch_percent'] / 100, 1),
+      "value": float(1 - crouch_percent / 100),
     },
     {
       "offset": weapon_settings["CrawlWoobleModifier"].data_offset,
-      "value": round(1.0 - options['reduce_prone_percent'] / 100, 1),
+      "value": float(1 - prone_percent / 100),
     },
   ]
   return updates

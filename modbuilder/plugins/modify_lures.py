@@ -14,7 +14,7 @@ OPTIONS = [
     {"name": "Decoy Range", "min": 500.0, "max": 990.0, "default": 500.0,  "increment": 10,},
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   remote_caller_range = options["remote_caller_range"]
   handheld_caller_range = options["handheld_caller_range"]
   scent_range = options["scent_range"]

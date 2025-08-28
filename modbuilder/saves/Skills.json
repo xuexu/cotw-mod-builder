@@ -1,5 +1,5 @@
 {
-  "version": "2.2.7",
+  "version": "2.2.9",
   "mod_options": {
     "modify_skills_skill_tier_cost": {
       "reduce_skill_tier_cost": true,
@@ -50,6 +50,11 @@
       "weight": 0.0,
       "name": "Track Knowledge",
       "key": "track_knowledge"
+    },
+    "modify_skills_startle_call": {
+      "cooldown": 1.0,
+      "name": "Startle Call",
+      "key": "startle_call"
     },
     "modify_skills_haggle": {
       "haggle_percent": 100.0,

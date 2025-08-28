@@ -1,11 +1,12 @@
+.hatch
+.ruff_cache
 venv
 __pycache__
 .python-version
 build
 modbuilder/new
 dist
-modbuilder.egg-info
-*.spec
+modbuilder_revived.egg-info
 mod
 game_path.txt
 _sandbox

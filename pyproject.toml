@@ -1,3 +1,70 @@
 [build-system]
-build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel"]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modbuilder-revived"
+version = "2.2.9"
+description = "A tool that makes it easy to customize and create mods for theHunter: Call of the Wild (COTW)"
+authors = [{ name = "Ryan Maxim" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+    "deepmerge==2.*",
+    "FreeSimpleGUI==5.*",
+    "mmh3==5.0.1",
+    "numba==0.60.0",
+    "numpy==2.0.2",
+    "openpyxl==3.*",
+    "pyyaml==6.*",
+    "rich==14.*",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.15",
+]
+
+[project.gui-scripts]
+modbuilder = "modbuilder.gui:main"
+
+[tool.hatch.envs.default]
+python = "3.12"
+features = ["dev"]
+
+[tool.hatch.envs.default.scripts]  # defaults for Windows
+modbuilder = 'python modbuilder'
+build = 'cmd /c ".\\scripts\\build.bat"'
+pack = 'cmd /c ".\\scripts\\pack.bat"'
+
+[tool.hatch.envs.default.overrides]
+platform.macos.scripts = [
+  'build=sh ./scripts/build.sh',
+  'pack=sh ./scripts/pack.sh',
+]
+platform.linux.scripts = [
+  'build=sh ./scripts/build.sh',
+  'pack=sh ./scripts/pack.sh',
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["modbuilder", "deca"]
+include = [
+  "modbuilder/org/**/*",
+  "modbuilder/plugins/*.py",
+  "modbuilder/saves/**/*",
+  "modbuilder/name_map.yaml",
+  "deca/*.py",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "modbuilder/**",
+  "deca/**",
+  "README.md",
+  "LICENSE",
+]
+
+[tool.ruff.lint]
+ignore = ["N813"]

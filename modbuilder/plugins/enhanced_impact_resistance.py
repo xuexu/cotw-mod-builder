@@ -8,7 +8,7 @@ OPTIONS = [
   { "name": "Fall Damage Reduction Percent", "min": 20, "max": 100, "default": 20, "initial": 100, "increment": 1 }
 ]
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   damage_reduce = options['fall_damage_reduction_percent']
   return f"Enhanced Impact Resistance ({int(damage_reduce)}%)"
 

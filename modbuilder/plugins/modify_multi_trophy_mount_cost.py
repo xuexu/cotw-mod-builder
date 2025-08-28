@@ -24,7 +24,7 @@ def load_multi_mount_prices() -> list[int]:
       cost_offsets.append(mount_recipe.prop_table[2].data_pos)
   return cost_offsets
 
-def format(options: dict) -> str:
+def format_options(options: dict) -> str:
   modified_cost_percent = int(options['modified_cost_percent'])
   return f"Modify Multi Trophy Mount Cost ({modified_cost_percent}%)"
 
