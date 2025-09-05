@@ -1,5 +1,4 @@
 import re
-from dataclasses import dataclass
 
 import FreeSimpleGUI as sg
 
@@ -57,7 +56,6 @@ class StoreItem:
     for prop in equipment_node.prop_table:
       name_hash = prop.name_hash
       data = prop.data
-      offset = prop.data_pos
 
       if name_hash == 837395680 and self.type == "skin":  # 0x31e9a4e0, parse texture name to get skin names
         self.name = data.decode("utf-8")

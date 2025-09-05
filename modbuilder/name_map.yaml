@@ -749,14 +749,17 @@ optic:
   binoculars_01:
     name: Vantage 8x42 Binoculars
 
+  camera_01:
+    name: Camera
+
+  night_vision_01:
+    name: GenZero 8x50 Night Vision
+
   rangefinder_01:
     name: Venture 5x30 Rangefinder
 
   rangefinder_binoculars_01:
     name: Apexview 7x42 Rangefinder Binoculars
-
-  night_vision_01:
-    name: GenZero 8x50 Night Vision
 
 ##########
 

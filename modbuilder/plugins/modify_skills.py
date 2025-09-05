@@ -905,17 +905,11 @@ def format_recoil_management(options: dict) -> str:
     return f"Enhanced Recoil Management ({recoil} recoil, {speed} speed)"
 def process_recoil_management(options: dict) -> list[dict]:
     recoil = options["recoil"]
-    recoil = f"{recoil}"
     speed = options["speed"]
-    speed = f"{speed}"
     recoil_2 = options.get("recoil_2", options["recoil"])
-    recoil_2 = f"{recoil_2}"
     speed_2 = options.get("speed_2", options["speed"])
-    speed_2 = f"{speed_2}"
     recoil_3 = options.get("recoil_3", options["recoil"])
-    recoil_3 = f"{recoil_3}"
     speed_3 = options.get("speed_3", options["speed"])
-    speed_3 = f"{speed_3}"
     return [
         {
             "sheet": "perks_shotguns",

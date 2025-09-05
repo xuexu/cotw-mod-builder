@@ -1,6 +1,8 @@
-from modbuilder import mods, mods2
 from pathlib import Path
+
 import FreeSimpleGUI as sg
+
+from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Modify Binocular Zoom"
@@ -24,10 +26,10 @@ class Optics:
 
   def _map_name(self) -> None:
     split_file = self.file.split("/")
-    filename = split_file[-1].replace(".sighttunec","")  # filename without "".sighttunec" extension
+    filename = split_file[-1].replace(".sighttunec","")  # filename without ".sighttunec" extension
     self.name = mods.clean_equipment_name(filename, "optic")
-    if (mapped_eqipment := mods.map_equipment(self.name, "optic")):
-      self.display_name = mapped_eqipment["name"]
+    if (mapped_equipment := mods.map_equipment(self.name, "optic")):
+      self.display_name = mapped_equipment["name"]
     else:
       self.display_name = self.name
 
@@ -39,6 +41,7 @@ def load_optics() -> list[Optics]:
     Optics(base_file_path / "equipment_optics_rangefinder_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_01.ee"),
     Optics(base_file_path / "equipment_optics_rangefinder_binoculars_01.sighttunec", base_bundle_path / "equipment_optics_rangefinder_binoculars_01.ee"),
     Optics(base_file_path / "equipment_optics_night_vision_01.sighttunec", base_bundle_path / "equipment_optics_night_vision_01.ee"),
+    Optics(base_file_path / "equipment_optics_camera_01.sighttunec", base_bundle_path / "equipment_optics_camera_01.ee"),
   ]
   return sorted(binoculars, key=lambda x: x.name)
 
@@ -96,7 +99,7 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   }
 
 def format_options(options: dict) -> str:
-  return f"Modify Optics: {options.get('display_name', options['name'])} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
+  return f"Modify Binoculars: {options.get('display_name', options['name'])} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_optics")

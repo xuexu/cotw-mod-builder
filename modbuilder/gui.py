@@ -1,6 +1,9 @@
 import math
+import webbrowser
 import textwrap
 from importlib.metadata import version
+from packaging.version import Version as package_version
+import requests
 
 import FreeSimpleGUI as sg
 from deepmerge import always_merger
@@ -27,6 +30,45 @@ def _get_mods(window: sg.Window) -> None:
   window['options'].Widget.config(height=height)  # reset column height to preserve layout
   window.set_icon(logo.value)  # fix taskbar icon if it didn't load properly
   window.refresh()
+
+def _check_for_update() -> None:
+  release_data = _get_latest_release()
+  if release_data:
+    latest_tag = release_data.get("tag_name", "").lstrip("v")
+    if package_version(latest_tag) > package_version(__version__):
+      _show_update_popup(release_data)
+
+def _get_latest_release() -> dict:
+  try:
+    resp = requests.get("https://api.github.com/repos/RyMaxim/cotw-mod-builder/releases/latest", timeout=5)
+    resp.raise_for_status()
+    data = resp.json()
+    return data
+  except Exception as e:
+    logger.info(f"Check for update failed: {e}")
+  return {}
+
+def _show_update_popup(release_data: dict) -> None:
+  nexus_url = "https://www.nexusmods.com/thehuntercallofthewild/mods/410?tab=files"
+  github_url = release_data["html_url"]
+  layout = [
+    [sg.Text(f"A newer version is available!", text_color="yellow")],
+    [sg.Text(release_data["name"])],
+    [sg.Button("NexusMods", key="-NEXUSMODS-"), sg.Button("GitHub", key="-GITHUB-")],
+  ]
+
+  window = sg.Window("Update Available", layout, icon=logo.value, modal=True)
+  while True:
+    event, _ = window.read()
+    if event in (sg.WINDOW_CLOSED, "Close"):
+      break
+    elif event == "-NEXUSMODS-":
+      webbrowser.open(nexus_url)
+      break
+    elif event == "-GITHUB-":
+      webbrowser.open(github_url)
+      break
+  window.close()
 
 def _mod_name_to_key(name: str) -> str:
   if name is None:
@@ -402,6 +444,7 @@ def main() -> None:
 
   window = sg.Window("COTW: Mod Builder - Revived", layout, resizable=True, font=DEFAULT_FONT, icon=logo.value, size=(1300, 800), finalize=True)
   _get_mods(window)
+  _check_for_update()
 
   while True:
     event, values = window.read()

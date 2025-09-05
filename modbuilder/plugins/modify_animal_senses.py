@@ -97,10 +97,10 @@ def process(options: dict) -> list[dict]:
   defensive_duration_percent = 1 - options.get('reduce_defensive_duration_percent', 0) / 100
   mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "species_data", ["B14", "B15", "B16", "B17"], defensive_duration_percent, transform="multiply", skip_add_data=True)
 
-  ai_data = mods2.deserialize_adf(AI_FILE)
-  ai_data_ranges = ai_data.table_instance_full_values[0].value["Perception"].value["EventRanges"].value
   tent_distance = options.get("tent_detection_distance")
   if tent_distance is not None:
+    ai_data = mods2.deserialize_adf(AI_FILE)
+    ai_data_ranges = ai_data.table_instance_full_values[0].value["Perception"].value["EventRanges"].value
     mods.update_file_at_offset(AI_FILE, ai_data_ranges["SpookInRadius"].data_offset, tent_distance)
 
   weapon_fire_distance = options.get("weapon_fire_detection_distance")

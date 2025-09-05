@@ -2,13 +2,14 @@ from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Modify ATV"
-DESCRIPTION = "Allows you to modify the performance of the ATV (all colors). The top speed is not exact, since the acceleration settings will slightly change the top seed. Higher top speeds will need additional acceleration no matter what you pick."
+DESCRIPTION = "Allows you to modify the performance of the ATV (all colors). The top speed is not exact, since the acceleration settings will slightly change the top speed. Higher top speeds may benefit from higher acceleration settings."
 OPTIONS = [
-  { "name": "Top Speed", "style": "list", "default": "60", "initial": ["70", "90", "120", "150", "170"] },
+  { "name": "Top Speed", "style": "list", "default": "default", "initial": ["70", "90", "120", "150", "170"] },
   { "name": "Acceleration", "style": "list", "initial": ["default", "medium", "high"] },
   { "name": "Traction", "style": "list", "initial": ["default", "medium", "high"] },
-  { "name": "Noise Distance", "style": "slider", "min": 0.0, "max": 500.0, "default": 500.0, "initial": 500.0, "increment": 50.0, "note": "how far the ATV noise travels" },
-  { "name": "Vision Distance", "style": "slider", "min": 0.0, "max": 200.0, "default": 200.0, "initial": 200.0, "increment": 50.0, "note": "how far you are visible on the ATV" }
+  { "name": "Noise Distance", "style": "slider", "min": 0.0, "max": 1000.0, "default": 500.0, "initial": 500.0, "increment": 50.0, "note": "how far the ATV noise travels" },
+  { "name": "Vision Distance", "style": "slider", "min": 0.0, "max": 1000.0, "default": 200.0, "initial": 200.0, "increment": 50.0, "note": "how far you are visible on the ATV" },
+  { "name": "Camera Distance", "style": "slider", "min": 0.05, "max": 20.0, "default": 3.75, "initial": 3.75, "increment": 0.05 , "note": "larger distance = wider FOV"},
 ]
 SPEED_70 = {
   "gears": [2.2309999465942383, 1.7999999523162842, 1.5290000438690186, 1.277999997138977, 1.0479999780654907, 0.0, 0.0, 0.0],
@@ -79,46 +80,69 @@ TRANSMISSION_FILE = "editor/entities/vehicles/01_land/v001_car_atv/modules/defau
 AERODYNAMICS_FILE = "editor/entities/vehicles/01_land/v001_car_atv/modules/default/v001_car_atv_land_aerodynamics.vmodc"
 LANDGLOBAL_FILE = "editor/entities/vehicles/01_land/v001_car_atv/modules/default/v001_car_atv_land_global.vmodc"
 LANDENGINE_FILE = "editor/entities/vehicles/01_land/v001_car_atv/modules/default/v001_car_atv_land_engine.vmodc"
+
 RED_MERGE_PATH = "editor/entities/vehicles/01_land/v001_car_atv/v001_car_atv_black_red.ee"
 SILVER_MERGE_PATH = "editor/entities/vehicles/01_land/v001_car_atv/v001_car_atv_black_silver.ee"
 JADE_MERGE_PATH = "editor/entities/vehicles/01_land/v001_car_atv/v001_car_atv_default.ee"
-NOISE_PATH = "settings/hp_settings/animal_senses.bin"
+
+ANIMAL_SENSES_FILE = "settings/hp_settings/animal_senses.bin"
+CAMERA_FILE = "editor/entities/cameras/tp_atv_framing.ctunec"
 
 def map_options(options: dict) -> dict:
-  top_speed = options["top_speed"] if options["top_speed"] else "70"
+  top_speed = options["top_speed"] if options["top_speed"] else "default"
   acceleration = options["acceleration"] if options["acceleration"] else "default"
   traction = options["traction"] if options["traction"] else "default"
-  noise = options["noise_distance"] if "noise_distance" in options else 500.0
-  vision = options["vision_distance"] if "vision_distance" in options else 200.0
-
-  if top_speed != "70" and acceleration == "default":
-    acceleration = "medium"
-  elif top_speed == "170" and acceleration != "high":
-    acceleration = "high"
+  noise = options["noise_distance"] if "noise_distance" in options else mods.get_mod_option_default("noise_distance", OPTIONS)
+  vision = options["vision_distance"] if "vision_distance" in options else mods.get_mod_option_default("vision_distance", OPTIONS)
+  camera_distance = options["camera_distance"] if "camera_distance" in options else mods.get_mod_option_default("camera_distance", OPTIONS)
 
   return {
     "top_speed": top_speed,
     "acceleration": acceleration,
     "traction": traction,
     "noise_distance": noise,
-    "vision_distance": vision
+    "vision_distance": vision,
+    "camera_distance": camera_distance,
   }
 
 
 def format_options(options: dict) -> str:
   options = map_options(options)
   top_speed = options["top_speed"]
+  top_speed_text = f"Speed {top_speed}km/h" if top_speed != "default" else ""
   acceleration = options["acceleration"]
+  acceleration_text = f"Acceleration {acceleration}" if acceleration != "default" else ""
   traction = options["traction"]
-  noise = options["noise_distance"]
-  vision = options["vision_distance"]
-  return f"Modify ATV ({top_speed}km/h, {acceleration}, {traction}, {int(noise)}m, {int(vision)}m)"
+  traction_text = f"Traction {traction}" if traction != "default" else ""
+  noise_distance = options["noise_distance"]
+  noise_text = f"Noise {noise_distance}m" if noise_distance != mods.get_mod_option_default("noise_distance", OPTIONS) else ""
+  vision_distance = options["vision_distance"]
+  vision_text = f"Vision {vision_distance}m" if vision_distance != mods.get_mod_option_default("vision_distance", OPTIONS) else ""
+  camera_distance = options["camera_distance"]
+  camera_text = f"Camera {camera_distance}m" if camera_distance != mods.get_mod_option_default("camera_distance", OPTIONS) else ""
+
+  options_text_array = [top_speed_text, acceleration_text, traction_text, noise_text, vision_text, camera_text]
+  options_text = ", ".join([s for s in options_text_array if s and s.strip()])
+  options_text = options_text if options_text else "No Changes"
+
+  return f"Modify ATV ({options_text})"
 
 def get_files(options: dict) -> list[str]:
-  noise = options["noise_distance"]
-  atv_files = [TRANSMISSION_FILE, LANDENGINE_FILE, AERODYNAMICS_FILE, LANDGLOBAL_FILE]
-  if noise != 500.0:
-    atv_files.append(NOISE_PATH)
+  options = map_options(options)
+  atv_files = []
+  if options["top_speed"] != "default":
+    atv_files.extend([TRANSMISSION_FILE, LANDENGINE_FILE, AERODYNAMICS_FILE])
+  if options["acceleration"] != "default":
+    atv_files.append(LANDENGINE_FILE)
+  if options["traction"] != "default":
+    atv_files.append(LANDGLOBAL_FILE)
+  if (
+    options["noise_distance"] != mods.get_mod_option_default("noise_distance", OPTIONS)
+    or options["vision_distance"] != mods.get_mod_option_default("vision_distance", OPTIONS)
+  ):
+    atv_files.append(ANIMAL_SENSES_FILE)
+  if options["camera_distance"] != mods.get_mod_option_default("camera_distance", OPTIONS):
+    atv_files.append(CAMERA_FILE)
   return atv_files
 
 def _update_gears(values: list[float], start_offset: int) -> None:
@@ -172,15 +196,22 @@ def update_aerodynamics_file() -> None:
   ]
   mods.apply_updates_to_file(AERODYNAMICS_FILE, updates)
 
-def update_noise_file(noise: float, vision: float) -> None:
-  if noise != 500.0:
-    mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B4", "C4"], int(noise))
+def update_camera_file(distance: float) -> None:
+  camera = mods2.deserialize_adf(CAMERA_FILE).table_instance_full_values[0].value
+  updates = [
+    {"offset": camera["Distance"].data_offset, "value": distance}
+  ]
+  mods.apply_updates_to_file(CAMERA_FILE, updates)
+
+def update_animal_senses_file(noise: float, vision: float) -> None:
+  if noise != mods.get_mod_option_default("noise_distance", OPTIONS):
+    mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "vehicle_data", ["B4", "C4"], int(noise))
     if noise < 150:
-      mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B3", "C3"], int(noise))
-  if vision != 200.0:
-    mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B9", "C9"], int(vision))
+      mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "vehicle_data", ["B3", "C3"], int(noise))
+  if vision != mods.get_mod_option_default("vision_distance", OPTIONS):
+    mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "vehicle_data", ["B9", "C9"], int(vision))
     if vision < 50:
-      mods2.update_file_at_multiple_coordinates_with_value(NOISE_PATH, "vehicle_data", ["B8", "C8"], int(noise))
+      mods2.update_file_at_multiple_coordinates_with_value(ANIMAL_SENSES_FILE, "vehicle_data", ["B8", "C8"], int(noise))
 
 def process(options: dict) -> None:
   options = map_options(options)
@@ -202,15 +233,29 @@ def process(options: dict) -> None:
     "high": TRACTION_HIGH,
   }.get(options["traction"], TRACTION_DEFAULT)
 
-  update_transmission_file(speed_options)
-  update_landengine_file(speed_options, torque_option)
-  update_landglobal_file(traction_option)
-  update_aerodynamics_file()
-  update_noise_file(options["noise_distance"], options["vision_distance"])
+  if options["top_speed"] != "default":
+    update_transmission_file(speed_options)
+    update_aerodynamics_file()
+    update_landengine_file(speed_options, torque_option)
+
+  if options["acceleration"] != "default":
+    update_landengine_file(speed_options, torque_option)
+
+  if options["traction"] != "default":
+    update_landglobal_file(traction_option)
+
+  if (
+    options["noise_distance"] != mods.get_mod_option_default("noise_distance", OPTIONS)
+    or options["vision_distance"] != mods.get_mod_option_default("vision_distance", OPTIONS)
+  ):
+    update_animal_senses_file(options["noise_distance"], options["vision_distance"])
+
+  if options["camera_distance"] != mods.get_mod_option_default("camera_distance", OPTIONS):
+    update_camera_file(options["camera_distance"])
 
 def merge_files(files: list[str], options: dict) -> None:
   for bundle_file in [RED_MERGE_PATH, SILVER_MERGE_PATH, JADE_MERGE_PATH]:
     bundle_lookup = mods.get_sarc_file_info(mods.APP_DIR_PATH / "org" / bundle_file)
     for file in files:
-      if file != NOISE_PATH:
+      if file not in [ANIMAL_SENSES_FILE, CAMERA_FILE]:
         mods.merge_into_archive(file, str(bundle_file), bundle_lookup)

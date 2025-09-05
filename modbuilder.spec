@@ -1,23 +1,34 @@
 # modbuilder.spec
+# -*- mode: python ; coding: utf-8 -*-
+
+import os
+
+REPO_ROOT = os.path.abspath(os.getcwd())
+SCRIPT_PATH = os.path.join(REPO_ROOT, "modbuilder.py")
+
+datas = [
+    (os.path.join(REPO_ROOT, "modbuilder/org"), "org"),
+    (os.path.join(REPO_ROOT, "modbuilder/plugins/*.py"), "plugins"),
+    (os.path.join(REPO_ROOT, "modbuilder/saves"), "saves"),
+    (os.path.join(REPO_ROOT, "modbuilder/name_map.yaml"), "."),
+    (os.path.join(REPO_ROOT, "deca/*.py"), "deca"),
+]
 
 a = Analysis(
-    ['modbuilder.py'],
-    pathex=['.'],
+    [SCRIPT_PATH],
+    pathex=[],
     binaries=[],
-    datas=[
-        ('modbuilder/org', 'org'),
-        ('modbuilder/plugins/*.py', 'plugins'),
-        ('modbuilder/saves', 'saves'),
-        ('deca/*.py', 'deca'),
-        ('modbuilder/name_map.yaml', '.'),
-    ],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
+    hooksconfig={},
     runtime_hooks=[],
     excludes=[],
+    noarchive=False,
+    optimize=1,
 )
 
-pyz = PYZ(a.pure, a.zipped_data)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
@@ -31,7 +42,7 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=True,
+    argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
@@ -40,7 +51,6 @@ exe = EXE(
 coll = COLLECT(
     exe,
     a.binaries,
-    a.zipfiles,
     a.datas,
     strip=False,
     upx=True,

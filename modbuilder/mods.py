@@ -60,7 +60,7 @@ class StatWithOffset:
   offset: int
 
   def __init__(self, stat: AdfValue | RtpcProperty = None, value: any = None, offset: int = None) -> None:
-    if not stat and (value is None and offset is None):
+    if stat is None and (value is None and offset is None):
       raise ValueError("Cannot create object: Missing stat or value + offset")
 
     if value is not None:
@@ -72,7 +72,7 @@ class StatWithOffset:
     if isinstance(self.value, bytes):
       self.value = self.value.decode("utf-8")
 
-    if offset:
+    if offset is not None:
       self.offset = offset
     elif isinstance(stat, AdfValue):
       self.offset = stat.data_offset
@@ -172,6 +172,21 @@ def get_mod_option(mod_key: str, option_key: str) -> dict:
     if mod_name == option_key:
       return option
   return None
+
+def get_mod_option_default(option_key: str, options: dict = None, mod_key: str = None) -> float:
+  default = None
+  if options is None and mod_key is None:
+    raise ValueError(f"Unable to get default value for {option_key}: no options or mod_key provided. ")
+  if options:
+    for option in options:
+      if option_key == get_mod_key_from_name(option["name"]):
+        default = option["default"]
+  if options is None:
+    option = get_mod_option(option_key, mod_key)
+    default = option["default"]
+  if default is None:
+    raise ValueError(f"Unable to get default value for {option_key}: no matching option found")
+  return default
 
 def list_mod_files() -> list[str]:
   return _get_mod_filenames()

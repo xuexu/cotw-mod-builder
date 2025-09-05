@@ -12,6 +12,6 @@ if not defined VERSION (
   exit /b 1
 )
 
-del /q dist\modbuilder.7z 2>nul
-del /q "dist\modbuilder_%VERSION%.7z" 2>nul
-"C:\Program Files\7-Zip\7z.exe" a "dist\modbuilder_%VERSION%.7z" "dist\modbuilder"
+del /q "%CD%\dist\modbuilder.7z" 2>nul
+del /q "%CD%\dist\modbuilder_%VERSION%.7z" 2>nul
+"C:\Program Files\7-Zip\7z.exe" a "%CD%\dist\modbuilder_%VERSION%.7z" "%CD%\dist\modbuilder"
