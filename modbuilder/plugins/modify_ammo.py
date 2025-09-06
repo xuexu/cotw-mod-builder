@@ -716,6 +716,8 @@ def process(options: dict) -> None:
       if value:
         updates.append({"offset": offset, "value": value})
 
+    updates.extend(update_classes_array(ammo, classes))
+
     # use calculated modifiers to update the UI values
     if ammo.ui_data:
       ui_penetration = calculate_modified_stat(ammo, "penetration", penetration_modifier, ui_data=True)
