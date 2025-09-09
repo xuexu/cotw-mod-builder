@@ -1,12 +1,14 @@
+import json
 import math
-import webbrowser
 import textwrap
+import traceback
+import webbrowser
 from importlib.metadata import version
-from packaging.version import Version as package_version
-import requests
 
 import FreeSimpleGUI as sg
+import requests
 from deepmerge import always_merger
+from packaging.version import Version as package_version
 
 from modbuilder import logo, mods, party
 from modbuilder.logging_config import get_logger
@@ -17,6 +19,7 @@ logger = get_logger(__name__)
 __version__ = version("modbuilder-revived")
 
 DEFAULT_FONT = "_ 14"
+SMALL_FONT = "_ 11"
 TEXT_WRAP = 142
 
 def _get_mods(window: sg.Window) -> None:
@@ -40,12 +43,12 @@ def _check_for_update() -> None:
 
 def _get_latest_release() -> dict:
   try:
-    resp = requests.get("https://api.github.com/repos/RyMaxim/cotw-mod-builder/releases/latest", timeout=5)
+    resp = requests.get("https://api.github.com/repos/RyMaxim/cotw-mod-builder/releases/latest", timeout=2)
     resp.raise_for_status()
     data = resp.json()
     return data
   except Exception as e:
-    logger.info(f"Check for update failed: {e}")
+    logger.error(f"Check for update failed: {e}")
   return {}
 
 def _show_update_popup(release_data: dict) -> None:
@@ -59,7 +62,7 @@ def _show_update_popup(release_data: dict) -> None:
 
   window = sg.Window("Update Available", layout, icon=logo.value, modal=True)
   while True:
-    event, _ = window.read()
+    event, _values = window.read()
     if event in (sg.WINDOW_CLOSED, "Close"):
       break
     elif event == "-NEXUSMODS-":
@@ -67,6 +70,37 @@ def _show_update_popup(release_data: dict) -> None:
       break
     elif event == "-GITHUB-":
       webbrowser.open(github_url)
+      break
+  window.close()
+
+def _show_popup_message(message: str) -> str:
+  sg.popup_quick_message(message, font="_ 28", background_color="brown")
+
+def _show_error_window(error: Exception, mod_key: str = None, mod_options: dict = None):
+  nexus_url = "https://www.nexusmods.com/thehuntercallofthewild/mods/410?tab=bugs"
+  logger.error(f"ERROR! {mod_key} : {error}")
+  header = [f"Version: {__version__}"]
+  err_msg = ["", f"Error: {error}"]
+  mod_msg = ["", f"Mod: {mod_key}"] if mod_key else []
+  opts_msg = ["", "Options:", json.dumps(mod_options, indent=4)] if mod_options else []
+  message = "\n".join(header + err_msg + mod_msg + opts_msg)
+
+  layout = [
+    [sg.T(f"Please paste this error as a new bug on NexusMods:")],
+    [sg.Multiline(message, font=SMALL_FONT ,expand_x=True, expand_y=True, disabled=True)],
+    [sg.Button("Copy to Clipboard", key="-CLIPBOARD-"), sg.Push(), sg.Button("Open NexusMods", key="-NEXUSMODS-")],
+  ]
+
+  window = sg.Window("UNEXPECTED ERROR", layout, modal=True, size=(600, 500), icon=logo.value)
+  while True:
+    event, _values = window.read()
+    if event in (sg.WINDOW_CLOSED, "Close"):
+      break
+    elif event == "-CLIPBOARD-":
+      sg.clipboard_set(message)
+      _show_popup_message("Copied to Clipboard")
+    elif event == "-NEXUSMODS-":
+      webbrowser.open(nexus_url)
       break
   window.close()
 
@@ -115,16 +149,21 @@ def _show_mod_options(mod_name: str, window: sg.Window) -> None:
     else:
       window[_mod_name_to_key(mod)].update(visible=False)
 
-def _format_selected_mods(selected_mods: dict) -> list[str]:
+def _format_selected_mods(selected_mods: dict, window: sg.Window) -> list[str]:
   formatted_mod_options = []
+  error_keys = []
   for mod_key, mod_options in selected_mods.items():
     mod = mods.get_mod(mod_key)
     if mod is not None:
       try:
         formatted_mod_options.append(mod.format_options(mod_options))
-      except Exception as e:
-        logger.error(f"ERROR! {mod_key} : {e}")
-  return formatted_mod_options
+      except Exception as error:
+        error_keys.append(mod_key)
+        _show_error_window(error, mod_key=mod_key, mod_options=mod_options)
+  for error_key in error_keys:
+    del selected_mods[error_key]
+  window["selected_mods"].update(formatted_mod_options)
+  return selected_mods
 
 def _valid_option_value(mod_option: dict, mod_value: any) -> str:
   return valid_option_value(mod_option, mod_value)
@@ -142,7 +181,8 @@ def _create_party() -> None:
     [sg.Image(party.value), sg.Column([
       [sg.T("Your mods have successfully been created!", font="_ 20")],
       [sg.T(mods.APP_DIR_PATH / "mod", text_color="orange")],
-      [sg.T(textwrap.fill("You can either load new mods to the dropzone folder or you can replace the dropzone folder.", 60))],
+      [sg.T(textwrap.fill("Load: copy mods to the dropzone folder, overwrite changed files.", 60))],
+      [sg.T(textwrap.fill("Replace: delete the old folder before copying.", 60))],
       [sg.VPush()],
       [sg.Push(), sg.Button("Load", k="load"), sg.Button("Replace", k="load_replace"), sg.Button("Close")]
     ], expand_x=True, expand_y=True)]
@@ -154,20 +194,13 @@ def _create_party() -> None:
     event, _values = window.read()
     if event == sg.WIN_CLOSED or event == "Close":
       break
-    if event == "load":
-      try:
-        mods.load_dropzone()
-        sg.PopupQuickMessage("Mods Loaded", font="_ 28", background_color="brown")
+    try:
+      if event in ["load", "load_replace"]:
+        mods.copy_dropzone(replace=(event == "load_replace"))
+        _show_popup_message("Mods Loaded")
         break
-      except Exception as ex:
-        sg.Popup(ex, title="Error", icon=logo.value, font=DEFAULT_FONT)
-    if event == "load_replace":
-      try:
-        mods.load_replace_dropzone()
-        sg.PopupQuickMessage("Mods Replaced", font="_ 28", background_color="brown")
-        break
-      except Exception as ex:
-        sg.Popup(ex, title="Error", icon=logo.value, font=DEFAULT_FONT)
+    except FileNotFoundError as ex:
+      sg.Popup(ex, title="Error", icon=logo.value, font=DEFAULT_FONT)
   window.close()
 
 def _show_load_mod_list() -> tuple[bool, list[dict], str]:
@@ -283,7 +316,7 @@ def _handle_updated_mods(imported_mods: dict, mod_list_name: str, event: str) ->
   if update_confirm == "Yes":
     mods_to_keep = always_merger.merge(always_merger.merge(imported_mods["remove"], imported_mods["load"]), imported_mods["update"])
     mods.save_mod_list(mods_to_keep, mod_list_name)
-    sg.popup_quick_message("Modifications Saved", font="_ 28", background_color="brown")
+    _show_popup_message("Modifications Saved")
 
 def _show_update_errors(update_errors: list[dict]) -> None:
   formatted_errors = [f"{key}: {value}" for key, value in update_errors.items()]
@@ -451,128 +484,127 @@ def main() -> None:
     #logger.debug(event)
     if event == sg.WIN_CLOSED:
       break
-    if event == "modification":
-      mod_name = values["modification"]
-      mod_key = _mod_name_to_key(mod_name)
-      mod = mods.get_mod(mod_key)
-      _show_mod_options(mod_name, window)
-      window["add_mod"].update(disabled=False)
-      window.visibility_changed()
-      window["options"].contents_changed()
-    elif event.startswith("add_mod"):
-      mod_name = values["modification"]
-      mod_key = _mod_name_to_key(mod_name)
-      mod = mods.get_mod(mod_key)
-      mod_options = {}
-      is_invalid = None
-      if event == "add_mod" and hasattr(mod, "add_mod"):
-        result = mod.add_mod(window, values)
-        is_invalid = result["invalid"]
-        if not is_invalid:
-          mod_options = result["options"]
-          mod_key = result["key"]
-      elif event.startswith("add_mod_group") and hasattr(mod, "add_mod_group"):
-        result = mod.add_mod_group(window, values)
-        is_invalid = result["invalid"]
-        if not is_invalid:
-          mod_options = result["options"]
-          mod_key = result["key"]
-      else:
-        for key, value in values.items():
-          if isinstance(key, str) and mod_key in key:
-            option_key = key.split("__")[1]  # Modify Skills
-            invalid_result = _valid_option_value(mods.get_mod_option(mod_key, option_key), value)
-            if invalid_result is None:
-              mod_options[option_key] = value
-            else:
-              is_invalid = invalid_result
-              break
-      if is_invalid is None:
-        selected_mods[mod_key] = mod_options
-        formatted_mods_list = _format_selected_mods(selected_mods)
-        window["selected_mods"].update(formatted_mods_list)
-        _enable_mod_button(window)
-        sg.PopupQuickMessage("Mod Added", font="_ 28", background_color="brown")
-      else:
-        sg.PopupOK(is_invalid, icon=logo.value, title="Error", font=DEFAULT_FONT)
-    elif event == "selected_mods":
-      if len(values["selected_mods"]) == 0:
-        continue
-      window["remove_mod"].update(disabled=False)
-      window["sort_mods"].update(disabled=False)
-    elif event == "move_up":
-      selected_mods = _move_mods(selected_mods, window["selected_mods"], -1)
-    elif event == "move_down":
-      selected_mods = _move_mods(selected_mods, window["selected_mods"], 1)
-    elif event == "sort_mods":
-      selected_mods = _sort_mods(selected_mods, window["selected_mods"])
-    elif event == "remove_mod":
-      selected_mods = _delete_mods(selected_mods, window["selected_mods"])
-      window["remove_mod"].update(disabled=True)
-      window["sort_mods"].update(disabled=True)
-      _enable_mod_button(window)
-    elif event == "build_mod":
-      window["build_mod"].update(disabled=True)
-      mods.clear_mod()
-      mod_files = []
-      step = 1
-      progress_step = 95 / len(selected_mods.keys())
-      for mod_key, mod_options in selected_mods.items():
+
+    try:
+      if event == "modification":
+        mod_name = values["modification"]
+        mod_key = _mod_name_to_key(mod_name)
         mod = mods.get_mod(mod_key)
-        if hasattr(mod, "FILE"):
-          modded_files = mods.copy_files_to_mod(mod.FILE)
+        _show_mod_options(mod_name, window)
+        window["add_mod"].update(disabled=False)
+        window.visibility_changed()
+        window["options"].contents_changed()
+      elif event.startswith("add_mod"):
+        mod_name = values["modification"]
+        mod_key = _mod_name_to_key(mod_name)
+        mod = mods.get_mod(mod_key)
+        mod_options = {}
+        is_invalid = None
+        if event == "add_mod" and hasattr(mod, "add_mod"):
+          result = mod.add_mod(window, values)
+          is_invalid = result["invalid"]
+          if not is_invalid:
+            mod_options = result["options"]
+            mod_key = result["key"]
+        elif event.startswith("add_mod_group") and hasattr(mod, "add_mod_group"):
+          result = mod.add_mod_group(window, values)
+          is_invalid = result["invalid"]
+          if not is_invalid:
+            mod_options = result["options"]
+            mod_key = result["key"]
         else:
-          modded_files = mods.copy_all_files_to_mod(mod.get_files(mod_options))
-        mod_files += modded_files
-        mods.apply_mod(mod, mod_options)
-
-        if hasattr(mod, "merge_files"):
-          mod.merge_files(modded_files, mod_options)
-        step_progress = math.floor(step * progress_step)
-        window["build_progress"].update(step_progress)
-        step += 1
-
-      mods.merge_files(mod_files)
-      mods.package_mod()
-      formatted_mods_list = _format_selected_mods(selected_mods)
-      window["selected_mods"].update(formatted_mods_list)
-      _enable_mod_button(window)
-      window["remove_mod"].update(disabled=True)
-      window["sort_mods"].update(disabled=True)
-      window["build_progress"].update(100)
-      _create_party()
-      window["build_progress"].update(0)
-    elif event == "save":
-      save_name = sg.PopupGetText("What name would you like use to save modifications?", title="Save Mods", default_text=loaded_mod_list_name, font=DEFAULT_FONT, icon=logo.value)
-      if save_name:
-        mods.save_mod_list(selected_mods, save_name)
-        sg.PopupQuickMessage("Modifications Saved", font="_ 28", background_color="brown")
-    elif event == "load":
-      merge, loaded_mods, loaded_mod_list_name = _show_load_mod_list()
-      if loaded_mods:
-        selected_mods = always_merger.merge(selected_mods, loaded_mods) if merge else loaded_mods
-        formatted_mods_list = _format_selected_mods(selected_mods)
-        window["selected_mods"].update(formatted_mods_list)
+          for key, value in values.items():
+            if isinstance(key, str) and mod_key in key:
+              option_key = key.split("__")[1]  # Modify Skills
+              invalid_result = _valid_option_value(mods.get_mod_option(mod_key, option_key), value)
+              if invalid_result is None:
+                mod_options[option_key] = value
+              else:
+                is_invalid = invalid_result
+                break
+        if is_invalid is None:
+          selected_mods[mod_key] = mod_options
+          selected_mods = _format_selected_mods(selected_mods, window)
+          _enable_mod_button(window)
+          _show_popup_message("Mod Added")
+        else:
+          sg.PopupOK(is_invalid, icon=logo.value, title="Error", font=DEFAULT_FONT)
+      elif event == "selected_mods":
+        if len(values["selected_mods"]) == 0:
+          continue
+        window["remove_mod"].update(disabled=False)
+        window["sort_mods"].update(disabled=False)
+      elif event == "move_up":
+        selected_mods = _move_mods(selected_mods, window["selected_mods"], -1)
+      elif event == "move_down":
+        selected_mods = _move_mods(selected_mods, window["selected_mods"], 1)
+      elif event == "sort_mods":
+        selected_mods = _sort_mods(selected_mods, window["selected_mods"])
+      elif event == "remove_mod":
+        selected_mods = _delete_mods(selected_mods, window["selected_mods"])
+        window["remove_mod"].update(disabled=True)
+        window["sort_mods"].update(disabled=True)
         _enable_mod_button(window)
-        sg.PopupQuickMessage("Modifications Loaded", font="_ 28", background_color="brown")
-    elif event == "change_path":
-      game_path = sg.PopupGetFolder("Select the game folder (folder with file theHunterCotW_F.exe)", "Game Path", icon=logo.value, font=DEFAULT_FONT)
-      if game_path:
-        mods.write_dropzone(game_path)
-        window["game_path"].update(game_path)
-        window["change_path"].update("(change path)")
-    elif event.startswith("preset__"):
-      presets = mod.PRESETS
-      preset_mod_key = _mod_name_to_key(mod.NAME)
-      preset_name = values[f"preset__{preset_mod_key}"]
-      preset = next((preset for preset in presets if preset["name"] == preset_name), None)
-      for option in preset["options"]:
-        if "value" in option:
-          window[f"{preset_mod_key}__{option['name']}"].update(option["value"])
-        else:
-          window[f"{preset_mod_key}__{option['name']}"].update(set_to_index = option["values"])
-    else:
-      mods.delegate_event(event, window, values)
+      elif event == "build_mod":
+        window["build_mod"].update(disabled=True)
+        mods.clear_mod()
+        mod_files = []
+        step = 1
+        progress_step = 95 / len(selected_mods.keys())
+        for mod_key, mod_options in selected_mods.items():
+          mod = mods.get_mod(mod_key)
+          if hasattr(mod, "FILE"):
+            modded_files = mods.copy_files_to_mod(mod.FILE)
+          else:
+            modded_files = mods.copy_all_files_to_mod(mod.get_files(mod_options))
+          mod_files += modded_files
+          mods.apply_mod(mod, mod_options)
+          if hasattr(mod, "merge_files"):
+            mod.merge_files(modded_files, mod_options)
+          step_progress = math.floor(step * progress_step)
+          window["build_progress"].update(step_progress)
+          step += 1
+        mods.merge_files(mod_files)
+        mods.package_mod()
+        selected_mods = _format_selected_mods(selected_mods, window)
+        _enable_mod_button(window)
+        window["remove_mod"].update(disabled=True)
+        window["sort_mods"].update(disabled=True)
+        window["build_progress"].update(100)
+        _create_party()
+        window["build_progress"].update(0)
+      elif event == "save":
+        save_name = sg.PopupGetText("What name would you like use to save modifications?", title="Save Mods", default_text=loaded_mod_list_name, font=DEFAULT_FONT, icon=logo.value)
+        if save_name:
+          mods.save_mod_list(selected_mods, save_name)
+          _show_popup_message("Modifications Saved")
+      elif event == "load":
+        merge, loaded_mods, loaded_mod_list_name = _show_load_mod_list()
+        if loaded_mods:
+          selected_mods = always_merger.merge(selected_mods, loaded_mods) if merge else loaded_mods
+          selected_mods = _format_selected_mods(selected_mods, window)
+          _enable_mod_button(window)
+          _show_popup_message("Modifications Loaded")
+      elif event == "change_path":
+        game_path = sg.PopupGetFolder("Select the game folder (folder with file theHunterCotW_F.exe)", "Game Path", icon=logo.value, font=DEFAULT_FONT)
+        if game_path:
+          mods.write_dropzone(game_path)
+          window["game_path"].update(game_path)
+          window["change_path"].update("(change path)")
+      elif event.startswith("preset__"):
+        presets = mod.PRESETS
+        preset_mod_key = _mod_name_to_key(mod.NAME)
+        preset_name = values[f"preset__{preset_mod_key}"]
+        preset = next((preset for preset in presets if preset["name"] == preset_name), None)
+        for option in preset["options"]:
+          if "value" in option:
+            window[f"{preset_mod_key}__{option['name']}"].update(option["value"])
+          else:
+            window[f"{preset_mod_key}__{option['name']}"].update(set_to_index = option["values"])
+      else:
+        mods.delegate_event(event, window, values)
+    except Exception:
+      _show_error_window(traceback.format_exc())
 
   window.close()
 

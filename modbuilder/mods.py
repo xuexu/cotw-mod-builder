@@ -538,25 +538,18 @@ def get_dropzone() -> Path:
     return epic_games_path
   return None
 
-def load_dropzone() -> None:
+def copy_dropzone(replace: bool = False) -> None:
   dropzone_path = get_dropzone()
   if dropzone_path:
     dropzone_path = dropzone_path / "dropzone"
+    if replace:
+      try:
+        shutil.rmtree(dropzone_path)
+      except FileNotFoundError as e:  # suppress error if user hits "Replace" when there is no /dropzone folder
+        pass
     shutil.copytree(APP_DIR_PATH / "mod/dropzone", dropzone_path, dirs_exist_ok=True)
   else:
-    raise Exception("Could not find game path to save mods!")
-
-def load_replace_dropzone() -> None:
-  dropzone_path = get_dropzone()
-  if dropzone_path:
-    dropzone_path = dropzone_path / "dropzone"
-    try:
-      shutil.rmtree(dropzone_path)
-    except FileNotFoundError as e:  # suppress error if user hits "Replace" when there is no /dropzone folder
-      pass
-    shutil.copytree(APP_DIR_PATH / "mod/dropzone", dropzone_path, dirs_exist_ok=True)
-  else:
-    raise Exception("Could not find game path to save mods!")
+    raise FileNotFoundError('Could not find game path to save mods!\nUse the "set path" button to select your game directory.')
 
 def find_closest_lookup(desired_value: float, filename: str) -> int:
   root, _ = os.path.splitext(filename)
@@ -758,3 +751,22 @@ def format_variant_name(mapped_equipment: dict) -> str:
       else:
         formatted_name = f"{mapped_equipment["name"]} - {variant_key}"  # unknown style
   return formatted_name
+
+def format_float(value: any, decimals: int = 4):
+  value = coerce_float(value)
+  if value is None:
+    return ""
+  float_string = f"{value:.{decimals}f}"
+  return float_string.rstrip("0").rstrip(".")
+
+def coerce_float(value: any) -> float | None:
+  try:
+    return float(value)
+  except (TypeError, ValueError):
+    return None
+
+def coerce_int(value: any) -> float | None:
+  try:
+    return int(value)
+  except (TypeError, ValueError):
+    return None

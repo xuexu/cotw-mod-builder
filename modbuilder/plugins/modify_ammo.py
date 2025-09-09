@@ -216,10 +216,10 @@ def get_option_elements() -> sg.Column:
           ], p=((10,10),(0,0)), element_justification='left', vertical_alignment='top'),
           sg.Column([
             [sg.Slider((0, 100), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_penetration")],
-            [sg.Slider((0, 200), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_expansion")],
-            [sg.Slider((0, 200), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_damage")],
-            [sg.Slider((0, 200), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_kinetic_energy")],
-            [sg.Slider((0, 200), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_mass")],
+            [sg.Slider((0, 300), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_expansion")],
+            [sg.Slider((0, 300), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_damage")],
+            [sg.Slider((0, 300), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_kinetic_energy")],
+            [sg.Slider((0, 300), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_mass")],
             [sg.Slider((0, 2000), 0, 10, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_max_range")],
             [sg.Slider((0, 255), 0, 1, orientation="h", size=(35,15), p=(0,1), enable_events=True, k="modify_ammo_stat_projectiles", visible=False)],
           ], p=(0,0), element_justification='left', vertical_alignment='top'),
@@ -325,26 +325,14 @@ def toggle_advanced_editor(window: sg.Window, values: dict) -> None:
   window["add_mod_group_ammo"].update(disabled=(show_advanced))
   window["modify_ammo_category_classes"].update(disabled=(show_advanced))
 
-def _coerce_float(value: any) -> float | None:
-  try:
-    return float(value)
-  except (TypeError, ValueError):
-    return None
-
-def _coerce_int(value: any) -> float | None:
-  try:
-    return int(value)
-  except (TypeError, ValueError):
-    return None
-
-def _display_value(stat: str, value: float) -> float | int | str:
-  value = _coerce_int(value) if stat in ["max_range", "projectiles"] else value
+def _format_display_value(stat: str, value: float) -> float | int | str:
+  value = mods.coerce_int(value) if stat in ["max_range", "projectiles"] else mods.coerce_float(value)
   if value is None:
     return None
   return value
 
 def _write_advanced(window: sg.Window, stat: str, value) -> None:
-  window[f"modify_ammo_stat_advanced_{stat}"].update(value=_display_value(stat, value))
+  window[f"modify_ammo_stat_advanced_{stat}"].update(value=_format_display_value(stat, value))
 
 def _write_slider(window: sg.Window, stat: str, value) -> None:
   window[f"modify_ammo_stat_{stat}"].update(value=value)
@@ -354,7 +342,7 @@ def sliders_to_advanced(selected_ammo, window: sg.Window, values: dict) -> None:
   if not selected_ammo:
     reset_displayed_stats(selected_ammo, window, values, only_advanced=True)
     return
-  modifiers = {stat: _coerce_float(values.get(f"modify_ammo_stat_{stat}")) or 0.0 for stat in STATS}
+  modifiers = {stat: mods.coerce_float(values.get(f"modify_ammo_stat_{stat}")) or 0.0 for stat in STATS}
   modified = calculate_modified_stats(selected_ammo, modifiers)
   # force ammo default max_range if "auto-select defaults" is checked
   if values.get("modify_ammo_update_default_values"):
@@ -374,7 +362,7 @@ def slider_to_advanced(selected_ammo, stat: str, window: sg.Window, values: dict
   # Read slider value for `stat`, compute advanced value,  write to advanced input box
   if not selected_ammo:
     return
-  modifier = _coerce_float(values.get(f"modify_ammo_stat_{stat}"))
+  modifier = mods.coerce_float(values.get(f"modify_ammo_stat_{stat}"))
   if modifier is None:
     return
   value = calculate_modified_stat(selected_ammo, stat, modifier)
@@ -385,7 +373,7 @@ def advanced_to_slider(selected_ammo, stat: str, window: sg.Window, values: dict
   # Read advanced input value for `stat`, compute slider modifier, and update slider
   if not selected_ammo:
     return
-  value = _coerce_float(values.get(f"modify_ammo_stat_advanced_{stat}"))
+  value = mods.coerce_float(values.get(f"modify_ammo_stat_advanced_{stat}"))
   if value is None:
     return
   modifier = calculate_stat_modifier(selected_ammo, stat, value)
@@ -472,9 +460,9 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   for stat in STATS:
     # pull values from "advanced" input boxes if using Advanced Editor
     stat_key = f"{adv_prefix}{stat}"
-    # use _coerce_float to validate values
+    # use mods.coerce_float to validate values
     value = values[f"modify_ammo_stat_{stat_key}"]
-    f_value =  _coerce_float(value)
+    f_value =  mods.coerce_float(value)
     if f_value is None:
       return {
         "invalid": f"Invalid value for {stat_key}: {value}"
@@ -534,15 +522,15 @@ def format_options(options: dict) -> str:
 
   else:
     penetration = options.get("advanced_penetration")
-    penetration_text = f'P {_format_float(penetration)}' if penetration is not None else ""
+    penetration_text = f'P {mods.format_float(penetration)}' if penetration is not None else ""
     expansion = options.get("advanced_expansion")
-    expansion_text = f'E {_format_float(expansion)}' if expansion is not None else ""
+    expansion_text = f'E {mods.format_float(expansion)}' if expansion is not None else ""
     damage = options.get("advanced_damage")
-    damage_text = f'D {_format_float(damage)}' if damage is not None else ""
+    damage_text = f'D {mods.format_float(damage)}' if damage is not None else ""
     kinetic_energy = options.get("advanced_kinetic_energy")
-    kinetic_energy_text = f'KE {_format_float(kinetic_energy)}' if kinetic_energy is not None else ""
+    kinetic_energy_text = f'KE {mods.format_float(kinetic_energy)}' if kinetic_energy is not None else ""
     mass = options.get("advanced_mass")
-    mass_text = f'M {_format_float(mass)}' if mass is not None else ""
+    mass_text = f'M {mods.format_float(mass)}' if mass is not None else ""
     projectiles = options.get("advanced_projectiles", 0)
     projectiles_text = f"Pellets {int(projectiles)}" if projectiles else ""
     max_range = options.get("advanced_max_range", 0)
@@ -559,13 +547,6 @@ def format_options(options: dict) -> str:
   else:  # category
     ammo_type = options["type"]
     return f"Modify Ammo Type: {ammo_type.capitalize()} {details_text}"
-
-def _format_float(value: any, decimals: int = 4):
-  value = _coerce_float(value)
-  if value is None:
-    return ""
-  float_string = f"{value:.{decimals}f}"
-  return float_string.rstrip("0").rstrip(".")
 
 def handle_key(mod_key: str) -> bool:
   return mod_key.startswith("modify_ammo")
@@ -618,7 +599,7 @@ def update_classes_array(ammo: Ammo, classes: list[int]) -> list[dict]:
 def _pct_signed(base: float, modifier: float) -> float:
   # Signed percent modifier so +% always increases the result even if base < 0
   # This fixes calculations for some ammos (arrows) with negative base kinetic energy
-  return base * (1 + (modifier / 100.0) * (1 if base >= 0 else -1))
+  return base * (1 + (modifier / 100.0) * (1 if base > 0 else -1))
 
 def _safe_ratio(modified: float, base: float) -> float | None:
   # Divide modifed by base, safely avoid divide-by-zero
@@ -708,15 +689,19 @@ def process(options: dict) -> None:
       modified_stats["contraction"] = calculate_modified_stat(ammo, "contraction", expansion_modifier)
       modified_stats["max_expansion"] = calculate_modified_stat(ammo, "max_expansion", expansion_modifier)
 
+    modified_stats = {key: modified_stats[key] for key in sorted(modified_stats.keys())}
+
     int_stats = ["projectiles"]  # all other stats are float
     updates = []
-    for stat in modified_stats:
+    for stat, value in modified_stats.items():
       offset = getattr(ammo.stats, stat).offset
-      value = _coerce_int(modified_stats[stat]) if stat in int_stats else _coerce_float(modified_stats[stat])
-      if value:
-        updates.append({"offset": offset, "value": value})
+      fmt_value = mods.coerce_int(value) if stat in int_stats else mods.coerce_float(value)
+      if value is None:
+        raise ValueError("Unable to convert stat %s to %s: %s", stat, "int" if stat in int_stats else "float", value)
+      updates.append({"offset": offset, "value": fmt_value})
 
     updates.extend(update_classes_array(ammo, classes))
+    mods.apply_updates_to_file(ammo.file, updates)
 
     # use calculated modifiers to update the UI values
     if ammo.ui_data:
@@ -743,7 +728,6 @@ def process(options: dict) -> None:
         update["sheet"] = "ammo"
         update["allow_new_data"] = True
       mods2.apply_coordinate_updates_to_file(mods.EQUIPMENT_UI_FILE, ui_updates)
-    mods.apply_updates_to_file(ammo.file, updates)
 
 def handle_update(mod_key: str, mod_options: dict, version: str) -> tuple[str, dict]:
   """
