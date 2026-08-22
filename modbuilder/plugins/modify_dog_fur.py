@@ -1,7 +1,9 @@
-from typing import List
-from modbuilder import mods
 from pathlib import Path
+from typing import List
+
 import FreeSimpleGUI as sg
+
+from modbuilder import mods
 
 DEBUG = False
 NAME = "Modify Dog Fur"

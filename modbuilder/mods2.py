@@ -75,6 +75,12 @@ class XlsxCell:
   def _get_value_and_offsets(self, adf_values: dict[str, AdfValue], sheet: AdfValue, src_filename: str) -> None:
     col_str, row = coordinate_from_string(self.coordinates)
     col = column_index_from_string(col_str)
+    # Validate coordinates before calculating the flat CellIndex position. An invalid column could otherwise point at a valid cell on a later row
+    if row < 1 or row > sheet["Rows"].value or col < 1 or col > sheet["Cols"].value:
+      raise ValueError(
+        f'Cell "{self.coordinates}" is outside sheet "{self.sheet_name}" '
+        f'({sheet["Cols"].value} columns by {sheet["Rows"].value} rows) in file "{src_filename}"'
+      )
     self.index = ( ( row - 1 ) * sheet["Cols"].value ) + col - 1  # -1 because spreadsheets start at A1 but lists start at 0
 
     self.definition_index = int(sheet["CellIndex"].value[self.index])
@@ -90,7 +96,7 @@ class XlsxCell:
     if self.data_type == 0:
       self.data_array_name = "BoolData"
       self.value = adf_values[self.data_array_name].value[self.value_index]
-      self.value_offset = adf_values[self.data_array_name].data_offset + ( self.value_index * 4 )
+      self.value_offset = adf_values[self.data_array_name].data_offset + self.value_index
     if self.data_type == 1:
       self.data_array_name = "StringData"
       self.value = adf_values[self.data_array_name].value[self.value_index].value
@@ -102,26 +108,30 @@ class XlsxCell:
     if self.value is None:
       raise ValueError(f'Unable to find cell "{self.coordinates}" on sheet "{self.sheet_name}" in file "{src_filename}"')
 
-  def _format_desired_data(self, update_data: dict) -> dict:
+  def _format_desired_data(self, update_data: dict) -> None:
     transform = update_data.get("transform")
     if transform == "multiply":
       self.desired_value = self.value * update_data["value"]
     elif transform == "add":
       self.desired_value = self.value + update_data["value"]
+    elif transform is not None:
+      raise ValueError(f'Unsupported cell transform "{transform}"')
     else:
       self.desired_value = update_data["value"]
 
     if isinstance(self.desired_value, bool):
       self.desired_data_type = 0
       self.desired_data_array_name = "BoolData"
-    if isinstance(self.desired_value, str):
+    elif isinstance(self.desired_value, str):
       self.desired_value = self.desired_value.encode("utf-8")  # for comparison against encoded values in StringData
       self.desired_data_type = 1
       self.desired_data_array_name = "StringData"
-    if isinstance(self.desired_value, float) or isinstance(self.desired_value, int):
+    elif isinstance(self.desired_value, (float, int)):
       self.desired_value = float(self.desired_value)
       self.desired_data_type = 2
       self.desired_data_array_name = "ValueData"
+    else:
+      raise TypeError(f"Unsupported cell value type: {type(self.desired_value).__name__}")
 
 
 def get_sheet(extracted_adf: Adf, sheet_name: str) -> tuple[AdfValue, int]:
@@ -164,6 +174,12 @@ def process_cell_update(cell: XlsxCell, extracted_adf: Adf, skip_add_data: bool 
 
   # 3. Cannot update the value of the specified cell to match the exact desired value without affecting other cells
   logger.debug(f'3. Cannot update cell {cell.coordinates} to exact value {cell.desired_value} without affecting other cells')
+  # Type changes cannot use the force or closest-value fallbacks because those paths operate on the cell's original data array
+  if cell.data_type != cell.desired_data_type:
+    raise NotImplementedError(
+      f'Unable to safely change cell {cell.coordinates} from data type {cell.data_type} '
+      f'to {cell.desired_data_type}'
+    )
   # If we were told to force the exact value then overwrite the value in the array
   if force:
     logger.debug(f'FORCE: Overwriting {cell.data_array_name} value at index {cell.value_index} with {cell.desired_value}')
@@ -179,9 +195,9 @@ def process_cell_update(cell: XlsxCell, extracted_adf: Adf, skip_add_data: bool 
 
 
 def is_desired_value_in_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -> bool:
-  if cell.data_array_name in ["BoolData", "ValueData"]:  # values stored directly in array
+  if cell.desired_data_array_name in ["BoolData", "ValueData"]:  # values stored directly in array
     return cell.desired_value in adf_values[cell.desired_data_array_name].value
-  if cell.data_array_name == "StringData":  # StringData is an array of AdfValues
+  if cell.desired_data_array_name == "StringData":  # StringData is an array of AdfValues
     array_values = [s.value for s in adf_values["StringData"].value]
     return cell.desired_value in array_values
   return False
@@ -216,6 +232,9 @@ def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -
   cells_with_same_definition = find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell)
   logger.debug(f'1b. {len(cells_with_same_definition)} other cells point at the same definition.')
   if not cells_with_same_definition:
+    if cell.data_type != cell.desired_data_type:
+      file_updates.append({"offset": adf_values["Cell"].value[cell.definition_index].value["Type"].data_offset, "value": cell.desired_data_type})
+      adf_values["Cell"].value[cell.definition_index].value["Type"].value = cell.desired_data_type
     file_updates.append({"offset": cell.value_index_offset, "value": desired_value_indexes[0]})
     adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = desired_value_indexes[0]
     logger.debug(f'1b. No other cells share the same definition. Repointing defintiion at desired value {cell.desired_value} at index {desired_value_indexes[0]}.')
@@ -228,6 +247,11 @@ def use_value_from_data_array(adf_values: dict[str, AdfValue], cell: XlsxCell) -
     unused_definition_index = unused_definition_indexes.pop()
     logger.debug(f'1c. Overwriting unused cell definition {unused_definition_index} to point at desired value {cell.desired_value} at index {desired_value_indexes[0]}')
     unused_definition = adf_values["Cell"].value[unused_definition_index].value
+    # Copy the desired type and current formatting attributes to the unused definition
+    file_updates.append({"offset": unused_definition["Type"].data_offset, "value": cell.desired_data_type})
+    file_updates.append({"offset": unused_definition["AttributeIndex"].data_offset, "value": cell.attribute_index})
+    unused_definition["Type"].value = cell.desired_data_type
+    unused_definition["AttributeIndex"].value = cell.attribute_index
     # Point unused cell definition at the desired value index
     file_updates.append({"offset": unused_definition["DataIndex"].data_offset, "value": desired_value_indexes[0]})
     adf_values["Cell"].value[unused_definition_index].value["DataIndex"].value = desired_value_indexes[0]
@@ -248,7 +272,8 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict]:
   #     There might be a cell index that points at our cell but it could be unused
   cells_with_shared_value = find_cells(adf_values, data_type=cell.data_type, value_index=cell.value_index, ignore_cell=cell)
   logger.debug(f"  - {len(cells_with_shared_value)} other cells point at the same value.")
-  if not cells_with_shared_value:  # if none are found then overwrite our current value in the data array
+  # Values can only be overwritten in place when the cell remains in the same data array
+  if cell.data_type == cell.desired_data_type and not cells_with_shared_value:
     logger.debug(f'  - Overwriting {cell.desired_data_array_name} value at index {cell.value_index} to new value {cell.desired_value}')
     file_updates.extend(overwrite_value(extracted_adf, cell))
     return file_updates
@@ -269,6 +294,9 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict]:
       unused_value = unused_values.pop()
       logger.debug(f'  - Overwriting unused {cell.desired_data_array_name} value at index {unused_value["index"]} to new value {cell.desired_value}')
       file_updates.extend(overwrite_value(extracted_adf, cell, unused_value))
+      if cell.data_type != cell.desired_data_type:
+        file_updates.append({"offset": adf_values["Cell"].value[cell.definition_index].value["Type"].data_offset, "value": cell.desired_data_type})
+        adf_values["Cell"].value[cell.definition_index].value["Type"].value = cell.desired_data_type
       file_updates.append({"offset": cell.value_index_offset, "value": unused_value["index"]})
       adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = unused_value["index"]
       logger.debug(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {unused_value["index"]} with value {cell.desired_value}')
@@ -292,9 +320,9 @@ def write_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict]:
     file_updates.append({"offset": unused_definition["DataIndex"].data_offset, "value": unused_value["index"]})
     adf_values["Cell"].value[unused_definition_index].value["DataIndex"].value = unused_value["index"]
     # Copy our cell definition type and attribute to the unused cell definition
-    file_updates.append({"offset": unused_definition["Type"].data_offset, "value": cell.data_type})
+    file_updates.append({"offset": unused_definition["Type"].data_offset, "value": cell.desired_data_type})
     file_updates.append({"offset": unused_definition["AttributeIndex"].data_offset, "value": cell.attribute_index})
-    adf_values["Cell"].value[unused_definition_index].value["Type"].value = cell.data_type
+    adf_values["Cell"].value[unused_definition_index].value["Type"].value = cell.desired_data_type
     adf_values["Cell"].value[unused_definition_index].value["AttributeIndex"].value = cell.attribute_index
     # Point our cell at the definition
     logger.debug(f'  - Pointing cell {cell.coordinates} at definition {unused_definition_index} with value {cell.desired_value}')
@@ -312,6 +340,12 @@ def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None) -> 
   if not target:
     target = {"index": cell.value_index, "value": cell.value, "offset": cell.value_offset}
 
+  if cell.desired_data_array_name == "BoolData":
+    # BoolData values are stored as single-byte unsigned integers
+    bool_value = int(cell.desired_value)
+    file_updates.append({"offset": target["offset"], "value": bool_value, "format": "uint08"})
+    adf_values["BoolData"].value[target["index"]] = bool_value
+    return file_updates
   if cell.desired_data_array_name == "ValueData":
     # ValueData are 4-byte float and can be directly overwritten
     file_updates.append({"offset": target["offset"], "value": cell.desired_value})
@@ -321,7 +355,7 @@ def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None) -> 
     stringdata = adf_values["StringData"]
     # StringData values are arbitrary lengths. Their data_offsets are stored in info_offset headers before the array
     # Strings are byte-aligned and have data_offsets divisible by 8 with at least 1 byte of padding between strings
-    if target["index"] == len(stringdata.value):  # last value in array = padded until start of ValueData
+    if target["index"] == len(stringdata.value) - 1:  # last value in array = padded until start of ValueData
       padding = adf_values["ValueData"].data_offset - (target["offset"] + len(target["value"]))
     else:  # padded until start of next string
       padding = stringdata.value[target["index"] + 1].data_offset - (target["offset"] + len(target["value"]))
@@ -330,7 +364,7 @@ def overwrite_value(extracted_adf: Adf, cell: XlsxCell, target: dict = None) -> 
     difference = len(new_str_bytes) - len(old_str_bytes)
     logger.debug(f"OLD_STR: {old_str_bytes}   NEW_STR: {new_str_bytes}   DIFF: {difference}")
     if difference <= 0:  # can overwrite in place. add extra padding to ensure old value is totally overwritten
-      new_str_bytes += b'\x00' * difference
+      new_str_bytes += b'\x00' * -difference
       file_updates.append({"offset": target["offset"], "value": new_str_bytes})
       stringdata.value[target["index"]].value = cell.desired_value
       logger.debug(f"   Overwriting value '{target["value"]}' with new value {cell.desired_value} at offset {target["offset"]}")
@@ -369,6 +403,9 @@ def add_new_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict
   if not find_cells(adf_values, definition_indexes=[cell.definition_index], ignore_cell=cell):
     # Point our cell definition at new array value
     logger.debug(f'  - Pointing cell {cell.coordinates} definition {cell.definition_index} at value index {new_value_index} with value {cell.desired_value}')
+    if cell.data_type != cell.desired_data_type:
+      file_updates.append({"offset": adf_values["Cell"].value[cell.definition_index].value["Type"].data_offset, "value": cell.desired_data_type})
+      adf_values["Cell"].value[cell.definition_index].value["Type"].value = cell.desired_data_type
     file_updates.append({"offset": cell.value_index_offset, "value": new_value_index})
     adf_values["Cell"].value[cell.definition_index].value["DataIndex"].value = new_value_index
   else:  # Check if there is an unused definition we can overwrite
@@ -392,11 +429,15 @@ def add_new_value_to_data_array(extracted_adf: Adf, cell: XlsxCell) -> list[dict
       def_index = len(adf_values["Cell"].value)
       logger.debug(f'  - Creating new cell definition at index {def_index} (Type: {cell.desired_data_type}  DataIndex: {new_value_index}  AttributeIndex: {cell.attribute_index})')
       file_updates.extend(add_cell_definition(extracted_adf, cell, new_value_index))
+      # The game crashes while loading structurally expanded XLS-style ADFv4 files, even when their offsets and padding are valid
+      # ADFv3 accepts the same expanded arrays, so only change the version when a cell definition is physically appended
+      if extracted_adf.version != 3:
+        file_updates.append({"offset": 4, "value": 3})
+        extracted_adf.version = 3
     # Point our cell at the selected definition
     logger.debug(f'  - Pointing cell {cell.coordinates} at definition {def_index} with value {cell.desired_value}')
     file_updates.append({"offset": cell.definition_index_offset, "value": def_index})
     adf_values["Sheet"].value[cell.sheet_index].value["CellIndex"].value[cell.index] = def_index
-    file_updates.append({"offset": 4, "value": 3})  # ADFv3 to prevent crash on load
   return file_updates
 
 
@@ -442,9 +483,10 @@ def update_instance_offsets(extracted_adf: Adf, added_size: int, data_array_name
   adf_values = extracted_adf.table_instance_full_values[0].value
   # only update arrays that are later in the file. Thankfully dictionaries are ordered
   array_names = list(adf_values.keys())
-  if data_array_name in array_names:
-    i = array_names.index(data_array_name)
-    arrays_to_update = array_names[i + 1:]
+  if data_array_name not in array_names:
+    raise ValueError(f'Unable to find data array "{data_array_name}"')
+  i = array_names.index(data_array_name)
+  arrays_to_update = array_names[i + 1:]
   for array_name in arrays_to_update:
     file_updates.extend(update_array_offsets(extracted_adf, added_size, array_name))
   return file_updates
@@ -507,18 +549,35 @@ def update_stringdata_offsets(extracted_adf: Adf, added_size: int, index: int = 
 
 def add_float_to_valuedata(extracted_adf: Adf, value: float) -> list[dict]:
   logger.debug(f"  Adding value {value} to ValueData array")
-  valuedata = extracted_adf.table_instance_full_values[0].value["ValueData"]
+  adf_values = extracted_adf.table_instance_full_values[0].value
+  valuedata = adf_values["ValueData"]
   value_bytes = mods.create_bytearray(value, "float32")
+
+  # Replace ValueData's existing alignment padding instead of preserving it after the array grows
+  value_array_end = valuedata.data_offset + (len(valuedata.value) * len(value_bytes))
+  instance_offset = extracted_adf.table_instance[0].offset
+  later_arrays = list(adf_values.values())[list(adf_values.keys()).index("ValueData") + 1:]
+  next_data_offset = next((array.data_offset for array in later_arrays if array.data_offset != instance_offset and array.data_offset >= value_array_end), None)
+  if next_data_offset is None:
+    raise ValueError("Unable to find the data array following ValueData")
+  existing_padding = next_data_offset - value_array_end
+  if not 0 <= existing_padding < 8:
+    raise ValueError(f"Unexpected ValueData padding: {existing_padding} bytes")
+  new_value_array_end = value_array_end + len(value_bytes)
+  desired_padding = (-new_value_array_end) % 8
+  added_size = len(value_bytes) + desired_padding - existing_padding
+
   file_updates = []
   # update headers and instance offsets
-  file_updates.extend(mods.update_non_instance_offsets(extracted_adf, len(value_bytes)))
-  file_updates.extend(update_instance_offsets(extracted_adf, len(value_bytes), "ValueData"))
-  # add to array and increase array length in header
-  new_value_offset = valuedata.data_offset + (len(valuedata.value) * len(value_bytes))
+  if added_size:
+    file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size))
+    file_updates.extend(update_instance_offsets(extracted_adf, added_size, "ValueData"))
+  # Add the value, replace the old padding, and increase the array length in its header
   file_updates.append({
-    "offset": new_value_offset,
-    "value": value_bytes,
+    "offset": value_array_end,
+    "value": value_bytes + (b'\x00' * desired_padding),
     "transform": "insert",
+    "bytes_to_remove": existing_padding,
   })
   valuedata.value.append(value)
   file_updates.append({
@@ -545,6 +604,9 @@ def add_string_to_stringdata(extracted_adf: Adf, value: str) -> list[dict]:
   logger.debug(f"  Adding value {value} to StringData Array at index {len(stringdata.value)}")
   str_bytearray = mods.create_bytearray(value, "string")
   # Strings are stored as AdfValue objects. Copy the last string and update the values and offsets
+  # Keep the in-memory value unpadded, matching a freshly deserialized AdfValue.
+  # copy_string uses its length to locate a subsequent appended string in the same batch
+  # Co not including serialized padding here since it would introduce an 8-byte gap and displace the ValueData array
   new_string = copy_string(stringdata.value[-1], value)
   file_updates = []
   # update headers and instance offsets
@@ -603,7 +665,18 @@ def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int) ->
   # Cell definitions are AdfValue objects. Copy the last cell definition and update the values and offsets
   cell_def = copy_cell_definition(cell_def_array.value[-1], cell, value_index)
   cell_def_bytes = mods.create_bytearray([cell_def], "cell_definition")
-  added_size = len(cell_def_bytes)
+
+  # The array following Cell must remain 8-byte aligned
+  # Cell definitions are 12 bytes each, so an odd number of definitions requires 4 bytes of trailing padding
+  # Replace any existing padding when extending the array instead of leaving padding between definitions.
+  adf_values = extracted_adf.table_instance_full_values[0].value
+  cell_array_end = cell_def_array.data_offset + (len(cell_def_array.value) * len(cell_def_bytes))
+  next_array_name = list(adf_values.keys())[list(adf_values.keys()).index("Cell") + 1]
+  existing_padding = adf_values[next_array_name].data_offset - cell_array_end
+  new_cell_array_end = cell_array_end + len(cell_def_bytes)
+  desired_padding = (-new_cell_array_end) % 8
+  added_size = len(cell_def_bytes) + desired_padding - existing_padding
+
   file_updates = []
   # update headers and instance offsets
   file_updates.extend(mods.update_non_instance_offsets(extracted_adf, added_size))
@@ -611,8 +684,9 @@ def add_cell_definition(extracted_adf: Adf, cell: XlsxCell, value_index: int) ->
   # add to array and increase array length in header
   file_updates.append({
     "offset": cell_def.data_offset,
-    "value": cell_def_bytes,
+    "value": cell_def_bytes + (b'\x00' * desired_padding),
     "transform": "insert",
+    "bytes_to_remove": existing_padding,
   })
   cell_def_array.value.append(cell_def)
   file_updates.append({
@@ -628,8 +702,17 @@ def apply_coordinate_updates_to_file(src_filename: str, coordinate_updates: list
   file_updates = []
   for coordinate_update in coordinate_updates:
     cell = XlsxCell(src_filename, extracted_adf, coordinate_update)
-    allow_new_data = coordinate_update.get("allow_new_data", allow_new_data)
-    file_updates.extend(process_cell_update(cell, extracted_adf, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force))
+    # Options specified for one coordinate only apply to that update. Otherwise use the defaults passed to this function
+    update_skip_add_data = coordinate_update.get("skip_add_data", skip_add_data)
+    update_allow_new_data = coordinate_update.get("allow_new_data", allow_new_data)
+    update_force = coordinate_update.get("force", force)
+    file_updates.extend(process_cell_update(
+      cell,
+      extracted_adf,
+      skip_add_data=update_skip_add_data,
+      allow_new_data=update_allow_new_data,
+      force=update_force,
+    ))
   mods.apply_updates_to_file(src_filename, file_updates)
 
 
@@ -653,13 +736,16 @@ def update_file_at_multiple_coordinates_with_value(src_filename: str, sheet_name
   apply_coordinate_updates_to_file(src_filename, coordinate_updates, skip_add_data=skip_add_data, allow_new_data=allow_new_data, force=force)
 
 
-def get_data_array_for_data_type(extracted_adf: AdfValue, data_type: int) -> tuple[list, int]:
-  if data_type == 0:
-    array_name = "BoolData"
-  if data_type == 1:
-    array_name = "StringData"
-  if data_type == 2:
-    array_name = "ValueData"
+def get_data_array_for_data_type(extracted_adf: AdfValue, data_type: int) -> tuple[str, list, int]:
+  array_names = {
+    0: "BoolData",
+    1: "StringData",
+    2: "ValueData",
+  }
+  try:
+    array_name = array_names[data_type]
+  except KeyError as error:
+    raise ValueError(f"Unsupported cell data type: {data_type}") from error
   return array_name, extracted_adf[array_name].value, extracted_adf[array_name].data_offset
 
 
@@ -702,7 +788,8 @@ def get_unused_cell_def_indexes(extracted_adf: AdfValue) -> list[int]:  # defiti
   for sheet in extracted_adf["Sheet"].value:
     in_use = set(sheet.value["CellIndex"].value)
     unused_definition_indexes.difference_update(in_use)
-  return list(unused_definition_indexes)
+  # Sets have no reliable selection order. Sorting ensures callers that use pop() consistently select the highest unused index
+  return sorted(unused_definition_indexes)
 
 
 def get_unused_values(adf_values: dict[str, AdfValue], data_array_name: str, data_type: int) -> list[dict]:
@@ -720,14 +807,17 @@ def get_unused_values(adf_values: dict[str, AdfValue], data_array_name: str, dat
       offset = adf_values[data_array_name].value[index].data_offset
     else:
       value = adf_values[data_array_name].value[index]
-      offset = adf_values[data_array_name].data_offset + (index * 4)
+      value_size = 1 if data_array_name == "BoolData" else 4
+      offset = adf_values[data_array_name].data_offset + (index * value_size)
     unused_values.append({"index": index, "value": value, "offset": offset})
   return unused_values
 
 
 def find_closest_value(value_array: list[float], desired_value: float) -> tuple[int, float]:
+  if not value_array:
+    raise ValueError("Cannot find the closest value in an empty array")
   match_index = None
-  closest_delta = 9999999
+  closest_delta = math.inf
   closest_match_index = None
   for i, number in enumerate(value_array):
     if float(number) == desired_value:
@@ -739,6 +829,8 @@ def find_closest_value(value_array: list[float], desired_value: float) -> tuple[
       closest_delta = delta
   if match_index is not None:
     return match_index, value_array[match_index]
+  if closest_match_index is None:
+    raise ValueError("Value array does not contain a comparable number")
   return closest_match_index, value_array[closest_match_index]
 
 
@@ -760,7 +852,7 @@ def get_column_range(col_start: str, col_end: str) -> list[str]:
   return [get_column_letter(i) for i in range(start_index, end_index + 1)]
 
 
-def get_coordinates_range_from_file(src_filename: str, sheet_name: str, rows: tuple[int, int] = (None, None), cols: tuple[str, str] = {None, None}) -> list[str]:
+def get_coordinates_range_from_file(src_filename: str, sheet_name: str, rows: tuple[int | None, int | None] = (None, None), cols: tuple[str | None, str | None] = (None, None)) -> list[str]:
   extracted_adf = deserialize_adf(src_filename)
   sheet, _i = get_sheet(extracted_adf, sheet_name)
   if sheet is None:

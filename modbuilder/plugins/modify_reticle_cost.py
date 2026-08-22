@@ -1,5 +1,5 @@
-from modbuilder import mods
 from deca.ff_rtpc import RtpcNode
+from modbuilder import mods
 
 DEBUG = False
 NAME = "Modify Reticle Cost"

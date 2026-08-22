@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modbuilder-revived"
-version = "2.7.2"
+version = "2.8.0"
 description = "A tool that makes it easy to customize and create mods for theHunter: Call of the Wild (COTW)"
 authors = [{ name = "Ryan Maxim" }]
 readme = "README.md"
@@ -45,6 +45,7 @@ features = ["dev"]
 modbuilder = 'python modbuilder'
 build = 'cmd /c ".\\scripts\\build.bat"'
 pack = 'cmd /c ".\\scripts\\pack.bat"'
+test = 'python -m unittest discover -s tests'
 
 [tool.hatch.envs.default.overrides]
 platform.macos.scripts = [

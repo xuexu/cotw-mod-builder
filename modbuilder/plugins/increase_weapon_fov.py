@@ -1,5 +1,3 @@
-import FreeSimpleGUI as sg
-
 from modbuilder import mods, mods2
 
 DEBUG = False
@@ -17,47 +15,52 @@ FIRST_PERSON_FOV_DEFAULT = mods2.deserialize_adf(FIRST_PERSON_FOV_FILE, modded=F
 SCOPE_FOV_DEFAULT = mods2.deserialize_adf(AIM_SCOPE_FOV_FILE, modded=False).table_instance_full_values[0].value["ForeGroundFOV"].value
 IRON_SIGHT_FOV_DEFAULT = mods2.deserialize_adf(IRON_SIGHT_FOV_FILE, modded=False).table_instance_full_values[0].value["ForeGroundFOV"].value
 
-def get_option_elements() -> sg.Column:
-  layout = [
-    [sg.T("First-Person Weapon FOV: "), sg.Slider((15, 90), FIRST_PERSON_FOV_DEFAULT, 1, orientation="h", k="first-person_weapon_fov", s=(50,20), p=((10,0),(0,5)))],
-    [sg.T("Weapon Scope Distance: "), sg.Slider((15, 90), SCOPE_FOV_DEFAULT, 0.5, orientation="h", k="weapon_scope_distance", s=(50,20), p=((10,0),(0,5)))],
-    [sg.T("Weapon Iron Sight Distance: "), sg.Slider((15, 90), IRON_SIGHT_FOV_DEFAULT, 0.5, orientation="h", k="weapon_iron_sight_distance", s=(50,20), p=((10,0),(0,5)))],
-    [
-      sg.Checkbox("Sights Use FOV from Game Settings", False, k="use_game_settings_fov", enable_events=True),
-      sg.T('Force scopes + iron sights to use the "Field of View" value found in the in-game Video settings', font="_ 12 italic", text_color="orange"),
-    ],
-    [
-      sg.Checkbox("Disable Scope Acceleration", False, k="disable_scope_acceleration"),
-      sg.T("Removes input acceleration while aiming down sights. Do NOT check this if you play the game with a controller", font="_ 12 italic", text_color="orange"),
-    ],
-  ]
-  return sg.Column(layout)
-
-def handle_event(event: str, window: sg.Window, values: dict) -> None:
-  if event == "use_game_settings_fov":
-    for slider_key in ["weapon_scope_distance", "weapon_iron_sight_distance"]:
-      # FreeSimpleGUI does not change the slider appearance when disabled
-      # Modify the underlying Tkinter widget
-      slider = window[slider_key]
-      slider.update(disabled=values["use_game_settings_fov"])
-      tk_slider = slider.Widget
-      if values["use_game_settings_fov"]:
-        tk_slider["troughcolor"] = "white"
-      else:
-        tk_slider["troughcolor"] = "#705e52"  # color for our theme: print(tk_slider["troughcolor"])
-
-def add_mod(window: sg.Window, values: dict) -> dict:
-  return {
-    "key": "increase_weapon_fov",
-    "invalid": None,
-    "options": {
-      "first-person_weapon_fov": values["first-person_weapon_fov"],
-      "weapon_scope_distance": values["weapon_scope_distance"],
-      "weapon_iron_sight_distance": values["weapon_iron_sight_distance"],
-      "disable_scope_acceleration": values["disable_scope_acceleration"],
-      "use_game_settings_fov": values["use_game_settings_fov"],
-    }
-  }
+OPTIONS = [
+  {
+    "name": "First-Person Weapon FOV",
+    "key": "first-person_weapon_fov",
+    "style": "slider",
+    "min": 15.0,
+    "max": 90.0,
+    "initial": FIRST_PERSON_FOV_DEFAULT,
+    "increment": 1.0,
+  },
+  {
+    "name": "Weapon Scope Distance",
+    "key": "weapon_scope_distance",
+    "style": "slider",
+    "min": 15.0,
+    "max": 90.0,
+    "initial": SCOPE_FOV_DEFAULT,
+    "increment": 0.5,
+  },
+  {
+    "name": "Weapon Iron Sight Distance",
+    "key": "weapon_iron_sight_distance",
+    "style": "slider",
+    "min": 15.0,
+    "max": 90.0,
+    "initial": IRON_SIGHT_FOV_DEFAULT,
+    "increment": 0.5,
+  },
+  {
+    "name": "Sights Use FOV from Game Settings",
+    "key": "use_game_settings_fov",
+    "style": "boolean",
+    "min": False,
+    "initial": False,
+    "note": 'Force scopes and iron sights to use the "Field of View" value from the in-game Video settings.',
+    "disables": ["weapon_scope_distance", "weapon_iron_sight_distance"],
+  },
+  {
+    "name": "Disable Scope Acceleration",
+    "key": "disable_scope_acceleration",
+    "style": "boolean",
+    "min": False,
+    "initial": False,
+    "note": "Removes input acceleration while aiming. Do not enable this when playing with a controller.",
+  },
+]
 
 def map_options(options: dict) -> dict:
   return {
@@ -81,9 +84,6 @@ def format_options(options: dict) -> str:
   accel = "Disabled" if options["disable_scope_acceleration"] else "Enabled"
   options_text += f", Acceleration: {accel}"
   return f"Increase Weapon FOV ({options_text})"
-
-def handle_key(mod_key: str) -> bool:
-  return mod_key == "increase_weapon_fov"
 
 def get_files(options: dict) -> list[str]:
   options = map_options(options)

@@ -1,12 +1,13 @@
-from modbuilder import mods
-from deca.ff_rtpc import RtpcNode, RtpcProperty
 from pathlib import Path
+
+from deca.ff_rtpc import RtpcNode, RtpcProperty
+from modbuilder import mods
 
 DEBUG = False
 NAME = "Increase Render Distance"
 DESCRIPTION = "Increase the render distance of animals. There are two settings: when the animals spawn (get closer) or desapwn (moving away)."
-FILE = "global/global_animal_types.blo"
 WARNING = "Increasing the render distance too much can cause the game to crash or behave strangely. I personally do not go beyond 750m."
+FILE = "global/global_animal_types.blo"
 OPTIONS = [
   { "name": "Spawn Distance", "min": 1, "max": 1000, "default": 384, "increment": 1, "initial": 384 },
   { "name": "Despawn Distance", "min": 1, "max": 1000, "default": 416, "increment": 1, "initial": 416 },

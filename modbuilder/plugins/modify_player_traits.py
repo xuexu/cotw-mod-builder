@@ -1,4 +1,5 @@
 from modbuilder import mods2
+
 try:  # running normally (source)
     from modbuilder.plugins import modify_skills
 except ModuleNotFoundError:  # running as an exe (PyInstaller)

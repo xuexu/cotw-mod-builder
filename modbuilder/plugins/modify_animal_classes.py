@@ -1,8 +1,9 @@
+from pathlib import Path
+
 import FreeSimpleGUI as sg
 
 from deca.ff_rtpc import RtpcNode
 from modbuilder import mods
-from pathlib import Path
 
 DEBUG = False
 NAME = "Modify Animal Classes"
@@ -123,6 +124,19 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "animal_class": new_class,
     }
   }
+
+
+def load_options(window: sg.Window, options: dict) -> None:
+  animal = next((animal for animal in ALL_ANIMALS if animal.name == options.get("name")), None)
+  if animal is None:
+    raise ValueError(f"Animal '{options.get('name')}' is no longer available")
+  window["animal_class_search"].update("")
+  window["animal_class_name"].update(
+    values=[candidate.display_name for candidate in ALL_ANIMALS],
+    value=animal.display_name,
+  )
+  window["animal_class_current"].update(str(animal.animal_class))
+  window["animal_class_value"].update(str(options["animal_class"]))
 
 
 def format_options(options: dict) -> str:

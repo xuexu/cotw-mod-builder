@@ -3,8 +3,6 @@ from modbuilder import mods, mods2
 DEBUG = False
 NAME = "Modify Animal Senses"
 DESCRIPTION = "Modify how animals sense and respond to you. Threshold = time until an animal enters/exits behavioral state. Duration = how long an animal stays in an elevated state. Detection = how sensitive animals are to your character's noise, smell, and visual presence. Distances are in meters."
-ANIMAL_SENSES_FILE = "settings/hp_settings/animal_senses.bin"
-AI_FILE = "ai/aisystem.aisystunec"
 OPTIONS = [
   { "name": "Tent Detection Distance", "min": 0, "max": 1000, "default": 500, "initial": 500, "increment": 50, "note": "Animals near the tent will spook when you fast travel." },
   { "name": "Weapon Fire Detection Distance", "min": 0, "max": 1000, "default": 300, "initial": 300, "increment": 50, "note": "Adjusts base value. Bows/Pistols with shorter ranges will be scaled." },
@@ -18,6 +16,9 @@ OPTIONS = [
   { "name": "Reduce Vision Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
   { "name": "Reduce Sound Detection Percent", "min": 0, "max": 100, "default": 0, "increment": 1 },
 ]
+
+AI_FILE = "ai/aisystem.aisystunec"
+ANIMAL_SENSES_FILE = "settings/hp_settings/animal_senses.bin"
 
 def format_options(options: dict) -> str:
   senses_details = []

@@ -4,7 +4,7 @@ DEBUG=False
 NAME = "Modify Water"
 DESCRIPTION = "This mod allows you to walk underwater."
 WARNING = "Currently bugged. Movement speed in water is incredibly fast and you may be launched upward upon reaching shore. Use Modify Skills and increase Impact Resistance to keep yourself alive"
-BASE_WATER_FILE = "settings/hp_settings/player_deep_water_handling.bin"
+FILE = "settings/hp_settings/player_deep_water_handling.bin"
 OPTIONS = [
     {
      "name": "Max Depth",
@@ -48,9 +48,9 @@ def format_options(options: dict) -> str:
   return f"Water ({max_depth} depth, {player_movement} speed)"
 
 def get_files(options: dict) -> list[str]:
-  return [BASE_WATER_FILE]
+  return [FILE]
 
 def process(options: dict) -> None:
   depth_cells = ["B2","B3","B4","B5"]
   # "force=True" since we have two cells that point at the same value
-  mods2.update_file_at_multiple_coordinates_with_value(BASE_WATER_FILE, "Sheet1", depth_cells, options["max_depth"], force = True)
+  mods2.update_file_at_multiple_coordinates_with_value(FILE, "Sheet1", depth_cells, options["max_depth"], force = True)

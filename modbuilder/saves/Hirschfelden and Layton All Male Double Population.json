@@ -1,0 +1,185 @@
+{
+  "version": "2.8.0",
+  "mod_options": {
+    "modify_animal_population_0_canada_goose": {
+      "reserve_id": 0,
+      "species_id": 21,
+      "species_name": "canada_goose",
+      "species_display_name": "Canada Goose",
+      "male_population": 1620,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_eu_bison": {
+      "reserve_id": 0,
+      "species_id": 6,
+      "species_name": "eu_bison",
+      "species_display_name": "Eu Bison",
+      "male_population": 1000,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_eu_rabbit": {
+      "reserve_id": 0,
+      "species_id": 13,
+      "species_name": "eu_rabbit",
+      "species_display_name": "Eu Rabbit",
+      "male_population": 500,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_fallow_deer": {
+      "reserve_id": 0,
+      "species_id": 1,
+      "species_name": "fallow_deer",
+      "species_display_name": "Fallow Deer",
+      "male_population": 600,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_pheasant": {
+      "reserve_id": 0,
+      "species_id": 61,
+      "species_name": "pheasant",
+      "species_display_name": "Pheasant",
+      "male_population": 500,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_red_deer": {
+      "reserve_id": 0,
+      "species_id": 2,
+      "species_name": "red_deer",
+      "species_display_name": "Red Deer",
+      "male_population": 1200,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_red_fox": {
+      "reserve_id": 0,
+      "species_id": 4,
+      "species_name": "red_fox",
+      "species_display_name": "Red Fox",
+      "male_population": 500,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_roe_deer": {
+      "reserve_id": 0,
+      "species_id": 7,
+      "species_name": "roe_deer",
+      "species_display_name": "Roe Deer",
+      "male_population": 800,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_0_wild_boar": {
+      "reserve_id": 0,
+      "species_id": 3,
+      "species_name": "wild_boar",
+      "species_display_name": "Wild Boar",
+      "male_population": 800,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_black_bear": {
+      "reserve_id": 1,
+      "species_id": 11,
+      "species_name": "black_bear",
+      "species_display_name": "Black Bear",
+      "male_population": 300,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_blacktail_deer": {
+      "reserve_id": 1,
+      "species_id": 8,
+      "species_name": "blacktail_deer",
+      "species_display_name": "Blacktail Deer",
+      "male_population": 800,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_coyote": {
+      "reserve_id": 1,
+      "species_id": 10,
+      "species_name": "coyote",
+      "species_display_name": "Coyote",
+      "male_population": 300,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_jackrabbit": {
+      "reserve_id": 1,
+      "species_id": 20,
+      "species_name": "jackrabbit",
+      "species_display_name": "Jackrabbit",
+      "male_population": 800,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_mallard": {
+      "reserve_id": 1,
+      "species_id": 29,
+      "species_name": "mallard",
+      "species_display_name": "Mallard",
+      "male_population": 1620,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_moose": {
+      "reserve_id": 1,
+      "species_id": 12,
+      "species_name": "moose",
+      "species_display_name": "Moose",
+      "male_population": 500,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_roosevelt_elk": {
+      "reserve_id": 1,
+      "species_id": 9,
+      "species_name": "roosevelt_elk",
+      "species_display_name": "Roosevelt Elk",
+      "male_population": 500,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_whitetail_deer": {
+      "reserve_id": 1,
+      "species_id": 0,
+      "species_name": "whitetail_deer",
+      "species_display_name": "Whitetail Deer",
+      "male_population": 800,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    },
+    "modify_animal_population_1_wild_turkey": {
+      "reserve_id": 1,
+      "species_id": 50,
+      "species_name": "wild_turkey",
+      "species_display_name": "Wild Turkey",
+      "male_population": 400,
+      "female_population": 0,
+      "advanced": false,
+      "advanced_options": null
+    }
+  }
+}

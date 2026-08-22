@@ -7,6 +7,7 @@ import traceback
 import webbrowser
 from pathlib import Path
 from tkinter import TclError
+from urllib.parse import urlparse
 
 import FreeSimpleGUI as sg
 import requests
@@ -14,28 +15,54 @@ from deepmerge import always_merger
 from packaging.version import Version
 
 from modbuilder import logo, mods, party
-from modbuilder.logging_config import get_logger
 from modbuilder.assets import validate_org_bundle
 from modbuilder.constants import GITHUB_LATEST_API_URL, GITHUB_RELEASES_URL, NEXUSMODS_RELEASES_URL
+from modbuilder.logging_config import get_logger
 from modbuilder.version import get_version
-from modbuilder.widgets import create_option, generate_buttons, valid_option_value
+from modbuilder.widgets import create_option, generate_buttons, handle_option_event, load_option_values, option_key, valid_option_value
 
 logger = get_logger(__name__)
-__version__ = get_version()
+APP_VERSION = get_version()
 
 DEFAULT_FONT = "_ 14"
 SMALL_FONT = "_ 11"
 TEXT_WRAP = 142
+PLUGIN_LINK_EVENT_PREFIX = "plugin_link__"
+SECTION_HEADER_PAD = (10, 10)
+
+
+def _wrap_plugin_text(value: str) -> str:
+  """Wrap plugin text without discarding intentional line breaks."""
+  return "\n".join(textwrap.fill(line, TEXT_WRAP) for line in value.split("\n"))
+
+
+def _valid_plugin_link(link: object) -> bool:
+  if not isinstance(link, dict):
+    return False
+  label = link.get("label")
+  url = link.get("url")
+  if not isinstance(label, str) or not label.strip() or not isinstance(url, str):
+    return False
+  parsed = urlparse(url)
+  return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _open_plugin_link(window: sg.Window, event: str) -> None:
+  url = window[event].metadata
+  if _valid_plugin_link({"label": event, "url": url}):
+    webbrowser.open(url)
+
 
 def _get_mods(window: sg.Window) -> None:
   window.refresh()
   height = window["options"].Widget.winfo_height()  # column sometimes shrinks after window.extend_layout()
   mods.load_mods()
   mod_names = [m.NAME for m in mods.MODS_LIST.values()]
-  window["modification"].update(values=mod_names)
-  window["modification"].metadata=mod_names
   window.extend_layout(window["options"], _get_mod_options())
   window['options'].Widget.config(height=height)  # reset column height to preserve layout
+  # Keep the loading placeholder as the only choice until every plugin layout is ready to display
+  window["modification"].update(values=mod_names, value="")
+  window["modification"].metadata = mod_names
   window.set_icon(logo.value)  # fix taskbar icon if it didn't load properly
   window.refresh()
 
@@ -43,7 +70,7 @@ def _check_for_update() -> None:
   release_data = _get_latest_release()
   if release_data:
     latest_tag = release_data.get("tag_name", "").lstrip("v")
-    if Version(latest_tag) > __version__:
+    if Version(latest_tag) > APP_VERSION:
       _show_update_popup(release_data)
 
 def _get_latest_release() -> dict:
@@ -138,7 +165,7 @@ def _build_org_warning_message(
     return message
 
   try:
-    if Version(latest_tag) > __version__:
+    if Version(latest_tag) > APP_VERSION:
       message += (
         "\n\n"
         f"A newer Mod Builder release is also available: {latest_name}"
@@ -163,7 +190,7 @@ def _check_org_assets() -> bool:
   Returns:
       bool: True if startup should continue, False if the application should exit.
   """
-  validation_result = validate_org_bundle(__version__)
+  validation_result = validate_org_bundle(APP_VERSION)
 
   if validation_result["severity"] == "none":
     return True
@@ -207,7 +234,7 @@ def _show_popup_message(message: str) -> str:
 def _show_error_window(error: Exception, mod_key: str = None, mod_options: dict = None):
   nexus_url = "https://www.nexusmods.com/thehuntercallofthewild/mods/410?tab=bugs"
   logger.error(f"ERROR! {mod_key} : {error}")
-  header = [f"Version: {__version__}"]
+  header = [f"Version: {APP_VERSION}"]
   err_msg = ["", f"Error: {error}"]
   mod_msg = ["", f"Mod: {mod_key}"] if mod_key else []
   opts_msg = ["", "Options:", json.dumps(mod_options, indent=4)] if mod_options else []
@@ -242,28 +269,64 @@ def _get_mod_options() -> list[dict]:
   options = []
   for mod_key, mod in possible_mods.items():
     mod_details = []
-    mod_details.append([sg.T("Description:", p=(10, 10), font="_ 14 underline", text_color="orange")])
-    wrapped_description = [textwrap.fill(line, TEXT_WRAP) for line in mod.DESCRIPTION.split("\n")]
-    mod_details.append([sg.T("\n".join(wrapped_description), p=(10,0))])
+    mod_details.append([
+      sg.T("Description:", p=SECTION_HEADER_PAD, font="_ 14 underline", text_color="orange")
+    ])
+    mod_details.append([sg.T(_wrap_plugin_text(mod.DESCRIPTION), p=(10,0))])
+
+    valid_links = []
+    for index, link in enumerate(getattr(mod, "LINKS", [])):
+      if not _valid_plugin_link(link):
+        logger.warning("Ignoring invalid link %s for plugin %s", link, mod_key)
+        continue
+      valid_links.append((index, link))
+
+    if valid_links:
+      mod_details.append([
+        sg.T("Links:", p=SECTION_HEADER_PAD, font="_ 14 underline", text_color="orange")
+      ])
+    for index, link in valid_links:
+      mod_details.append([
+        sg.T(
+          link["label"],
+          k=f"{PLUGIN_LINK_EVENT_PREFIX}{mod_key}__{index}",
+          metadata=link["url"],
+          enable_events=True,
+          font=f"{DEFAULT_FONT} underline",
+          text_color="deepskyblue",
+          tooltip=link["url"],
+          p=(10, 0),
+        )
+      ])
 
     if hasattr(mod, "WARNING"):
-      warning_header = sg.T(" WARNING ", font="_ 14", text_color="firebrick1", p=(10, 10), background_color="black")
-      warning = sg.T(textwrap.fill(mod.WARNING, TEXT_WRAP), p=(10,0))
+      warning_header = sg.T(
+        " WARNING ",
+        font="_ 14",
+        text_color="firebrick1",
+        p=SECTION_HEADER_PAD,
+        background_color="black",
+      )
+      warning = sg.T(_wrap_plugin_text(mod.WARNING), p=(10,0))
       mod_details.append([warning_header])
       mod_details.append([warning])
 
     if hasattr(mod, "PRESETS"):
-      mod_details.append([sg.T("Presets:", font="_ 14 underline", text_color="orange", p=((10,10),(10,0)))])
+      mod_details.append([
+        sg.T("Presets:", font="_ 14 underline", text_color="orange", p=SECTION_HEADER_PAD)
+      ])
       presets = []
       for preset in mod.PRESETS:
         presets.append(preset["name"])
       mod_details.append([sg.Combo(presets, k=f"preset__{mod_key}", enable_events=True, p=(30,10))])
 
-    mod_details.append([sg.T("Options:", font="_ 14 underline", text_color="orange", p=((10,10),(10,0)))])
+    mod_details.append([
+      sg.T("Options:", font="_ 14 underline", text_color="orange", p=SECTION_HEADER_PAD)
+    ])
     if hasattr(mod, "OPTIONS"):
       for mod_option in mod.OPTIONS:
         mod_name = mod_option['name'] if "name" in mod_option else None
-        key = f"{mod_key}__{_mod_name_to_key(mod_name)}"
+        key = f"{mod_key}__{option_key(mod_option) if mod_name else ''}"
         mod_details.extend(create_option(mod_option, key))
     else:
       mod_details.append([mod.get_option_elements()])
@@ -272,11 +335,14 @@ def _get_mod_options() -> list[dict]:
   return options
 
 def _show_mod_options(mod_name: str, window: sg.Window) -> None:
-  for mod in window["modification"].metadata:
-    if mod == mod_name:
-      window[_mod_name_to_key(mod)].update(visible=True)
-    else:
-      window[_mod_name_to_key(mod)].update(visible=False)
+  target_key = _mod_name_to_key(mod_name)
+  current_key = window["options"].metadata
+  if current_key == target_key:
+    return
+  if current_key:
+    window[current_key].update(visible=False)
+  window[target_key].update(visible=True)
+  window["options"].metadata = target_key
 
 def _format_selected_mods(selected_mods: dict, window: sg.Window) -> list[str]:
   formatted_mod_options = []
@@ -304,6 +370,142 @@ def _enable_mod_button(window: sg.Window) -> None:
   window["save"].update(disabled=(selected_mod_size == 0))
   window["move_up"].update(disabled=(selected_mod_size == 0))
   window["move_down"].update(disabled=(selected_mod_size == 0))
+  _update_edit_mod_button({}, window, force_disabled=True)
+
+
+def _get_mod_conflicts(selected_mods: dict) -> list[str]:
+  conflicts = []
+
+  store_categories = {
+    options.get("type")
+    for key, options in selected_mods.items()
+    if key.startswith("modify_store_") and "name" not in options
+  }
+  for key, options in selected_mods.items():
+    if (
+      key.startswith("modify_store_")
+      and "name" in options
+      and options.get("type") in store_categories
+    ):
+      category = str(options["type"]).replace("_", " ").title()
+      item = options.get("display_name", options["name"])
+      conflicts.append(f'Modify Store: the "{category}" category and "{item}"')
+
+  ammo_categories = {
+    options.get("type")
+    for key, options in selected_mods.items()
+    if key.startswith("modify_ammo_type_")
+  }
+  for key, options in selected_mods.items():
+    if (
+      key.startswith("modify_ammo_")
+      and not key.startswith("modify_ammo_type_")
+      and options.get("type") in ammo_categories
+    ):
+      category = str(options["type"]).replace("_", " ").title()
+      conflicts.append(f'Modify Ammo: the "{category}" category and "{options["name"]}"')
+
+  if (
+    "increase_reserve_population" in selected_mods
+    and any(key.startswith("modify_animal_population_") for key in selected_mods)
+  ):
+    conflicts.append("Increase Reserve Population and Modify Animal Population")
+
+  return conflicts
+
+
+def _confirm_mod_conflicts(selected_mods: dict) -> bool:
+  conflicts = _get_mod_conflicts(selected_mods)
+  if not conflicts:
+    return True
+  return _show_mod_conflicts_popup(conflicts)
+
+
+def _show_mod_conflicts_popup(conflicts: list[str]) -> bool:
+  conflict_list = "\n".join(f"• {conflict}" for conflict in conflicts)
+  layout = [
+    [sg.T("Potentially conflicting modifications were found:")],
+    [sg.Multiline(conflict_list, size=(85, 14), disabled=True, no_scrollbar=False)],
+    [sg.T("Results may depend on the order in which the mods are applied. Do you still want to build the mods list?")],
+    [
+      sg.Push(),
+      sg.Button("Cancel", k="cancel"),
+      sg.Button("Build the Mods", k="build_anyway"),
+    ],
+  ]
+  window = sg.Window(
+    "Potential Mod Conflicts",
+    layout,
+    modal=True,
+    icon=logo.value,
+    font=DEFAULT_FONT,
+  )
+  try:
+    while True:
+      event, _values = window.read()
+      if event in (sg.WIN_CLOSED, "cancel"):
+        return False
+      if event == "build_anyway":
+        return True
+  finally:
+    window.close()
+
+
+def _finalize_mods(selected_mods: dict) -> None:
+  for mod_key, mod_options in selected_mods.items():
+    mod = mods.get_mod(mod_key)
+    finalize = getattr(mod, "finalize", None)
+    if callable(finalize):
+      finalize(mod_options)
+
+
+def _copy_mod_files(mod, options: dict) -> list[str]:
+  get_files = getattr(mod, "get_files", None)
+  files = get_files(options) if callable(get_files) else None
+  if files is not None:
+    return mods.copy_all_files_to_mod(files)
+  if hasattr(mod, "FILE"):
+    return mods.copy_files_to_mod(mod.FILE)
+  return []
+
+
+def _get_selected_mod_key(selected_mods: dict, listbox: sg.Listbox) -> str | None:
+  selected_indices = list(listbox.get_indexes())
+  if len(selected_indices) != 1:
+    return None
+  mod_keys = list(selected_mods)
+  index = selected_indices[0]
+  return mod_keys[index] if 0 <= index < len(mod_keys) else None
+
+
+def _update_edit_mod_button(selected_mods: dict, window: sg.Window, force_disabled: bool = False) -> None:
+  mod_key = None if force_disabled else _get_selected_mod_key(selected_mods, window["selected_mods"])
+  mod = mods.get_mod(mod_key) if mod_key else None
+  window["edit_mod"].update(disabled=not _mod_supports_edit(mod))
+
+
+def _mod_supports_edit(mod) -> bool:
+  return mod is not None and (
+    callable(getattr(mod, "load_options", None))
+    or isinstance(getattr(mod, "OPTIONS", None), list)
+  )
+
+
+def _edit_selected_mod(selected_mods: dict, window: sg.Window) -> None:
+  mod_key = _get_selected_mod_key(selected_mods, window["selected_mods"])
+  mod = mods.get_mod(mod_key) if mod_key else None
+  if not _mod_supports_edit(mod):
+    return
+  window["modification"].update(mod.NAME)
+  _show_mod_options(mod.NAME, window)
+  if callable(getattr(mod, "load_options", None)):
+    mod.load_options(window, selected_mods[mod_key])
+  else:
+    load_option_values(window, _mod_name_to_key(mod.NAME), mod.OPTIONS, selected_mods[mod_key])
+  window["add_mod"].update(disabled=False)
+  window["modbuilder_tab_group"].Widget.select(window["add_mod_tab"].Widget)
+  window.visibility_changed()
+  window["options"].contents_changed()
 
 def _create_party() -> None:
   layout = [
@@ -567,7 +769,7 @@ def main() -> None:
         ],
       ]),
       sg.Push(),
-      sg.T(f"Version: {__version__}", font="_ 12", p=((0,0),(0,60)))
+      sg.T(f"Version: {APP_VERSION}", font="_ 12", p=((0,0),(0,60)))
     ],
     [
       sg.TabGroup([[
@@ -591,6 +793,7 @@ def main() -> None:
                   sg.Button("▼", k="move_down", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
                   sg.Button("A-Z", k="sort_mods", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
                   sg.Push(),
+                  sg.Button("Edit", k="edit_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True),
                   sg.Button("Remove", k="remove_mod", button_color=f"{sg.theme_element_text_color()} on brown", disabled=True)
                 ],
                 [sg.Button("Build Modifications", k="build_mod", button_color=f"{sg.theme_element_text_color()} on brown", expand_x=True, disabled=True)]
@@ -621,24 +824,31 @@ def main() -> None:
     try:
       if event == "modification":
         mod_name = values["modification"]
+        # Ignore a click on the loading placeholder that was queued before plugin layouts were ready
+        if mod_name not in window["modification"].metadata:
+          continue
         mod_key = _mod_name_to_key(mod_name)
         mod = mods.get_mod(mod_key)
         _show_mod_options(mod_name, window)
         window["add_mod"].update(disabled=False)
         window.visibility_changed()
         window["options"].contents_changed()
+      elif isinstance(event, str) and event.startswith(PLUGIN_LINK_EVENT_PREFIX):
+        _open_plugin_link(window, event)
       elif event.startswith("add_mod"):
         mod_name = values["modification"]
         mod_key = _mod_name_to_key(mod_name)
         mod = mods.get_mod(mod_key)
         mod_options = {}
         is_invalid = None
+        warning = None
         if event == "add_mod" and hasattr(mod, "add_mod"):
           result = mod.add_mod(window, values)
           is_invalid = result["invalid"]
           if not is_invalid:
             mod_options = result["options"]
             mod_key = result["key"]
+            warning = result.get("warning")
         elif event.startswith("add_mod_group") and hasattr(mod, "add_mod_group"):
           result = mod.add_mod_group(window, values)
           is_invalid = result["invalid"]
@@ -659,26 +869,37 @@ def main() -> None:
           selected_mods[mod_key] = mod_options
           selected_mods = _format_selected_mods(selected_mods, window)
           _enable_mod_button(window)
-          _show_popup_message("Mod Added")
+          if warning:
+            sg.PopupOK(warning, icon=logo.value, title="Warning", font=DEFAULT_FONT)
+          else:
+            _show_popup_message("Mod Added")
         else:
           sg.PopupOK(is_invalid, icon=logo.value, title="Error", font=DEFAULT_FONT)
       elif event == "selected_mods":
         if len(values["selected_mods"]) == 0:
+          window["edit_mod"].update(disabled=True)
           continue
         window["remove_mod"].update(disabled=False)
         window["sort_mods"].update(disabled=False)
+        _update_edit_mod_button(selected_mods, window)
       elif event == "move_up":
         selected_mods = _move_mods(selected_mods, window["selected_mods"], -1)
       elif event == "move_down":
         selected_mods = _move_mods(selected_mods, window["selected_mods"], 1)
       elif event == "sort_mods":
         selected_mods = _sort_mods(selected_mods, window["selected_mods"])
+        _update_edit_mod_button(selected_mods, window)
+      elif event == "edit_mod":
+        _edit_selected_mod(selected_mods, window)
       elif event == "remove_mod":
         selected_mods = _delete_mods(selected_mods, window["selected_mods"])
         window["remove_mod"].update(disabled=True)
         window["sort_mods"].update(disabled=True)
+        window["edit_mod"].update(disabled=True)
         _enable_mod_button(window)
       elif event == "build_mod":
+        if not _confirm_mod_conflicts(selected_mods):
+          continue
         window["build_mod"].update(disabled=True)
         mods.clear_mod()
         mod_files = []
@@ -686,10 +907,7 @@ def main() -> None:
         progress_step = 95 / len(selected_mods.keys())
         for mod_key, mod_options in selected_mods.items():
           mod = mods.get_mod(mod_key)
-          if hasattr(mod, "FILE"):
-            modded_files = mods.copy_files_to_mod(mod.FILE)
-          else:
-            modded_files = mods.copy_all_files_to_mod(mod.get_files(mod_options))
+          modded_files = _copy_mod_files(mod, mod_options)
           mod_files += modded_files
           mods.apply_mod(mod, mod_options)
           if hasattr(mod, "merge_files"):
@@ -697,6 +915,7 @@ def main() -> None:
           step_progress = math.floor(step * progress_step)
           window["build_progress"].update(step_progress)
           step += 1
+        _finalize_mods(selected_mods)
         mods.merge_files(mod_files)
         mods.package_mod()
         selected_mods = _format_selected_mods(selected_mods, window)
@@ -735,6 +954,11 @@ def main() -> None:
           else:
             window[f"{preset_mod_key}__{option['name']}"].update(set_to_index = option["values"])
       else:
+        if isinstance(event, str) and "__" in event:
+          event_mod_key = event.split("__", 1)[0]
+          event_mod = mods.get_mod(event_mod_key)
+          if isinstance(getattr(event_mod, "OPTIONS", None), list):
+            handle_option_event(event, window, values, event_mod_key, event_mod.OPTIONS)
         mods.delegate_event(event, window, values)
     except PermissionError as exc:
       # catch "WinError 5: Access is denied" if Windows is preventing the user from deleting the "dropzone" folder

@@ -11,6 +11,7 @@ OPTIONS = [
   { "name": "Vision Distance", "style": "slider", "min": 0.0, "max": 1000.0, "default": 200.0, "initial": 200.0, "increment": 50.0, "note": "how far you are visible on the ATV" },
   { "name": "Camera Distance", "style": "slider", "min": 0.05, "max": 20.0, "default": 3.75, "initial": 3.75, "increment": 0.05 , "note": "larger distance = wider FOV"},
 ]
+
 SPEED_70 = {
   "gears": [2.2309999465942383, 1.7999999523162842, 1.5290000438690186, 1.277999997138977, 1.0479999780654907, 0.0, 0.0, 0.0],
   "upshift": [6800.0, 6800.0, 6800.0, 6800.0, 6800.0, 0.0, 0.0, 0.0],

@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import struct
-from importlib.metadata import version
 from pathlib import Path
 from types import ModuleType
 
@@ -18,10 +17,9 @@ from deca.ff_sarc import EntrySarc, FileSarc
 from deca.file import ArchiveFile
 from modbuilder import adf_profile, assets, mods2
 from modbuilder.logging_config import get_logger
+from modbuilder.version import get_base_version
 
 logger = get_logger(__name__)
-
-__version__ = version("modbuilder-revived")
 
 APP_DIR_PATH = assets.get_app_dir_path()
 ORG_DIR_PATH = assets.get_org_dir()
@@ -172,7 +170,7 @@ def get_mod_key_from_name(mod_name: str) -> str:
 def get_mod_option(mod_key: str, option_key: str) -> dict:
   mod = get_mod(mod_key)
   for option in mod.OPTIONS:
-    mod_name = get_mod_key_from_name(option["name"]) if "name" in option else None
+    mod_name = option.get("key", get_mod_key_from_name(option["name"])) if "name" in option else None
     if mod_name == option_key:
       return option
   return None
@@ -409,11 +407,18 @@ def merge_into_archive(filename: str, merge_path: str, merge_lookup: dict, delet
     src_path.unlink()
 
 def recreate_archive(changed_filenames: list[str], archive_path: str) -> None:
-  org_archive_path =ORG_DIR_PATH / archive_path
+  org_archive_path = ORG_DIR_PATH / archive_path
   new_archive_path = MOD_PATH / archive_path
 
   sarc_file = FileSarc()
-  sarc_file.header_deserialize(org_archive_path.open("rb"))
+  with org_archive_path.open("rb") as org_archive:
+    sarc_file.header_deserialize(org_archive)
+
+  archive_filenames = {entry.v_path.decode("utf-8") for entry in sarc_file.entries}
+  missing_filenames = set(changed_filenames) - archive_filenames
+  if missing_filenames:
+    missing = ", ".join(sorted(missing_filenames))
+    raise ValueError(f"Files are not present in archive {archive_path}: {missing}")
 
   org_entries = {}
   for entry in sarc_file.entries:
@@ -496,7 +501,7 @@ def save_mod_list(selected_mods: dict, save_name: str) -> None:
   save_path.mkdir(parents=True, exist_ok=True)
   save_path = save_path / f"{save_name}.json"
   save_data = {
-    "version": __version__,
+    "version": get_base_version(),
     "mod_options": selected_mods
   }
   save_path.write_text(json.dumps(save_data, indent=2))
@@ -775,7 +780,7 @@ def coerce_float(value: any) -> float | None:
   except (TypeError, ValueError):
     return None
 
-def coerce_int(value: any) -> float | None:
+def coerce_int(value: any) -> int | None:
   try:
     return int(value)
   except (TypeError, ValueError):

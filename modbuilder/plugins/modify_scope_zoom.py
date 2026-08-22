@@ -1,7 +1,10 @@
-from modbuilder import mods, mods2
+import os
+import re
 from pathlib import Path
+
 import FreeSimpleGUI as sg
-import re, os
+
+from modbuilder import mods, mods2
 from modbuilder.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -137,6 +140,24 @@ def add_mod(window: sg.Window, values: dict) -> dict:
   if values["scope_advanced_sensitivity"]:
     mod_settings["options"].update(advanced_settings)
   return mod_settings
+
+def load_options(window: sg.Window, options: dict) -> None:
+  selected_scope = next((scope for scope in ALL_SCOPES if scope.name == options.get("name") or scope.file == options.get("file")), None)
+  if selected_scope is None:
+    raise ValueError(f"Unable to load scope options for {options.get('display_name', options.get('name'))}")
+  window["scope_name"].update(selected_scope.display_name)
+  advanced = bool(options.get("advanced_sensitivity", False))
+  window["scope_advanced_sensitivity"].update(advanced)
+  window["scope_advanced_sensitivity_note"].update(visible=advanced)
+  window["scope_advanced_sensitivity_settings"].update(visible=advanced)
+  for i in range(1, 6):
+    window[f"scope_level_{i}"].update(options[f"level_{i}"])
+    for suffix in ("sensitivity", "h_speed", "v_speed"):
+      saved_key = f"level_{i}_{suffix}"
+      default_value = getattr(selected_scope, f"scope_level_{i}_{suffix}")
+      window[f"scope_level_{i}_{suffix}"].update(options.get(saved_key, default_value))
+  window.refresh()
+  window["options"].contents_changed()
 
 def format_options(options: dict) -> str:
   # safely handle old save files without display_name

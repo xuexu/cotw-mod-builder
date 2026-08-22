@@ -16,7 +16,6 @@ DEBUG = False
 NAME = "Modify Ammo"
 DESCRIPTION = 'Modify ammo attributes. It is easy to over-adjust these settings and create unrealistic ammo. Use "Advanced Editor" to modify raw values beyond the slider ranges. Changes to a category may conflict with individual ammo changes.'
 
-
 # These variables can be modified and paired with custom classes in "Modify Animals" to widen the class range beyond 1-9
 # Some UI elements are not fully supported without custom .gfx files such as "Recommended Classes" on the weapon wheel
 MAX_SUPPORTED_CLASS = 9  # DEFAULT = 9. Changes the max supported class
@@ -500,6 +499,56 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
   }
 
   return mod_settings
+
+
+def load_options(window: sg.Window, options: dict) -> None:
+  ammo_type = options["type"]
+  if ammo_type not in ALL_AMMO:
+    raise ValueError(f"Ammo category '{ammo_type}' is no longer available")
+  window["modify_ammo_tab_group"].Widget.select(window[f"modify_ammo_tab_{ammo_type}"].Widget)
+  list_key = f"modify_ammo_list_{ammo_type}"
+  selected_ammo = None
+  if "name" in options:
+    selected_ammo = next((ammo for ammo in ALL_AMMO[ammo_type] if ammo.display_name == options["name"]), None)
+    if selected_ammo is None:
+      raise ValueError(f"Ammo '{options['name']}' is no longer available")
+    window[list_key].update(selected_ammo.display_name)
+  else:
+    window[list_key].update("")
+
+  advanced = bool(options.get("advanced_editor", False))
+  window["modify_ammo_advanced_checkbox"].update(advanced)
+  window["modify_ammo_update_default_values"].update(False)
+  window["modify_ammo_category_classes"].update(bool(options.get("classes")) and selected_ammo is None)
+  _apply_class_buttons_state(options.get("classes", []))
+  _paint_ammo_class_buttons(window)
+
+  values = {
+    "modify_ammo_advanced_checkbox": advanced,
+    "modify_ammo_update_default_values": False,
+  }
+  for stat in STATS:
+    if advanced:
+      raw_value = options.get(f"advanced_{stat}", getattr(selected_ammo.stats, stat).value)
+      _write_advanced(window, stat, raw_value)
+      modifier = calculate_stat_modifier(selected_ammo, stat, raw_value)
+      _write_slider(window, stat, modifier if modifier is not None else 0)
+    else:
+      modifier = options.get(stat, 0)
+      _write_slider(window, stat, modifier)
+      values[f"modify_ammo_stat_{stat}"] = modifier
+  if not advanced:
+    sliders_to_advanced(selected_ammo, window, values)
+
+  has_pellets = (selected_ammo and selected_ammo._has_pellets()) or (selected_ammo is None and ammo_type == "shotgun")
+  window["modify_ammo_projectiles_label"].update(visible=has_pellets)
+  window["modify_ammo_stat_projectiles"].update(visible=has_pellets)
+  window["modify_ammo_stat_advanced_projectiles"].update(visible=has_pellets)
+  window["modify_ammo_stat_advanced_projectiles_note"].update(visible=has_pellets)
+  toggle_ui_error(selected_ammo, window)
+  toggle_advanced_editor(window, values)
+  window["options"].contents_changed()
+
 
 def format_options(options: dict) -> str:
   advanced = options.get("advanced_editor", False)

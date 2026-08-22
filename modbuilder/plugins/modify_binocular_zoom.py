@@ -98,6 +98,14 @@ def add_mod(window: sg.Window, values: dict) -> dict:
     }
   }
 
+def load_options(window: sg.Window, options: dict) -> None:
+  selected_optics = next((optics for optics in ALL_OPTICS if optics.name == options.get("name") or optics.file == options.get("file")), None)
+  if selected_optics is None:
+    raise ValueError(f"Unable to load binocular options for {options.get('display_name', options.get('name'))}")
+  window["optics_name"].update(selected_optics.display_name)
+  for i in range(1, 6):
+    window[f"optics_level_{i}"].update(options[f"level_{i}"])
+
 def format_options(options: dict) -> str:
   return f"Modify Binoculars: {options.get('display_name', options['name'])} ({options['level_1']}, {options['level_2']}, {options['level_3']}, {options['level_4']}, {options['level_5']})"
 

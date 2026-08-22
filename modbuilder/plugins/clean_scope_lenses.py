@@ -1,5 +1,6 @@
-from modbuilder import mods, mods2
 import os
+
+from modbuilder import mods, mods2
 
 DEBUG = False
 NAME = "Clean Scope Lenses"
@@ -14,6 +15,7 @@ OPTIONS = [
     "note": "Remove green tint from the GenZero Night Vision scope",
   }
 ]
+
 NIGHT_VISION_FILE = "environment/weather/night_vision.environc"
 NIGHT_VISION_WHITE_FILE = "environment/weather/night_vision_white.environc"
 

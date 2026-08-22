@@ -1,4 +1,16 @@
 import FreeSimpleGUI as sg
+import tkinter as tk
+
+
+DISABLED_SLIDER_TROUGH_COLOR = "white"
+
+
+def option_key(option: dict | str) -> str:
+    if isinstance(option, dict):
+        if "key" in option:
+            return option["key"]
+        option = option["name"]
+    return "_".join(option.lower().split(" "))
 
 
 def create_option(mod_option: dict, key: str) -> list[list]:
@@ -12,7 +24,7 @@ def create_option(mod_option: dict, key: str) -> list[list]:
         initial_value = mod_option["initial"] if "initial" in mod_option else mod_option["min"]
         if mod_option_style == "inline":
             if isinstance(mod_option["initial"], bool):
-                t = sg.Checkbox(mod_option["name"], p=((30,10),(10,10)), k=key, default = mod_option["initial"])
+                t = sg.Checkbox(mod_option["name"], p=((30,10),(10,10)), k=key, default = mod_option["initial"], enable_events=bool(mod_option.get("disables")))
                 mod_details.append([t])
             else:
                 t = sg.T(f"{mod_option['name']}", p=((30,10),(10,10)))
@@ -32,7 +44,13 @@ def create_option(mod_option: dict, key: str) -> list[list]:
                 mod_details.append([t])
             mod_details.append([td])
         elif mod_option_style == "boolean":
-            td = sg.Checkbox(mod_option["name"], initial_value, k=key, p=((10,0),(0,0)))
+            td = sg.Checkbox(
+                mod_option["name"],
+                initial_value,
+                k=key,
+                p=((10,0),(0,0)),
+                enable_events=bool(mod_option.get("disables")) or mod_option.get("enable_events", False),
+            )
             if "note" in mod_option:
                 n = sg.T(mod_option['note'], font="_ 12 italic", text_color="orange", p=((10,10),(10,10)))
                 mod_details.append([td, n])
@@ -71,6 +89,66 @@ def create_option(mod_option: dict, key: str) -> list[list]:
         mod_details.append([i])
 
     return mod_details
+
+
+def load_option_values(window: sg.Window, mod_key: str, option_definitions: list[dict], saved_options: dict) -> None:
+    """Restore saved values for every widget style produced by create_option."""
+    for option in option_definitions:
+        if "name" not in option or "title" in option:
+            continue
+        saved_key = option_key(option)
+        if saved_key not in saved_options:
+            continue
+        element = window[f"{mod_key}__{saved_key}"]
+        saved_value = saved_options[saved_key]
+        if option.get("style") == "listbox":
+            selected_values = saved_value if isinstance(saved_value, (list, tuple, set)) else [saved_value]
+            selected_indices = [i for i, value in enumerate(option["values"]) if value in selected_values]
+            element.update(set_to_index=selected_indices)
+        else:
+            element.update(saved_value)
+    for option in option_definitions:
+        if option.get("disables"):
+            saved_key = option_key(option)
+            source_value = saved_options.get(saved_key, option.get("initial", option.get("min")))
+            _update_disabled_options(window, mod_key, option, source_value)
+
+
+def handle_option_event(event: str, window: sg.Window, values: dict, mod_key: str, option_definitions: list[dict]) -> None:
+    prefix = f"{mod_key}__"
+    if not isinstance(event, str) or not event.startswith(prefix):
+        return
+    source_key = event.removeprefix(prefix)
+    option = next((definition for definition in option_definitions if "name" in definition and option_key(definition) == source_key), None)
+    if option and option.get("disables"):
+        _update_disabled_options(window, mod_key, option, values[event])
+
+
+def _update_disabled_options(window: sg.Window, mod_key: str, source_option: dict, source_value: object) -> None:
+    disabled = bool(source_value)
+    for target_key in source_option.get("disables", []):
+        element = window[f"{mod_key}__{target_key}"]
+        element.update(disabled=disabled)
+        _update_disabled_slider_appearance(element, disabled)
+
+
+def _update_disabled_slider_appearance(element: object, disabled: bool) -> None:
+    """Give Tk sliders a visible disabled state and restore their theme color when enabled."""
+    widget = getattr(element, "Widget", None)
+    if widget is None:
+        return
+
+    try:
+        active_color = getattr(widget, "_modbuilder_active_trough_color", None)
+        if active_color is None:
+            active_color = widget.cget("troughcolor")
+            setattr(widget, "_modbuilder_active_trough_color", active_color)
+        widget.configure(
+            troughcolor=DISABLED_SLIDER_TROUGH_COLOR if disabled else active_color
+        )
+    except (AttributeError, TypeError, tk.TclError):
+        # Other widget types are fully styled by their normal disabled state.
+        return
 
 
 def valid_option_value(mod_option: dict, mod_value: any) -> str:

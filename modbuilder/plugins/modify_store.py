@@ -14,7 +14,6 @@ except ModuleNotFoundError:  # running as an exe (PyInstaller)
 
 logger = get_logger(__name__)
 
-
 DEBUG = False
 NAME = "Modify Store"
 DESCRIPTION = (
@@ -22,6 +21,7 @@ DESCRIPTION = (
   '\n"Locked" value controls item visibility and availability in the store:'
   "\n1 = unlocked and available, 5 = locked and hidden from the store, other values = restricted by quest, weapon score, or other requirement"
 )
+
 EQUIPMENT_FILE = mods.EQUIPMENT_DATA_FILE
 LURE_FILE = modify_lures.FILE
 
@@ -36,6 +36,7 @@ class StoreItem:
     'quantity',
     'weight',
     'locked',
+    'compatible_weapons',
   )
 
   type: str                   # item type
@@ -47,12 +48,14 @@ class StoreItem:
   quantity: StatWithOffset
   weight: StatWithOffset
   locked: StatWithOffset
+  compatible_weapons: tuple[str, ...]
 
   def __init__(self, equipment_node: RtpcNode, equipment_type: str) -> None:
     self.type = equipment_type
     self.internal_name = None
     self.detailed_type = None
     self._parse_prop_table(equipment_node)
+    self.compatible_weapons = self._parse_compatible_weapons(equipment_node)
     if self.type == "skin":
       self.display_name = self._parse_skin_name()
     elif self.type == "trophy_holder":
@@ -97,6 +100,21 @@ class StoreItem:
 
       if name_hash == 3003447170:  # 0xb304f782 - locked value
         self.locked = StatWithOffset(prop)
+
+  def _parse_compatible_weapons(self, equipment_node: RtpcNode) -> tuple[str, ...]:
+    compatible_weapons = set()
+
+    def collect_weapon_names(node: RtpcNode, in_compatibility_table: bool = False) -> None:
+      in_compatibility_table = in_compatibility_table or node.name_hash == 0x77C2B3BA
+      if in_compatibility_table:
+        for prop in node.prop_table:
+          if isinstance(prop.data, bytes) and prop.data.startswith(b"equipment_weapon_"):
+            compatible_weapons.add(prop.data.decode("utf-8"))
+      for child in node.child_table:
+        collect_weapon_names(child, in_compatibility_table)
+
+    collect_weapon_names(equipment_node)
+    return tuple(sorted(compatible_weapons))
 
   def _parse_skin_name(self) -> str:
     parts = re.split(r"[\\/]", self.name)  # parse texture name into something readable
@@ -398,14 +416,17 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "invalid": "Provide a valid item weight"
     }
 
-  try:
-    item_locked = int(values["store_item_locked"])
-    if not 0 <= item_locked <= 9:
-      raise ValueError
-  except ValueError:
-    return {
-      "invalid": "Provide a valid item locked value (0-9)"
-    }
+  if selected_item.type == "feeder_bait":
+    item_locked = -1  # Feeder Bait are imported from Modify Lures and do not have a "locked" attribute
+  else:
+    try:
+      item_locked = int(values["store_item_locked"])
+      if not 0 <= item_locked <= 9:
+        raise ValueError
+    except ValueError:
+      return {
+        "invalid": "Provide a valid item locked value (0-9)"
+      }
 
   return {
     "key": f"modify_store_{selected_item.name}",
@@ -477,6 +498,49 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     }
   }
 
+
+def load_options(window: sg.Window, options: dict) -> None:
+  item_type = options["type"]
+  if item_type not in ALL_STORE_ITEMS:
+    raise ValueError(f"Store category '{item_type}' is no longer available")
+  window["store_tab_group"].Widget.select(window[f"store_tab_{item_type}"].Widget)
+
+  quantity_disabled = item_type in ["trophy_holder", "sight", "optic", "skin", "weapon", "feeder_bait"]
+  weight_disabled = item_type in ["trophy_holder", "skin", "feeder_bait"]
+  locked_disabled = item_type == "feeder_bait"
+  window["store_item_quantity"].update(disabled=quantity_disabled)
+  window["store_bulk_quantity"].update(disabled=quantity_disabled)
+  window["store_item_weight"].update(disabled=weight_disabled)
+  window["store_bulk_weight"].update(disabled=weight_disabled)
+  window["store_item_locked"].update(disabled=locked_disabled)
+  window["store_bulk_locked"].update(disabled=locked_disabled)
+  window["price_label"].update("Skins min price = 1" if item_type == "skin" else "")
+
+  item_list_key = f"store_list_{item_type}"
+  if "free_price" in options:  # category modification
+    window[item_list_key].update("")
+    window["store_bulk_discount"].update(options.get("discount", 0))
+    window["store_bulk_free_price"].update(str(options.get("free_price", 0)))
+    bulk_quantity = options.get("bulk_quantity", 0)
+    bulk_weight = options.get("bulk_weight", -1)
+    bulk_locked = options.get("bulk_locked", -1)
+    window["store_bulk_quantity"].update("" if bulk_quantity <= 0 else str(bulk_quantity))
+    window["store_bulk_weight"].update("" if bulk_weight < 0 else str(bulk_weight))
+    window["store_bulk_locked"].update("" if bulk_locked < 0 else str(bulk_locked))
+    return
+
+  selected_item = next((item for item in ALL_STORE_ITEMS[item_type] if item.name == options.get("name")), None)
+  if selected_item is None:
+    raise ValueError(f"Store item '{options.get('name')}' is no longer available")
+  window[item_list_key].update(selected_item.display_name)
+  # Preserve the saved values instead of replacing them with current game defaults on selection.
+  window["store_update_item_values"].update(False)
+  window["store_item_price"].update(str(options["price"]))
+  window["store_item_quantity"].update(str(options.get("quantity", 0)))
+  window["store_item_weight"].update(str(options.get("weight", -1)))
+  window["store_item_locked"].update(str(options.get("locked", 0)))
+
+
 def format_options(options: dict) -> str:
   details = []
   if "free_price" in options:  # category - some pre-2.1.0 version didn't have "bulk_quantity"
@@ -528,8 +592,10 @@ def process(options: dict) -> None:
         updates.append({"offset": selected_item.quantity.offset, "value": options["quantity"]})
       if options["weight"] >= 0 and selected_item.weight.offset > 0:
         updates.append({"offset": selected_item.weight.offset, "value": options["weight"]})
-      if "locked" in options and selected_item.locked.offset > 0:
-        updates.append({"offset": selected_item.locked.offset, "value": options["locked"]})
+      # Feeder Bait are imported from Modify Lures and do not have a "locked" attribute
+      locked = getattr(selected_item, "locked", None)
+      if options.get("locked", -1) >= 0 and locked is not None and locked.offset > 0:
+        updates.append({"offset": locked.offset, "value": options["locked"]})
 
   if "bulk_quantity" in options:  # category
     discount = options["discount"]
@@ -550,10 +616,10 @@ def process(options: dict) -> None:
         updates.append({"offset": item.quantity.offset, "value": bulk_quantity})
       if bulk_weight >= 0 and item.weight.offset > 0:
         updates.append({"offset": item.weight.offset, "value": bulk_weight})
-      # # Feeder Bait are imported from Modify Lures and do not have a "locked" attribute
-      # if item.type != "feeder_bait":
-      if bulk_locked >= 0 and item.locked.offset > 0:
-        updates.append({"offset": item.locked.offset, "value": bulk_locked})
+      # Feeder Bait are imported from Modify Lures and do not have a "locked" attribute
+      locked = getattr(item, "locked", None)
+      if bulk_locked >= 0 and locked is not None and locked.offset > 0:
+        updates.append({"offset": locked.offset, "value": bulk_locked})
 
   mods.apply_updates_to_file(LURE_FILE if options["type"] == "feeder_bait" else EQUIPMENT_FILE, updates)
 

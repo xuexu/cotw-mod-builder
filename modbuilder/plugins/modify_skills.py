@@ -8,6 +8,7 @@ from modbuilder.widgets import create_option, valid_option_value
 DEBUG = False
 NAME = "Modify Skills"
 DESCRIPTION = "Modify all skills and perks that have changable values."
+
 SKILLS_FILE = "settings/hp_settings/player_skills.bin"
 SKILL_TREES_FILE = "settings/hp_settings/player_skill_trees.bin"
 
@@ -1375,6 +1376,44 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "invalid": None,
       "options": mod_options
     }
+
+
+def _select_tab(window: sg.Window, group_key: str, tab_key: str) -> None:
+    window[group_key].Widget.select(window[tab_key].Widget)
+
+
+def load_options(window: sg.Window, options: dict) -> None:
+    active_tab = options["key"]
+    if active_tab == "skill_tier_cost":
+        _select_tab(window, "modify_skills_group", "modify_skills_tab")
+        _select_tab(window, "skill_group", "skill_tier_cost")
+        window["reduce_skill_tier_cost"].update(options.get("reduce_skill_tier_cost", False))
+        return
+
+    skill_parent = next((parent for parent, names in SKILLS.items() if active_tab in [name_to_key(name) for name in names]), None)
+    perk_parent = next((parent for parent, names in PERKS.items() if active_tab in [name_to_key(name) for name in names]), None)
+    if skill_parent:
+        _select_tab(window, "modify_skills_group", "modify_skills_tab")
+        parent_key = name_to_key(skill_parent)
+        _select_tab(window, "skill_group", f"skill_{parent_key}")
+        _select_tab(window, f"{parent_key}_group", active_tab)
+    elif perk_parent:
+        _select_tab(window, "modify_skills_group", "modify_perks_tab")
+        parent_key = {
+            "Rifles": "rifle",
+            "Handguns": "handgun",
+            "Shotguns": "shotgun",
+            "Archery": "archery",
+        }[perk_parent]
+        _select_tab(window, "perk_group", f"perk_{parent_key}")
+        _select_tab(window, f"{parent_key}_group", active_tab)
+    else:
+        raise ValueError(f"Unable to find skill or perk tab {active_tab}")
+
+    for option in get_skill_options(active_tab):
+        saved_key = name_to_key(option["name"])
+        if saved_key in options:
+            window[option_to_key(active_tab, option["name"])].update(options[saved_key])
 
 
 def handle_event(event: str, window: sg.Window, values: dict) -> None:

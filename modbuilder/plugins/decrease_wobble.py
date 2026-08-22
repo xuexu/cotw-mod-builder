@@ -19,6 +19,11 @@ PRESETS = [
     { "name": "reduce_stand_percent", "value": 25 },
     { "name": "reduce_crouch_percent", "value": 70 },
     { "name": "reduce_prone_percent", "value": 100 }
+  ]},
+  { "name": "No Wobble", "options": [
+    { "name": "reduce_stand_percent", "value": 100 },
+    { "name": "reduce_crouch_percent", "value": 100 },
+    { "name": "reduce_prone_percent", "value": 100 }
   ]}
 ]
 

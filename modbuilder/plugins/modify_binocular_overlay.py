@@ -7,10 +7,10 @@ from modbuilder.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
 DEBUG = False
 NAME = "Modify Binocular Overlay"
 DESCRIPTION = "Modify the binocular overlay."
+
 OVERLAYS_PATH = mods.APP_DIR_PATH / "org/modded/binocular_overlay"
 OVERLAY_FILE_NAME = "hud_i420.ddsc"
 
@@ -40,6 +40,11 @@ def add_mod(window: sg.Window, values: dict) -> dict:
       "binoculars_overlay": values["binoculars_overlay"].lower()
     }
   }
+
+def load_options(window: sg.Window, options: dict) -> None:
+  overlay = options["binoculars_overlay"].title()
+  window["binoculars_overlay"].update(overlay)
+  handle_event("binoculars_overlay", window, {"binoculars_overlay": overlay})
 
 def format_options(options: dict) -> str:
   return f"Modify Binocular Overlay ({options['binoculars_overlay'].title()})"

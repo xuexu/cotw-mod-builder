@@ -534,6 +534,84 @@ def add_mod_group(window: sg.Window, values: dict) -> dict:
     }
 
 
+def load_options(window: sg.Window, options: dict) -> None:
+    scope_edit = "horizontal_offset" in options
+    category_edit = "type" in options
+    weapon_name = options.get("weapon_name") if scope_edit else options.get("name")
+    selected_weapon = next((
+        weapon for weapons in ALL_WEAPONS.values() for weapon in weapons
+        if weapon.name == weapon_name
+    ), None)
+
+    if category_edit:
+        weapon_type = options["type"]
+        if weapon_type not in ALL_WEAPONS:
+            raise ValueError(f"Weapon category '{weapon_type}' is no longer available")
+    elif selected_weapon is not None:
+        weapon_type = selected_weapon.type
+    else:
+        raise ValueError(f"Weapon '{weapon_name}' is no longer available")
+
+    window["modify_weapon_tab_group"].Widget.select(window[f"modify_weapon_tab_{weapon_type}"].Widget)
+    list_key = f"modify_weapon_list_{weapon_type}"
+    window[list_key].update("" if category_edit else selected_weapon.display_name)
+    settings_tab = "scope_offsets" if scope_edit else "ammo_handling"
+    window["modify_weapon_settings_tab_group"].Widget.select(
+        window[f"modify_weapon_settings_tab_{settings_tab}"].Widget
+    )
+
+    window["modify_weapon_category_magazine"].update(category_edit and "magazine_size" in options)
+    recoil_wobble = category_edit and ("recoil_percent" in options or "wobble_percent" in options)
+    window["modify_weapon_category_recoil_wobble"].update(recoil_wobble)
+    window["modify_weapon_category_bullet_drop"].update(category_edit and "disable_bullet_drop" in options)
+    window["modify_weapon_select_default_magazine_size"].update(False)
+    window["modify_weapon_magazine_size"].update(options.get("magazine_size", 1))
+    window["modify_weapon_recoil_percent"].update(options.get("recoil_percent", 0))
+    window["modify_weapon_wobble_percent"].update(options.get("wobble_percent", 0))
+    disable_bullet_drop = bool(options.get("disable_bullet_drop", False))
+    window["modify_weapon_disable_bullet_drop"].update(disable_bullet_drop)
+
+    if scope_edit:
+        selected_scope = next((scope for scope in selected_weapon.scopes if scope.name == options.get("name")), None)
+        if selected_scope is None:
+            raise ValueError(f"Scope '{options.get('name')}' is no longer available for {selected_weapon.display_name}")
+        scope_dropdown = window["modify_weapon_scope_list"]
+        scope_dropdown.update(
+            values=[scope.display_name for scope in selected_weapon.scopes],
+            value=selected_scope.display_name,
+            disabled=False,
+        )
+        scope_dropdown.metadata = selected_weapon.scopes
+        window["modify_weapon_scope_horizontal_offset"].update(str(options["horizontal_offset"]), disabled=False)
+        window["modify_weapon_scope_vertical_offset"].update(str(options["vertical_offset"]), disabled=False)
+    else:
+        zeroing = selected_weapon.zeroing if selected_weapon else None
+        zeroing_values = [
+            (options.get("one_distance", getattr(zeroing, "level_1_distance", 0)), options.get("one_angle", getattr(zeroing, "level_1_angle", 0))),
+            (options.get("two_distance", getattr(zeroing, "level_2_distance", 0)), options.get("two_angle", getattr(zeroing, "level_2_angle", 0))),
+            (options.get("three_distance", getattr(zeroing, "level_3_distance", 0)), options.get("three_angle", getattr(zeroing, "level_3_angle", 0))),
+        ]
+        for index, (distance, angle) in enumerate(zeroing_values, start=1):
+            disabled = category_edit or zeroing is None or disable_bullet_drop
+            window[f"modify_weapon_level_{index}_distance"].update(str(distance), disabled=disabled)
+            window[f"modify_weapon_level_{index}_angle"].update(str(angle), disabled=disabled)
+        if selected_weapon:
+            scope_dropdown = window["modify_weapon_scope_list"]
+            scope_dropdown.update(values=[scope.display_name for scope in selected_weapon.scopes], value="", disabled=not selected_weapon.scopes)
+            scope_dropdown.metadata = selected_weapon.scopes
+        else:
+            scope_dropdown = window["modify_weapon_scope_list"]
+            scope_dropdown.update(values=[], value="", disabled=True)
+            scope_dropdown.metadata = []
+            window["modify_weapon_scope_horizontal_offset"].update("0", disabled=True)
+            window["modify_weapon_scope_vertical_offset"].update("0", disabled=True)
+
+    update_magazine_settings(selected_weapon, window, {"modify_weapon_select_default_magazine_size": False})
+    toggle_error_messages(selected_weapon, window)
+    window["add_mod_group_weapon"].update(disabled=scope_edit)
+    window["options"].contents_changed()
+
+
 def format_options(options: dict) -> str:
     # need to match old keys if reading from an old save file
     if "horizontal_offset" in options:  # scope offsets

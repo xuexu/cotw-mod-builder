@@ -1,8 +1,8 @@
 DEBUG = True
 NAME = "Enhanced Keen Eye"
 DESCRIPTION = "Enables you to spot need zones and animal groups from lookup points. You must have the Keen Eye skill unlocked for this modification to take affect. Be careful not to increase the need zones or animal groups too high, or your computer may have performance issues."
-FILE = "settings/hp_settings/player_skills.bin"
 WARNING = 'Unlocking all Need Zones on a map can have a significant negative performance impact on the game. If you experience issues after revealing large areas of the map, disabling "Need Zone Icons" in the interface settings can help.'
+FILE = "settings/hp_settings/player_skills.bin"
 OPTIONS = [
   { "name": "Cooldown Seconds", "min": 1, "max": 1800, "default": 1800, "initial": 10, "increment": 1 },
   { "name": "Zone Distance", "min": 500, "max": 990, "default": 500, "increment": 10 },

@@ -1,6 +1,8 @@
-from modbuilder import mods
 from pathlib import Path
+
 import FreeSimpleGUI as sg
+
+from modbuilder import mods
 
 DEBUG = True
 NAME = "Modify Animal Aggression"
