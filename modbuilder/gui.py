@@ -233,12 +233,11 @@ def _show_popup_message(message: str) -> str:
 
 def _show_error_window(error: Exception, mod_key: str = None, mod_options: dict = None):
   nexus_url = "https://www.nexusmods.com/thehuntercallofthewild/mods/410?tab=bugs"
-  logger.error(f"ERROR! {mod_key} : {error}")
-  header = [f"Version: {APP_VERSION}"]
-  err_msg = ["", f"Error: {error}"]
-  mod_msg = ["", f"Mod: {mod_key}"] if mod_key else []
-  opts_msg = ["", "Options:", json.dumps(mod_options, indent=4)] if mod_options else []
-  message = "\n".join(header + err_msg + mod_msg + opts_msg)
+  if isinstance(error, Exception):
+    logger.exception("Build error for %s", mod_key)
+  else:
+    logger.error("Build error for %s: %s", mod_key, error)
+  message = _build_error_message(error, mod_key=mod_key, mod_options=mod_options)
 
   layout = [
     [sg.T(f"Please paste this error as a new bug on NexusMods:")],
@@ -258,6 +257,23 @@ def _show_error_window(error: Exception, mod_key: str = None, mod_options: dict 
       webbrowser.open(nexus_url)
       break
   window.close()
+
+def _build_error_message(error: Exception | str, mod_key: str = None, mod_options: dict = None) -> str:
+  header = [f"Version: {APP_VERSION}"]
+  if mod_key:
+    try:
+      mod = mods.get_mod(mod_key)
+      mod_name = mod.NAME if mod and hasattr(mod, "NAME") else mods.get_mod_name_from_key(mod_key).title()
+    except Exception:
+      mod_name = mods.get_mod_name_from_key(mod_key).title()
+    header.extend(["", f"Plugin: {mod_name}", f"Plugin key: {mod_key}"])
+  if mod_options is not None:
+    header.extend(["", "Configured options:", json.dumps(mod_options, indent=4, sort_keys=True, default=str)])
+  if isinstance(error, Exception):
+    error_text = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+  else:
+    error_text = str(error)
+  return "\n".join(header + ["", "Error:", error_text.strip()])
 
 def _mod_name_to_key(name: str) -> str:
   if name is None:
@@ -467,6 +483,45 @@ def _copy_mod_files(mod, options: dict) -> list[str]:
   if hasattr(mod, "FILE"):
     return mods.copy_files_to_mod(mod.FILE)
   return []
+
+
+def _build_mods(selected_mods: dict, window: sg.Window) -> bool:
+  if not _confirm_mod_conflicts(selected_mods):
+    return False
+  window["build_mod"].update(disabled=True)
+  mods.clear_mod()
+  mod_files = []
+  step = 1
+  progress_step = 95 / len(selected_mods.keys()) if selected_mods else 95
+  mod_key = None
+  mod_options = None
+  try:
+    for mod_key, mod_options in selected_mods.items():
+      mod = mods.get_mod(mod_key)
+      modded_files = _copy_mod_files(mod, mod_options)
+      mod_files += modded_files
+      mods.apply_mod(mod, mod_options)
+      if hasattr(mod, "merge_files"):
+        mod.merge_files(modded_files, mod_options)
+      step_progress = math.floor(step * progress_step)
+      window["build_progress"].update(step_progress)
+      step += 1
+    _finalize_mods(selected_mods)
+    mods.merge_files(mod_files)
+    mods.package_mod()
+    _format_selected_mods(selected_mods, window)
+    _enable_mod_button(window)
+    window["remove_mod"].update(disabled=True)
+    window["sort_mods"].update(disabled=True)
+    window["build_progress"].update(100)
+    _create_party()
+    window["build_progress"].update(0)
+    return True
+  except Exception as error:
+    _show_error_window(error, mod_key=mod_key, mod_options=mod_options)
+    window["build_progress"].update(0)
+    _enable_mod_button(window)
+    return False
 
 
 def _get_selected_mod_key(selected_mods: dict, listbox: sg.Listbox) -> str | None:
@@ -898,33 +953,7 @@ def main() -> None:
         window["edit_mod"].update(disabled=True)
         _enable_mod_button(window)
       elif event == "build_mod":
-        if not _confirm_mod_conflicts(selected_mods):
-          continue
-        window["build_mod"].update(disabled=True)
-        mods.clear_mod()
-        mod_files = []
-        step = 1
-        progress_step = 95 / len(selected_mods.keys())
-        for mod_key, mod_options in selected_mods.items():
-          mod = mods.get_mod(mod_key)
-          modded_files = _copy_mod_files(mod, mod_options)
-          mod_files += modded_files
-          mods.apply_mod(mod, mod_options)
-          if hasattr(mod, "merge_files"):
-            mod.merge_files(modded_files, mod_options)
-          step_progress = math.floor(step * progress_step)
-          window["build_progress"].update(step_progress)
-          step += 1
-        _finalize_mods(selected_mods)
-        mods.merge_files(mod_files)
-        mods.package_mod()
-        selected_mods = _format_selected_mods(selected_mods, window)
-        _enable_mod_button(window)
-        window["remove_mod"].update(disabled=True)
-        window["sort_mods"].update(disabled=True)
-        window["build_progress"].update(100)
-        _create_party()
-        window["build_progress"].update(0)
+        _build_mods(selected_mods, window)
       elif event == "save":
         save_name = sg.PopupGetText("What name would you like use to save modifications?", title="Save Mods", default_text=loaded_mod_list_name, font=DEFAULT_FONT, icon=logo.value)
         if save_name:

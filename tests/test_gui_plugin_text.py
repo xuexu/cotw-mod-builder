@@ -278,6 +278,49 @@ class PluginTextTests(unittest.TestCase):
     copy_single.assert_called_once_with("single.bin")
     self.assertEqual(copied, ["single.bin"])
 
+  def test_error_message_includes_plugin_name_and_options(self) -> None:
+    plugin = types.SimpleNamespace(NAME="Example Plugin")
+    with patch.object(gui.mods, "get_mod", return_value=plugin):
+      message = gui._build_error_message(RuntimeError("boom"), "example_plugin", {"difficulty": "hard"})
+
+    self.assertIn("Plugin: Example Plugin", message)
+    self.assertIn("Plugin key: example_plugin", message)
+    self.assertIn('"difficulty": "hard"', message)
+    self.assertIn("RuntimeError: boom", message)
+
+  def test_build_mods_reports_failing_plugin_context(self) -> None:
+    build_mod = Mock()
+    build_progress = Mock()
+    window = MockWindow({
+      "build_mod": build_mod,
+      "build_progress": build_progress,
+      "remove_mod": Mock(),
+      "sort_mods": Mock(),
+      "selected_mods": Mock(),
+    })
+    plugin = types.SimpleNamespace(NAME="Example Plugin")
+    selected_mods = {"example_plugin": {"difficulty": "hard"}}
+
+    with (
+      patch.object(gui, "_confirm_mod_conflicts", return_value=True),
+      patch.object(gui.mods, "clear_mod"),
+      patch.object(gui.mods, "get_mod", return_value=plugin),
+      patch.object(gui, "_copy_mod_files", return_value=[]),
+      patch.object(gui.mods, "apply_mod", side_effect=RuntimeError("boom")),
+      patch.object(gui, "_show_error_window") as show_error,
+      patch.object(gui, "_enable_mod_button") as enable_button,
+    ):
+      result = gui._build_mods(selected_mods, window)
+
+    self.assertFalse(result)
+    show_error.assert_called_once()
+    error, = show_error.call_args.args
+    self.assertIsInstance(error, RuntimeError)
+    self.assertEqual(show_error.call_args.kwargs["mod_key"], "example_plugin")
+    self.assertEqual(show_error.call_args.kwargs["mod_options"], {"difficulty": "hard"})
+    enable_button.assert_called_once_with(window)
+    build_progress.update.assert_called_with(0)
+
 
 if __name__ == "__main__":
   unittest.main()

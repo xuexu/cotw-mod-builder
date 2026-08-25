@@ -152,18 +152,26 @@ def _update_disabled_slider_appearance(element: object, disabled: bool) -> None:
 
 
 def valid_option_value(mod_option: dict, mod_value: any) -> str:
-    if mod_option == None or "min" not in mod_option:
+    if mod_option is None:
+        return None
+    if mod_option.get("style") == "boolean":
+        if type(mod_value) is bool:
+            return None
+        return f"Invalid Value: {mod_value} \n\nMust be true or false"
+    if "min" not in mod_option:
         return None
     min_value = mod_option["min"]
-    max_value = mod_option["max"]
+    max_value = mod_option.get("max")
     mod_type = type(mod_option["initial"]) if "initial" in mod_option else type(min_value)
+    original_value = mod_value
     try:
         mod_value = mod_type(mod_value)
-        if mod_value >= min_value and mod_value <= max_value:
-            return None
-    except:
-        pass
-    return f"Invalid Value: {mod_value} \n\nMust be between {min_value} and {max_value}"
+        valid = min_value <= mod_value and (max_value is None or mod_value <= max_value)
+    except (TypeError, ValueError):
+        valid = False
+    if valid:
+        return None
+    return f"Invalid Value: {original_value} \n\nMust be between {min_value} and {max_value}"
 
 
 def generate_buttons(button_names: list[str]) -> list[sg.Button]:

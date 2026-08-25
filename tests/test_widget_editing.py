@@ -92,6 +92,20 @@ class WidgetEditingTests(unittest.TestCase):
     first.update.assert_called_once_with(disabled=True)
     second.update.assert_called_once_with(disabled=True)
 
+  def test_valid_option_value_skips_boolean_options(self) -> None:
+    definition = {
+      "name": "Use Game Settings FOV",
+      "style": "boolean",
+      "initial": False,
+      "min": False,
+      "max": True,
+    }
+
+    self.assertIsNone(widgets.valid_option_value(definition, True))
+    self.assertIsNone(widgets.valid_option_value(definition, False))
+    self.assertIsNotNone(widgets.valid_option_value(definition, "false"))
+    self.assertIsNotNone(widgets.valid_option_value(definition, 0))
+
   def test_disabled_slider_changes_and_restores_its_trough_color(self) -> None:
     class SliderWidget:
       def __init__(self):
