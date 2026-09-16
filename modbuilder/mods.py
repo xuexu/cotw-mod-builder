@@ -12,6 +12,7 @@ import FreeSimpleGUI as sg
 import yaml
 
 from deca.ff_adf import Adf, AdfValue
+from deca.ff_aaf import compress_aaf, extract_aaf
 from deca.ff_rtpc import RtpcNode, RtpcProperty, rtpc_from_binary
 from deca.ff_sarc import EntrySarc, FileSarc
 from deca.file import ArchiveFile
@@ -366,13 +367,28 @@ def get_global_file_info() -> dict:
   global_files = {}
   return global_files
 
+def read_sarc_file(path: Path) -> tuple[bytes, bool]:
+  raw_data = path.read_bytes()
+  is_aaf = raw_data[:4].upper().startswith(b"AAF")
+  if is_aaf:
+    return extract_aaf(ArchiveFile(io.BytesIO(raw_data))), True
+  return raw_data, False
+
+def write_sarc_file(path: Path, sarc_data: bytes, use_aaf: bool) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  if use_aaf:
+    with path.open("wb") as output:
+      compress_aaf(io.BytesIO(sarc_data), output)
+  else:
+    path.write_bytes(sarc_data)
+
 def get_sarc_file_info(filename: Path, include_details: bool = False) -> dict:
   bundle_files = {}
+  sarc_data, _ = read_sarc_file(filename)
   sarc = FileSarc()
-  with filename.open("rb") as fp:
-    sarc.header_deserialize(fp)
-    for sarc_file in sarc.entries:
-      bundle_files[sarc_file.v_path.decode("utf-8")] = sarc_file if include_details else sarc_file.offset
+  sarc.header_deserialize(io.BytesIO(sarc_data))
+  for sarc_file in sarc.entries:
+    bundle_files[sarc_file.v_path.decode("utf-8")] = sarc_file if include_details else sarc_file.offset
   return bundle_files
 
 def get_sarc_file_info_details(bundle_file: Path, filename: str) -> EntrySarc:
@@ -399,10 +415,11 @@ def merge_into_archive(filename: str, merge_path: str, merge_lookup: dict, delet
   mod_merge_path = MOD_PATH / merge_path
   copy_files_to_mod(merge_path)
   filename_bytes = bytearray(src_path.read_bytes())
-  merge_bytes = bytearray(mod_merge_path.read_bytes())
+  sarc_data, use_aaf = read_sarc_file(mod_merge_path)
+  merge_bytes = bytearray(sarc_data)
   filename_offset = merge_lookup[filename]
   merge_bytes[filename_offset:filename_offset+len(filename_bytes)] = filename_bytes
-  mod_merge_path.write_bytes(merge_bytes)
+  write_sarc_file(mod_merge_path, merge_bytes, use_aaf)
   if delete_src:
     src_path.unlink()
 
@@ -410,9 +427,9 @@ def recreate_archive(changed_filenames: list[str], archive_path: str) -> None:
   org_archive_path = ORG_DIR_PATH / archive_path
   new_archive_path = MOD_PATH / archive_path
 
+  original_data, use_aaf = read_sarc_file(org_archive_path)
   sarc_file = FileSarc()
-  with org_archive_path.open("rb") as org_archive:
-    sarc_file.header_deserialize(org_archive)
+  sarc_file.header_deserialize(io.BytesIO(original_data))
 
   archive_filenames = {entry.v_path.decode("utf-8") for entry in sarc_file.entries}
   missing_filenames = set(changed_filenames) - archive_filenames
@@ -420,38 +437,36 @@ def recreate_archive(changed_filenames: list[str], archive_path: str) -> None:
     missing = ", ".join(sorted(missing_filenames))
     raise ValueError(f"Files are not present in archive {archive_path}: {missing}")
 
-  org_entries = {}
+  original_entries = {}
   for entry in sarc_file.entries:
     file = entry.v_path.decode("utf-8")
+    original_entries[file] = (entry.offset, entry.length)
     if file in changed_filenames:
       entry.length = (MOD_PATH / file).stat().st_size
+
+  rebuilt = io.BytesIO()
+  sarc_file.header_serialize(ArchiveFile(rebuilt))
+  for entry in sarc_file.entries:
+    if entry.is_symlink:
+      continue
+
+    file = entry.v_path.decode("utf-8")
+    if file in changed_filenames:
+      data = (MOD_PATH / file).read_bytes()
     else:
-      org_entries[file] = entry.offset
+      old_offset, old_length = original_entries[file]
+      data = original_data[old_offset:old_offset+old_length]
 
-  new_archive_path.parent.mkdir(parents=True, exist_ok=True)
+    rebuilt.seek(entry.offset)
+    rebuilt.write(data)
 
-  with ArchiveFile(new_archive_path.open("wb")) as new_archive:
-    with org_archive_path.open("rb") as org_archive:
-      sarc_file.header_serialize(new_archive)
-
-      for entry in sarc_file.entries:
-        data = None
-        file = entry.v_path.decode("utf-8")
-        if file in changed_filenames:
-          data = (MOD_PATH / file).read_bytes()
-        elif entry.is_symlink:
-          continue
-        else:
-          org_archive.seek(org_entries[file])
-          data = org_archive.read(entry.length)
-
-        new_archive.seek(entry.offset)
-        new_archive.write(data)
+  write_sarc_file(new_archive_path, rebuilt.getvalue(), use_aaf)
 
 def expand_into_archive(filename: str, merge_path: str) -> None:
   src_path = MOD_PATH / filename
   mod_merge_path = MOD_PATH / merge_path
   copy_files_to_mod(merge_path)
+  sarc_data, use_aaf = read_sarc_file(mod_merge_path)
   archive_info = get_sarc_file_info(mod_merge_path, True)
   offsets_to_update = []
   old_file_size = None
@@ -469,7 +484,7 @@ def expand_into_archive(filename: str, merge_path: str) -> None:
       offsets_to_update.append((file, sarc_entry.META_entry_offset_ptr, sarc_entry.offset + (new_file_size - old_file_size)))
     prev_offset = sarc_entry.offset
 
-  merge_bytes = bytearray(mod_merge_path.read_bytes())
+  merge_bytes = bytearray(sarc_data)
   for file_to_update in offsets_to_update:
     merge_bytes[file_to_update[1]:file_to_update[1]+4] = adf_profile.create_u32(file_to_update[2])
 
@@ -477,7 +492,7 @@ def expand_into_archive(filename: str, merge_path: str) -> None:
   merge_bytes[file_length_offset:file_length_offset+4] = adf_profile.create_u32(new_file_size)
   del merge_bytes[file_offset:file_offset+old_file_size]
   merge_bytes[file_offset:file_offset] = filename_bytes
-  mod_merge_path.write_bytes(merge_bytes)
+  write_sarc_file(mod_merge_path, merge_bytes, use_aaf)
 
 def merge_files(filenames: list[str]) -> None:
   filenames = [*set(filenames)]

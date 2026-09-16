@@ -44,12 +44,11 @@ OPTIONS = [
     "increment": 0.5,
   },
   {
-    "name": "Sights Use FOV from Game Settings",
+    "name": "Aiming Background Uses In-Game FOV",
     "key": "use_game_settings_fov",
     "style": "boolean",
     "initial": False,
-    "note": 'Force scopes and iron sights to use the "Field of View" value from the in-game Video settings.',
-    "disables": ["weapon_scope_distance", "weapon_iron_sight_distance"],
+    "note": 'Use the "Field of View" value from the in-game Video settings for the background while aiming. This does not replace the scope or iron-sight distance settings.',
   },
   {
     "name": "Disable Scope Acceleration",
@@ -72,13 +71,11 @@ def map_options(options: dict) -> dict:
 def format_options(options: dict) -> str:
   options = map_options(options)
   weapon_fov = options["first-person_weapon_fov"]
-  options_text = f"Weapon: {int(weapon_fov)}"
+  scope_fov = options["weapon_scope_distance"]
+  iron_sight_fov = options["weapon_iron_sight_distance"]
+  options_text = f"Weapon: {int(weapon_fov)}, Scope: {scope_fov:.1f}, Iron Sight: {iron_sight_fov:.1f}"
   if options["use_game_settings_fov"]:
-    options_text += ", Use Game FOV for Sights"
-  else:
-    scope_fov = options["weapon_scope_distance"]
-    iron_sight_fov = options["weapon_iron_sight_distance"]
-    options_text += f", Scope: {scope_fov:.1f}, Iron Sight: {iron_sight_fov:.1f}"
+    options_text += ", Aiming Background: Game FOV"
   accel = "Disabled" if options["disable_scope_acceleration"] else "Enabled"
   options_text += f", Acceleration: {accel}"
   return f"Increase Weapon FOV ({options_text})"

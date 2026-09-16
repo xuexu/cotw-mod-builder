@@ -360,6 +360,24 @@ def _show_mod_options(mod_name: str, window: sg.Window) -> None:
   window[target_key].update(visible=True)
   window["options"].metadata = target_key
 
+def _apply_preset(event: str, values: dict, window: sg.Window) -> None:
+  preset_mod_key = event.removeprefix("preset__")
+  mod = mods.get_mod(preset_mod_key)
+  if mod is None:
+    return
+
+  preset_name = values.get(event)
+  preset = next((preset for preset in getattr(mod, "PRESETS", []) if preset["name"] == preset_name), None)
+  if preset is None:
+    return
+
+  for option in preset["options"]:
+    element = window[f"{preset_mod_key}__{option['name']}"]
+    if "value" in option:
+      element.update(option["value"])
+    else:
+      element.update(set_to_index=option["values"])
+
 def _format_selected_mods(selected_mods: dict, window: sg.Window) -> list[str]:
   formatted_mod_options = []
   error_keys = []
@@ -973,15 +991,7 @@ def main() -> None:
           window["game_path"].update(game_path)
           window["change_path"].update("(change path)")
       elif event.startswith("preset__"):
-        presets = mod.PRESETS
-        preset_mod_key = _mod_name_to_key(mod.NAME)
-        preset_name = values[f"preset__{preset_mod_key}"]
-        preset = next((preset for preset in presets if preset["name"] == preset_name), None)
-        for option in preset["options"]:
-          if "value" in option:
-            window[f"{preset_mod_key}__{option['name']}"].update(option["value"])
-          else:
-            window[f"{preset_mod_key}__{option['name']}"].update(set_to_index = option["values"])
+        _apply_preset(event, values, window)
       else:
         if isinstance(event, str) and "__" in event:
           event_mod_key = event.split("__", 1)[0]

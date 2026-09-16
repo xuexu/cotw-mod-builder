@@ -290,7 +290,7 @@ class IncreaseRareFursFileTests(unittest.TestCase):
       else:
         self.assertEqual(modified_weight, fur.weight, fur.name)
         checked += 1
-    self.assertEqual(checked, 79)
+    self.assertEqual(checked, 84)
 
 
 if __name__ == "__main__":

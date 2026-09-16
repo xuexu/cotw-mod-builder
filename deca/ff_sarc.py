@@ -7,6 +7,8 @@ from deca.path import UniPath
 from deca.file import ArchiveFile
 from deca.hashes import hash32_func
 from deca.util import align_to
+from deca.ff_aaf import extract_aaf
+import io
 import os
 import numpy as np
 
@@ -100,8 +102,19 @@ class FileSarc:
         self.entries = None
         self.entries_begin = None
         self.entries_end = None
+        self.is_aaf = False
 
     def header_deserialize(self, fin):
+        start_pos = fin.tell()
+        magic = fin.read(4)
+        fin.seek(start_pos)
+        if magic.upper().startswith(b'AAF'):
+            # Standalone SARC exports may retain the game's AAF compression
+            # wrapper.  VFS reads normally unwrap it before reaching here,
+            # but downstream tools also call FileSarc directly on exports.
+            fin = io.BytesIO(extract_aaf(ArchiveFile(fin)))
+            self.is_aaf = True
+
         with ArchiveFile(fin) as f:
             self.version = f.read_u32()
             self.magic = f.read(4)
@@ -180,8 +193,11 @@ class FileSarc:
                 if sz > max_block_size:
                     raise NotImplementedError('Excessive file size: {}'.format(entry.v_path))
 
+                # Ending exactly on a boundary is valid; only move the entry
+                # when at least one of its bytes would occupy the next block.
+                block_end_pos = data_write_pos if sz == 0 else data_write_pos + sz - 1
                 block_pos_diff = \
-                    np.floor((data_write_pos + sz) / max_block_size) - np.floor(data_write_pos / max_block_size)
+                    np.floor(block_end_pos / max_block_size) - np.floor(data_write_pos / max_block_size)
 
                 if block_pos_diff > 0:
                     # boundary crossed

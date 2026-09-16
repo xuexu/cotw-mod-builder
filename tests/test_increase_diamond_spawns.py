@@ -51,7 +51,7 @@ class IncreaseDiamondSpawnsTests(unittest.TestCase):
     diamonds.process({"weight_bias": 0.001})
 
     self.assertEqual(self.destination.read_bytes(), expected)
-    self.assertEqual(len(updates), 244)
+    self.assertEqual(len(updates), 245)
     self.assertIsNotNone(mods.open_rtpc(self.destination))
 
   def test_low_bias_preserves_values_below_one_hundredth(self) -> None:

@@ -80,14 +80,20 @@ class Ammo:
   def _parse_name_and_type(self) -> None:
     # example file: editor/entities/hp_weapons/ammunition/bows/equipment_ammo_jp_crossbow_arrow_300gr_01.ammotunec
     split_file = self.file.split("/")
-    self.type = split_file[-2].removesuffix("s")
+    source_type = split_file[-2].removesuffix("s")
     filename = split_file[-1].removesuffix(".ammotunec")
     if (mapped_equipment := mods.map_equipment(filename, "ammo")):
       self.name = mapped_equipment["map_name"]
       self.display_name = mapped_equipment["name"]
+      # some ammos have a mismatch between where their tuning files are located and their category in-game
+      # .44-40 ammos are in the "rifle" folder but are listed as Handgun ammo in the stop and equipment_data.bin
+      # use name_map.yaml as a source of truth for what category an ammo belongs to
+      self.type = (mapped_equipment.get("type") or source_type).lower()
     else:
       self.name = filename
       self.display_name = self.name
+      # fall back to the name of the folder the tuning file is located in if the ammo can't be mapped in name_map.yaml
+      self.type = source_type
 
   def _get_stats(self, extracted_adf: Adf) -> AmmoStats:
     ammo_data = extracted_adf.table_instance_full_values[0].value
@@ -148,11 +154,18 @@ def load_ammo_type(ammo_type: str) -> list[Ammo]:
 def load_all_ammo() -> None:
   global ALL_AMMO
   ALL_AMMO = {
-    "bow": load_ammo_type("bows"),
-    "handgun": load_ammo_type("handguns"),
-    "rifle": load_ammo_type("rifles"),
-    "shotgun": load_ammo_type("shotguns"),
+    "bow": [],
+    "handgun": [],
+    "rifle": [],
+    "shotgun": [],
   }
+  for source_type in ["bows", "handguns", "rifles", "shotguns"]:
+    for ammo in load_ammo_type(source_type):
+      if ammo.type not in ALL_AMMO:
+        raise ValueError(f"Unsupported ammo type '{ammo.type}' for file '{ammo.file}'")
+      ALL_AMMO[ammo.type].append(ammo)
+  for ammo_list in ALL_AMMO.values():
+    ammo_list.sort(key=lambda x: x.display_name)
   logger.debug("Loaded ammo")
 
 def load_ammo_ui_data() -> None:

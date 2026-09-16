@@ -444,12 +444,21 @@ def toggle_error_messages(selected_weapon: WeaponTuning, window: sg.Window) -> N
     window["modify_weapon_magazine_error"].update(visible=bool(selected_weapon and not selected_weapon.magazine))
 
 
+def should_update_magazine_settings(event: str) -> bool:
+    return (
+        event.startswith("modify_weapon_list_")
+        or event.startswith("modify_weapon_tab_")
+        or event == "modify_weapon_select_default_magazine_size"
+    )
+
+
 def handle_event(event: str, window: sg.Window, values: dict) -> None:
     if event.startswith("modify_weapon"):
         group_mod_disabled_tabs = ["zeroing", "scope_offsets"]
         window["add_mod_group_weapon"].update(disabled=(get_selected_settings_tab(window) in group_mod_disabled_tabs))
         selected_weapon = get_selected_weapon(window, values)
-        update_magazine_settings(selected_weapon, window, values)
+        if should_update_magazine_settings(event):
+            update_magazine_settings(selected_weapon, window, values)
         update_zeroing(selected_weapon, window)
         update_scope_settings(selected_weapon, event, window, values)
         toggle_error_messages(selected_weapon, window)

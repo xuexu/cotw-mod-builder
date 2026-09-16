@@ -65,6 +65,29 @@ class PluginTextTests(unittest.TestCase):
     unrelated.update.assert_not_called()
     self.assertEqual(options.metadata, "selected_plugin")
 
+  def test_preset_event_resolves_its_plugin_without_prior_mod_selection(self) -> None:
+    percentage = Mock()
+    choices = Mock()
+    window = {
+      "decrease_wobble__reduce_stand_percent": percentage,
+      "decrease_wobble__stances": choices,
+    }
+    plugin = types.SimpleNamespace(PRESETS=[{
+      "name": "Recommended",
+      "options": [
+        {"name": "reduce_stand_percent", "value": 25},
+        {"name": "stances", "values": [0, 2]},
+      ],
+    }])
+    event = "preset__decrease_wobble"
+
+    with patch.object(gui.mods, "get_mod", return_value=plugin) as get_mod:
+      gui._apply_preset(event, {event: "Recommended"}, window)
+
+    get_mod.assert_called_once_with("decrease_wobble")
+    percentage.update.assert_called_once_with(25)
+    choices.update.assert_called_once_with(set_to_index=[0, 2])
+
   def test_plugin_names_are_published_only_after_layouts_are_attached(self) -> None:
     calls = []
     modification = Mock()

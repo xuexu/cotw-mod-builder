@@ -41,9 +41,27 @@ class IncreaseWeaponFovTests(unittest.TestCase):
     self.assertFalse(mapped["use_game_settings_fov"])
     self.assertFalse(mapped["disable_scope_acceleration"])
 
-  def test_game_settings_option_disables_manual_sight_distances(self) -> None:
-    use_game_fov = next(option for option in increase_weapon_fov.OPTIONS if option["key"] == "use_game_settings_fov")
-    self.assertEqual(use_game_fov["disables"], ["weapon_scope_distance", "weapon_iron_sight_distance"])
+  def test_game_fov_option_does_not_disable_sight_distance_controls(self) -> None:
+    option = next(
+      option
+      for option in increase_weapon_fov.OPTIONS
+      if option["key"] == "use_game_settings_fov"
+    )
+
+    self.assertNotIn("disables", option)
+
+  def test_formatted_settings_include_sight_distances_and_background_fov(self) -> None:
+    formatted = increase_weapon_fov.format_options({
+      "first-person_weapon_fov": 70,
+      "weapon_scope_distance": 42.5,
+      "weapon_iron_sight_distance": 38.0,
+      "use_game_settings_fov": True,
+      "disable_scope_acceleration": False,
+    })
+
+    self.assertIn("Scope: 42.5", formatted)
+    self.assertIn("Iron Sight: 38.0", formatted)
+    self.assertIn("Aiming Background: Game FOV", formatted)
 
 
 if __name__ == "__main__":
