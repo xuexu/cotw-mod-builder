@@ -48,7 +48,7 @@ Modify Weapon pulls names from `.wtunec` tuning files in `org/editor/entities/hp
 
 ## How to Build Mod Builder - Revived
 
-> **NOTE:** This was built and tested with Python 3.12.10
+> **NOTE:** This was built and tested with Python 3.12
 
 1. Install `hatch`: https://hatch.pypa.io/latest/install
 1. Set up the virtual environment:
